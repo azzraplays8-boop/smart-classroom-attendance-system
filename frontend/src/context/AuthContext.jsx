@@ -1,0 +1,222 @@
+/**
+ * AuthContext provides authentication state and actions to the entire app.
+ *
+ * Features:
+ * - Store user + token on successful login
+ * - Persist across page refreshes (localStorage for "Remember Me", sessionStorage otherwise)
+ * - Auto-restore auth on mount & validate token with backend
+ * - Provide login/logout actions
+ * - Track loading state while restoring
+ */
+import { createContext, useCallback, useEffect, useState } from "react";
+import authService from "../services/authService";
+
+export const AuthContext = createContext(null);
+
+/**
+ * Role-based permission definitions.
+ * Maps each role to the routes/pages they can access.
+ */
+export const PERMISSIONS = {
+  super_admin: {
+    label: "Super Admin",
+    routes: [
+      "dashboard",
+      "students",
+      "attendance",
+      "attendance-history",
+      "qr-management",
+      "reports",
+      "settings",
+      "user-management",
+    ],
+    canAccess: (route) => true, // Full access
+  },
+  administrator: {
+    label: "Administrator",
+    routes: [
+      "dashboard",
+      "students",
+      "attendance",
+      "attendance-history",
+      "qr-management",
+      "reports",
+      "settings",
+      "user-management",
+    ],
+    canAccess: (route) => !["super_admin"].includes(route),
+  },
+  teacher: {
+    label: "Teacher",
+    routes: ["dashboard", "attendance", "attendance-history"],
+    canAccess: (route) =>
+      ["dashboard", "attendance", "attendance-history"].includes(route),
+  },
+};
+
+/**
+ * Check if a user has permission to access a given route.
+ * @param {Object} user - User object with role property
+ * @param {string} route - Route name to check (e.g. "students", "settings")
+ * @returns {boolean}
+ */
+export function canAccessRoute(user, route) {
+  if (!user || !user.role) return false;
+  const rolePermissions = PERMISSIONS[user.role];
+  if (!rolePermissions) return false;
+  return rolePermissions.canAccess(route);
+}
+
+export function AuthProvider({ children }) {
+  const [user, setUser] = useState(null);
+  const [token, setToken] = useState(null);
+  const [loading, setLoading] = useState(true); // true while restoring auth
+
+  /**
+   * Restore authentication from storage on mount.
+   * Validates the token by calling GET /auth/me.
+   * If the token is invalid/expired, clears auth state.
+   */
+  useEffect(() => {
+    const storedToken =
+      localStorage.getItem("auth_token") || sessionStorage.getItem("auth_token");
+    const storedUser =
+      localStorage.getItem("auth_user") || sessionStorage.getItem("auth_user");
+
+    if (!storedToken || !storedUser) {
+      setLoading(false);
+      return;
+    }
+
+    // Temporarily set token so axios interceptor can use it
+    setToken(storedToken);
+
+    // Validate token by fetching current user from backend
+    authService
+      .getMe()
+      .then((data) => {
+        // Token is valid — restore user
+        setUser(data.user);
+      })
+      .catch(() => {
+        // Token is invalid or expired — clear everything
+        localStorage.removeItem("auth_token");
+        localStorage.removeItem("auth_user");
+        sessionStorage.removeItem("auth_token");
+        sessionStorage.removeItem("auth_user");
+        setToken(null);
+        setUser(null);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, []);
+
+  /**
+   * Login with email/username and password.
+   * Stores token in localStorage (if rememberMe) or sessionStorage.
+   *
+   * @param {string} email - Email or username
+   * @param {string} password - Plain text password
+   * @param {boolean} rememberMe - Persist across sessions
+   * @returns {Promise<Object>} User data
+   */
+  const login = useCallback(async (email, password, rememberMe = false) => {
+    const data = await authService.login(email, password);
+
+    const storage = rememberMe ? localStorage : sessionStorage;
+    storage.setItem("auth_token", data.token);
+    storage.setItem("auth_user", JSON.stringify(data.user));
+
+    setToken(data.token);
+    setUser(data.user);
+
+    return data.user;
+  }, []);
+
+  /**
+   * Register a new account.
+   * Auto-logs in after successful registration.
+   *
+   * @param {Object} data - { full_name, username, email, password, confirm_password }
+   * @returns {Promise<Object>} User data
+   */
+  const register = useCallback(async (data) => {
+    const result = await authService.register(data);
+
+    // Auto-login after registration
+    const storage = localStorage;
+    storage.setItem("auth_token", result.token);
+    storage.setItem("auth_user", JSON.stringify(result.user));
+
+    setToken(result.token);
+    setUser(result.user);
+
+    return result.user;
+  }, []);
+
+  /**
+   * Logout: clear stored auth and reset state.
+   */
+  const logout = useCallback(async () => {
+    try {
+      await authService.logout();
+    } catch {
+      // Silently ignore logout API errors
+    }
+
+    localStorage.removeItem("auth_token");
+    localStorage.removeItem("auth_user");
+    sessionStorage.removeItem("auth_token");
+    sessionStorage.removeItem("auth_user");
+
+    setToken(null);
+    setUser(null);
+  }, []);
+
+  /**
+   * Update the user in context (e.g. after profile edit).
+   * Also updates storage.
+   */
+  const updateUser = useCallback(
+    (updatedUser) => {
+      setUser(updatedUser);
+      const storage = localStorage.getItem("auth_token")
+        ? localStorage
+        : sessionStorage;
+      storage.setItem("auth_user", JSON.stringify(updatedUser));
+    },
+    []
+  );
+
+  /**
+   * Refresh the current user data from the backend.
+   */
+  const refreshUser = useCallback(async () => {
+    try {
+      const data = await authService.getMe();
+      setUser(data.user);
+      const storage = localStorage.getItem("auth_token")
+        ? localStorage
+        : sessionStorage;
+      storage.setItem("auth_user", JSON.stringify(data.user));
+      return data.user;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const value = {
+    user,
+    token,
+    loading,
+    isAuthenticated: !!token && !!user,
+    login,
+    logout,
+    register,
+    updateUser,
+    refreshUser,
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}

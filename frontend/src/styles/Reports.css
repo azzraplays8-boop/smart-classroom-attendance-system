@@ -1,0 +1,355 @@
+@import "./theme.css";
+
+.reports-page {
+  width: 100%;
+}
+
+
+.reports-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.reports-summary-card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 18px;
+  box-shadow: 0 8px 24px rgba(2, 6, 23, 0.05);
+}
+
+.reports-summary-card h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  color: #64748b;
+}
+
+.reports-summary-card p {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 800;
+  color: #111827;
+}
+
+.reports-filter-card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 32px;
+  margin-bottom: 20px;
+  box-shadow: 0 8px 24px rgba(2, 6, 23, 0.05);
+}
+
+.reports-filters-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(350px, 1fr));
+  column-gap: 32px;
+  row-gap: 24px;
+}
+
+.filter-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  width: 100%;
+}
+
+.reports-control {
+  width: 100%;
+  box-sizing: border-box;
+  height: 44px;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  padding: 0 12px;
+}
+
+.reports-actions {
+  display: flex;
+  gap: 24px;
+  margin-top: 24px;
+  align-items: stretch;
+}
+
+.reports-button {
+  border: none;
+  border-radius: 10px;
+  padding: 0 14px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.reports-button--primary {
+  background: #4f46e5;
+  color: #fff;
+}
+
+.reports-button--secondary {
+  background: #fff;
+  color: #334155;
+  border: 1px solid #e2e8f0;
+}
+
+
+.reports-table-wrap {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  overflow: auto;
+  max-height: 560px;
+}
+
+
+.reports-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.reports-table th,
+.reports-table td {
+  padding: 12px 14px;
+  text-align: left;
+  border-bottom: 1px solid #eef2ff;
+  white-space: nowrap;
+}
+
+.reports-table tbody tr:nth-child(even){
+  background: #f8fafc;
+}
+
+.reports-table tbody tr:hover{
+  background: #eef2ff;
+}
+
+
+.reports-table th {
+  background: #f8fafc;
+  color: #334155;
+  font-weight: 700;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+
+.reports-delete-button {
+  border: none;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #fee2e2;
+  color: #b91c1c;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* ── Export Bar ────────────────────────────── */
+.reports-export-bar {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.reports-export-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease, border-color 160ms ease;
+  min-height: 44px;
+}
+
+.reports-export-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.reports-export-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+}
+
+/* PDF — Red */
+.reports-export-btn--pdf {
+  background: #fef2f2;
+  color: #b91c1c;
+  border-color: #fecaca;
+}
+
+.reports-export-btn--pdf:hover:not(:disabled) {
+  background: #fee2e2;
+  border-color: #fca5a5;
+}
+
+.reports-export-btn--pdf svg {
+  color: #dc2626;
+}
+
+/* Excel — Green */
+.reports-export-btn--excel {
+  background: #f0fdf4;
+  color: #166534;
+  border-color: #bbf7d0;
+}
+
+.reports-export-btn--excel:hover:not(:disabled) {
+  background: #dcfce7;
+  border-color: #86efac;
+}
+
+.reports-export-btn--excel svg {
+  color: #16a34a;
+}
+
+/* Print — Blue */
+.reports-export-btn--print {
+  background: #eff6ff;
+  color: #1e40af;
+  border-color: #bfdbfe;
+}
+
+.reports-export-btn--print:hover:not(:disabled) {
+  background: #dbeafe;
+  border-color: #93c5fd;
+}
+
+.reports-export-btn--print svg {
+  color: #2563eb;
+}
+
+.reports-export-empty-note {
+  font-size: 10px;
+  font-weight: 400;
+  opacity: 0.7;
+}
+
+@media (max-width: 900px) {
+  .reports-filters-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 32px;
+    row-gap: 24px;
+  }
+}
+
+@media (max-width: 600px) {
+  .reports-filters-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .reports-actions {
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .reports-export-bar {
+    flex-direction: column;
+  }
+
+  .reports-export-btn {
+    justify-content: center;
+  }
+}
+
+/* ── Print Styles ─────────────────────────── */
+@media print {
+  /* Hide navigation, sidebar, header, and other UI chrome */
+  nav,
+  .sidebar,
+  .sidebar-nav,
+  .sidebar-menu,
+  .header,
+  .navbar,
+  .nav-bar,
+  .app-header,
+  .app-nav,
+  .app-sidebar,
+  .main-nav,
+  .top-nav,
+  .side-panel,
+  .navigation-panel,
+  [class*="sidebar"],
+  [class*="nav-"],
+  [class*="navbar"],
+  [class*="header"],
+  [class*="navigation"],
+  [role="navigation"],
+  header,
+  footer,
+  .footer,
+  .settings-card,
+  .settings-toast,
+  .reports-button--primary,
+  .reports-button--secondary,
+  .reports-export-btn,
+  .reports-export-bar,
+  .reports-delete-button,
+  .reports-table-wrap td:last-child {
+    display: none !important;
+  }
+
+  /* Show only report content */
+  .reports-page {
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .reports-summary-grid {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .reports-summary-card {
+    box-shadow: none !important;
+    border: 1px solid #ccc !important;
+  }
+
+  .reports-filter-card {
+    box-shadow: none !important;
+    border: 1px solid #ccc !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .reports-table-wrap {
+    max-height: none !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+    border: 1px solid #ccc !important;
+    break-inside: auto;
+  }
+
+  .reports-table th,
+  .reports-table td {
+    white-space: normal !important;
+  }
+
+  .reports-table tbody tr:nth-child(even) {
+    background: #f8fafc !important;
+  }
+
+  .reports-table tbody tr:hover {
+    background: inherit !important;
+  }
+
+  body {
+    background: #fff !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
+

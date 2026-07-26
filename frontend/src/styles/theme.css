@@ -1,0 +1,173 @@
+:root,
+[data-theme="light"] {
+  --bg: #f8fafc;
+  --panel: #ffffff;
+  --panel-alt: #f8fafc;
+  --text: #0f172a;
+  --muted: #475569;
+  --muted-2:#64748b;
+  --border: #e5e7eb;
+  --border-2:#eef2ff;
+  --primary:#2563eb;
+  --primary-2:#4f46e5;
+  --success:#16a34a;
+  --danger:#dc2626;
+  --warning:#f59e0b;
+
+  --radius-sm:10px;
+  --radius-md:12px;
+  --radius-lg:16px;
+  --shadow-sm:0 8px 24px rgba(2, 6, 23, 0.05);
+  --shadow-md:0 16px 40px rgba(2, 6, 23, 0.12);
+  --shadow-focus:0 0 0 4px rgba(79, 70, 229, 0.12);
+
+  --space-1:6px;
+  --space-2:10px;
+  --space-3:14px;
+  --space-4:18px;
+  --space-5:22px;
+  --space-6:28px;
+  --space-7:32px;
+
+  --control-h:44px;
+  --control-h-lg:46px;
+
+  --trans-1:160ms ease;
+}
+
+[data-theme="dark"] {
+  --bg: #0f172a;
+  --panel: #1e293b;
+  --panel-alt: #1a2332;
+  --text: #e2e8f0;
+  --muted: #94a3b8;
+  --muted-2:#64748b;
+  --border: #334155;
+  --border-2:#1e3a5f;
+  --primary:#3b82f6;
+  --primary-2:#818cf8;
+  --success:#22c55e;
+  --danger:#ef4444;
+  --warning:#fbbf24;
+
+  --shadow-sm:0 8px 24px rgba(0, 0, 0, 0.3);
+  --shadow-md:0 16px 40px rgba(0, 0, 0, 0.4);
+  --shadow-focus:0 0 0 4px rgba(129, 140, 248, 0.2);
+}
+
+*{font-family:inherit}
+
+/* Shared card look */
+.ui-card{
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Shared button look */
+.ui-btn{
+  min-height: var(--control-h);
+  border-radius: var(--radius-sm);
+  padding: 0 14px;
+  font-weight: 800;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: transform var(--trans-1), box-shadow var(--trans-1), background var(--trans-1), border-color var(--trans-1), color var(--trans-1), opacity var(--trans-1);
+}
+
+.ui-btn:disabled{opacity:.6;cursor:not-allowed;transform:none}
+
+.ui-btn-primary{background: var(--primary-2);color:#fff;border-color: var(--primary-2)}
+.ui-btn-primary:hover{background:#4338ca;border-color:#4338ca;box-shadow: 0 12px 30px rgba(79,70,229,.22);transform: translateY(-1px)}
+
+.ui-btn-secondary{background:#fff;color:#334155;border-color:#e2e8f0}
+.ui-btn-secondary:hover{background:#f8fafc;border-color:#cbd5e1;transform: translateY(-1px)}
+
+.ui-btn-danger{background: var(--danger);color:#fff;border-color: var(--danger)}
+.ui-btn-danger:hover{background:#b91c1c;border-color:#b91c1c;transform: translateY(-1px)}
+
+.ui-btn-success{background: var(--success);color:#fff;border-color: var(--success)}
+.ui-btn-success:hover{background:#15803d;border-color:#15803d;transform: translateY(-1px)}
+
+/* Shared inputs */
+.ui-input,
+.ui-select{
+  width: 100%;
+  box-sizing: border-box;
+  height: var(--control-h-lg);
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  padding: 0 12px;
+  outline: none;
+  transition: box-shadow var(--trans-1), border-color var(--trans-1);
+  background: #fff;
+  color: var(--text);
+  font-size: 14px;
+}
+
+.ui-input:focus,
+.ui-select:focus{border-color:#a5b4fc;box-shadow: var(--shadow-focus)}
+
+/* Shared table UX */
+.ui-table-wrap{
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.ui-table{
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.ui-table thead th{
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #f8fafc;
+  color: #334155;
+  font-weight: 800;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border-2);
+}
+
+.ui-table tbody td{
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border-2);
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.ui-table tbody tr:nth-child(even){background: #f8fafc}
+.ui-table tbody tr:hover{background: #eef2ff}
+
+/* Shared modal overlay */
+.ui-modal-overlay{
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(15,23,42,.45);
+  z-index: 2000;
+}
+
+.ui-modal-card{
+  width: min(560px, 100%);
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 20px 60px rgba(2,6,23,.25);
+  animation: uiModalIn 160ms ease-out;
+}
+
+@keyframes uiModalIn{from{transform: translateY(8px) scale(.98);opacity:.7}to{transform: translateY(0) scale(1);opacity:1}}
+
+/* Responsive helpers */
+@media (max-width: 720px){
+  .ui-modal-overlay{padding: 12px}
+}
+

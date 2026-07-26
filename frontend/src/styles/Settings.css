@@ -1,0 +1,309 @@
+/* Settings page styles */
+
+.settings-page {
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.settings-page h2 {
+  margin: 0 0 24px;
+  font-size: 24px;
+  color: var(--text);
+  font-weight: 800;
+}
+
+.settings-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.settings-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  transition: box-shadow 160ms ease;
+}
+
+.settings-card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.settings-card-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 20px 24px 0;
+}
+
+.settings-card-header .card-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.settings-card-header .card-icon.blue {
+  background: #eef2ff;
+  color: var(--primary-2);
+}
+
+.settings-card-header .card-icon.green {
+  background: #f0fdf4;
+  color: var(--success);
+}
+
+.settings-card-header .card-icon.amber {
+  background: #fffbeb;
+  color: var(--warning);
+}
+
+.settings-card-header .card-icon.purple {
+  background: #f5f3ff;
+  color: #7c3aed;
+}
+
+.settings-card-header .card-icon.slate {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.settings-card-header h3 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.settings-card-body {
+  padding: 20px 24px 24px;
+}
+
+.settings-field {
+  margin-bottom: 16px;
+}
+
+.settings-field:last-child {
+  margin-bottom: 0;
+}
+
+.settings-field label {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.settings-field .ui-input,
+.settings-field .ui-select {
+  width: 100%;
+}
+
+.settings-field .ui-input[type="time"] {
+  font-family: inherit;
+}
+
+.settings-field .ui-input[type="color"] {
+  height: 46px;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+.settings-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 600px) {
+  .settings-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.settings-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+}
+
+.settings-checkbox input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--primary-2);
+  cursor: pointer;
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.settings-checkbox label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+  margin: 0;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.settings-card-actions {
+  padding: 0 24px 20px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.settings-card-actions .ui-btn {
+  min-width: 120px;
+}
+
+/* Logo upload area */
+.settings-logo-upload {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.settings-logo-preview {
+  width: 80px;
+  height: 80px;
+  border-radius: 12px;
+  border: 2px dashed var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: var(--panel-alt);
+  flex-shrink: 0;
+}
+
+.settings-logo-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.settings-logo-preview .logo-placeholder {
+  font-size: 28px;
+  color: var(--muted-2);
+}
+
+.settings-logo-upload .logo-upload-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease;
+}
+
+.settings-logo-upload .logo-upload-btn:hover {
+  border-color: var(--primary-2);
+  background: #f8fafc;
+}
+
+.settings-logo-upload input[type="file"] {
+  display: none;
+}
+
+/* Admin info display */
+.admin-info-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px 20px;
+  align-items: baseline;
+}
+
+.admin-info-grid .admin-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted-2);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.admin-info-grid .admin-value {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* Theme radio group */
+.theme-options {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.theme-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease;
+  background: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.theme-option:hover {
+  border-color: var(--primary-2);
+  background: #f8fafc;
+}
+
+.theme-option.selected {
+  border-color: var(--primary-2);
+  background: #eef2ff;
+  color: var(--primary-2);
+}
+
+.theme-option input[type="radio"] {
+  display: none;
+}
+
+/* Language options */
+.language-options {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* Toast override for settings page */
+.settings-toast {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 1200;
+  pointer-events: none;
+  animation: settingsToastIn 200ms ease-out;
+}
+
+@keyframes settingsToastIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

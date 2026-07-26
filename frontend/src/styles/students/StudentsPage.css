@@ -1,0 +1,17 @@
+.students-page {
+  width: 100%;
+}
+
+.students-card {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 18px;
+}
+
+.students-title {
+  margin: 0 0 14px;
+  color: #0f172a;
+  font-size: 20px;
+}
+
