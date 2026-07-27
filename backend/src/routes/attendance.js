@@ -101,12 +101,12 @@ export default function attendanceRouter({ pool }) {
       const params = date ? [date] : [];
 
       const [rows] = await pool.query(
-        `SELECT a.id, a.student_id AS studentId, a.attendance_date AS attendanceDate,
+        `SELECT a.id, a.participant_id AS participantId, a.attendance_date AS attendanceDate,
                 a.time_in AS timeIn, a.time_out AS timeOut, a.status, a.remarks, a.created_at AS createdAt,
-                s.student_number AS studentNumber, s.first_name AS firstName, s.last_name AS lastName,
-                s.photo, s.course, s.year, s.section
+                p.participant_identifier AS participantIdentifier, p.first_name AS firstName, p.last_name AS lastName,
+                p.photo, p.department, p.level AS year, p.group_name AS section
          FROM attendance a
-         LEFT JOIN students s ON s.id = a.student_id
+         LEFT JOIN participants p ON p.id = a.participant_id
          WHERE a.attendance_date ${dateSql}
          ORDER BY a.time_in DESC, a.created_at DESC`,
         params
@@ -133,9 +133,9 @@ export default function attendanceRouter({ pool }) {
 
       if (searchTerm) {
         whereClauses.push(`(
-          s.student_number LIKE ? OR
-          CONCAT(s.first_name, ' ', s.last_name) LIKE ? OR
-          CONCAT(s.last_name, ' ', s.first_name) LIKE ?
+          p.participant_identifier LIKE ? OR
+          CONCAT(p.first_name, ' ', p.last_name) LIKE ? OR
+          CONCAT(p.last_name, ' ', p.first_name) LIKE ?
         )`);
         const likeTerm = `%${searchTerm}%`;
         params.push(likeTerm, likeTerm, likeTerm);
@@ -147,7 +147,7 @@ export default function attendanceRouter({ pool }) {
       }
 
       if (courseFilter) {
-        whereClauses.push(`s.course = ?`);
+        whereClauses.push(`p.department = ?`);
         params.push(courseFilter);
       }
 
@@ -161,17 +161,17 @@ export default function attendanceRouter({ pool }) {
       const [countRows] = await pool.query(
         `SELECT COUNT(*) AS total
          FROM attendance a
-         LEFT JOIN students s ON s.id = a.student_id
+         LEFT JOIN participants p ON p.id = a.participant_id
          ${whereSql}`,
         params
       );
 
 const [rows] = await pool.query(
         `SELECT a.id, a.attendance_date AS attendanceDate, a.time_in AS timeIn, a.status,
-                s.student_number AS studentNumber, s.first_name AS firstName, s.last_name AS lastName,
-                s.photo, s.course, s.year, s.section
+                p.participant_identifier AS participantIdentifier, p.first_name AS firstName, p.last_name AS lastName,
+                p.photo, p.department, p.level AS year, p.group_name AS section
          FROM attendance a
-         LEFT JOIN students s ON s.id = a.student_id
+         LEFT JOIN participants p ON p.id = a.participant_id
          ${whereSql}
          ORDER BY a.attendance_date DESC, a.time_in DESC, a.created_at DESC
          LIMIT ? OFFSET ?`,
@@ -221,10 +221,10 @@ const [rows] = await pool.query(
 
       const [rows] = await pool.query(
         `SELECT a.id, a.attendance_date AS attendanceDate, a.time_in AS timeIn, a.status,
-                s.student_number AS studentNumber, s.first_name AS firstName, s.last_name AS lastName,
-                s.course, s.year, s.section
+                p.participant_identifier AS participantIdentifier, p.first_name AS firstName, p.last_name AS lastName,
+                p.department, p.level AS year, p.group_name AS section
          FROM attendance a
-         LEFT JOIN students s ON s.id = a.student_id
+         LEFT JOIN participants p ON p.id = a.participant_id
          WHERE a.id = ? LIMIT 1`,
         [id]
       );
@@ -257,7 +257,7 @@ const [rows] = await pool.query(
 
   router.get("/dashboard", async (req, res) => {
     try {
-      const [{ total }] = await pool.query(`SELECT COUNT(*) AS total FROM students`);
+      const [{ total }] = await pool.query(`SELECT COUNT(*) AS total FROM participants`);
 
       const [presentRows] = await pool.query(
         `SELECT COUNT(*) AS total
@@ -272,13 +272,13 @@ const [rows] = await pool.query(
         ['Late']
       );
 
-      const totalStudents = Number(total ?? 0) || 0;
+      const totalParticipants = Number(total ?? 0) || 0;
       const presentToday = Number(presentRows?.[0]?.total ?? 0) || 0;
       const lateToday = Number(lateRows?.[0]?.total ?? 0) || 0;
-      const absentToday = Math.max(0, totalStudents - presentToday - lateToday);
+      const absentToday = Math.max(0, totalParticipants - presentToday - lateToday);
 
       res.json({
-        totalStudents,
+        totalParticipants,
         presentToday,
         lateToday,
         absentToday,
@@ -291,13 +291,13 @@ const [rows] = await pool.query(
 
   router.post("/", async (req, res) => {
     try {
-      const { studentNumber, qrUuid, status, remarks } = req.body || {};
-      let student = null;
-      let resolvedStudentNumber = null;
+      const { participantIdentifier, qrUuid, status, remarks } = req.body || {};
+      let participant = null;
+      let resolvedIdentifier = null;
 
-      // Support both QR UUID scanning and studentNumber scanning
+      // Support both QR UUID scanning and participantIdentifier scanning
       if (qrUuid && String(qrUuid).trim()) {
-        // Scan by QR UUID — validate UUID, student exists, QR is active
+        // Scan by QR UUID — validate UUID, participant exists, QR is active
         const normalizedUuid = String(qrUuid).trim();
 
         const [rows] = await pool.query(
@@ -305,36 +305,36 @@ const [rows] = await pool.query(
             id,
             qr_uuid AS qrUuid,
             qr_status AS qrStatus,
-            student_number AS studentNumber,
+            participant_identifier AS participantIdentifier,
             first_name AS firstName,
             last_name AS lastName,
             middle_name AS middleName,
-            course,
-            year,
-            section,
+            department,
+            level AS year,
+            group_name AS section,
             photo
-          FROM students
+          FROM participants
           WHERE qr_uuid = ? LIMIT 1`,
           [normalizedUuid]
         );
 
-        student = rows?.[0] ?? null;
+        participant = rows?.[0] ?? null;
 
-        if (!student) {
-          return res.status(404).json({ message: "Invalid QR code: Student not found." });
+        if (!participant) {
+          return res.status(404).json({ message: "Invalid QR code: Participant not found." });
         }
 
         // Validate QR is active and not deleted
-        if (!student.qrUuid || student.qrStatus === 'missing') {
+        if (!participant.qrUuid || participant.qrStatus === 'missing') {
           return res.status(400).json({ message: "QR code has been deleted or is inactive." });
         }
 
-        resolvedStudentNumber = student.studentNumber;
+        resolvedIdentifier = participant.participantIdentifier;
 
-        // Prevent duplicate attendance using the student ID
+        // Prevent duplicate attendance using the participant ID
         const [existingRows] = await pool.query(
-          `SELECT * FROM attendance WHERE student_id = ? AND attendance_date = CURDATE() LIMIT 1`,
-          [student.id]
+          `SELECT * FROM attendance WHERE participant_id = ? AND attendance_date = CURDATE() LIMIT 1`,
+          [participant.id]
         );
 
         const existing = existingRows?.[0] ?? null;
@@ -342,39 +342,39 @@ const [rows] = await pool.query(
           return res.status(409).json({ message: "Attendance has already been recorded today." });
         }
       } else {
-        // Fallback to legacy studentNumber scanning
-        if (!studentNumber || !String(studentNumber).trim()) {
-          return res.status(400).json({ message: "studentNumber is required" });
+        // Fallback to legacy participantIdentifier scanning
+        if (!participantIdentifier || !String(participantIdentifier).trim()) {
+          return res.status(400).json({ message: "participantIdentifier is required" });
         }
 
-        const normalizedStudentNumber = String(studentNumber).trim();
+        const normalizedIdentifier = String(participantIdentifier).trim();
 
-        const [studentRows] = await pool.query(
+        const [participantRows] = await pool.query(
           `SELECT
             id,
-            student_number AS studentNumber,
+            participant_identifier AS participantIdentifier,
             first_name AS firstName,
             last_name AS lastName,
             middle_name AS middleName,
-            course,
-            year,
-            section,
+            department,
+            level AS year,
+            group_name AS section,
             photo
-          FROM students
-          WHERE student_number = ? LIMIT 1`,
-          [normalizedStudentNumber]
+          FROM participants
+          WHERE participant_identifier = ? LIMIT 1`,
+          [normalizedIdentifier]
         );
 
-        student = studentRows?.[0] ?? null;
-        if (!student) {
-          return res.status(404).json({ message: "Student number was not found." });
+        participant = participantRows?.[0] ?? null;
+        if (!participant) {
+          return res.status(404).json({ message: "Participant identifier was not found." });
         }
 
-        resolvedStudentNumber = normalizedStudentNumber;
+        resolvedIdentifier = normalizedIdentifier;
 
         const [existingRows] = await pool.query(
-          `SELECT * FROM attendance WHERE student_id = ? AND attendance_date = CURDATE() LIMIT 1`,
-          [student.id]
+          `SELECT * FROM attendance WHERE participant_id = ? AND attendance_date = CURDATE() LIMIT 1`,
+          [participant.id]
         );
 
         const existing = existingRows?.[0] ?? null;
@@ -400,17 +400,17 @@ const [rows] = await pool.query(
         computedStatus = computeAttendanceStatus(settings);
       }
 
-      const insertSql = `INSERT INTO attendance (student_id, attendance_date, time_in, status, remarks, created_at)
+      const insertSql = `INSERT INTO attendance (participant_id, attendance_date, time_in, status, remarks, created_at)
                          VALUES (?, CURDATE(), NOW(), ?, ?, NOW())`;
-      const insertParams = [student.id, computedStatus, remarks || null];
+      const insertParams = [participant.id, computedStatus, remarks || null];
 
       const [result] = await pool.query(insertSql, insertParams);
       const [newRow] = await pool.query(
-        `SELECT a.id, a.student_id AS studentId, a.attendance_date AS attendanceDate,
+        `SELECT a.id, a.participant_id AS participantId, a.attendance_date AS attendanceDate,
                 a.time_in AS timeIn, a.time_out AS timeOut, a.status, a.remarks, a.created_at AS createdAt,
-                s.student_number AS studentNumber, s.first_name AS firstName, s.last_name AS lastName, s.course
+                p.participant_identifier AS participantIdentifier, p.first_name AS firstName, p.last_name AS lastName, p.department
          FROM attendance a
-         LEFT JOIN students s ON s.id = a.student_id
+         LEFT JOIN participants p ON p.id = a.participant_id
          WHERE a.id = ? LIMIT 1`,
         [result.insertId]
       );
@@ -418,16 +418,16 @@ const [rows] = await pool.query(
       return res.status(201).json({
         message: "Attendance recorded",
         attendance: newRow?.[0] ?? null,
-        student: student
+        participant: participant
           ? {
-              studentNumber: student.studentNumber ?? null,
-              firstName: student.firstName ?? null,
-              lastName: student.lastName ?? null,
-              middleName: student.middleName ?? null,
-              course: student.course ?? null,
-              year: student.year ?? null,
-              section: student.section ?? null,
-              photo: student.photo ?? null,
+              participantIdentifier: participant.participantIdentifier ?? null,
+              firstName: participant.firstName ?? null,
+              lastName: participant.lastName ?? null,
+              middleName: participant.middleName ?? null,
+              department: participant.department ?? null,
+              year: participant.year ?? null,
+              section: participant.section ?? null,
+              photo: participant.photo ?? null,
             }
           : null,
       });

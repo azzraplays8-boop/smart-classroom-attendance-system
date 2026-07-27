@@ -1,5 +1,5 @@
--- Authentication Schema for Smart Classroom Attendance System
--- Version 1.0
+-- Authentication Schema for Universal Attendance Management Platform
+-- Version 2.0
 
 CREATE TABLE IF NOT EXISTS users (
   id INT AUTO_INCREMENT PRIMARY KEY,

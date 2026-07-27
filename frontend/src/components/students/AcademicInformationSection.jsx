@@ -28,7 +28,7 @@ function CourseSelect({ id, label, value, onChange, required, error, showError }
         aria-invalid={Boolean(error)}
         aria-describedby={showError && error ? `${id}-error` : undefined}
       >
-        <option value="">Select course or strand</option>
+        <option value="">Select department / group</option>
         {options.map((opt) => (
           <option key={opt} value={opt}>
             {opt}
@@ -68,13 +68,13 @@ export default function AcademicInformationSection({
     }}
 >
         <header className="sis-card-header">
-        <div className="sis-card-title">Academic Information</div>
+        <div className="sis-card-title">Department &amp; Grouping</div>
       </header>
 
       <div className="sis-grid sis-grid-3">
         <CourseSelect
           id="course"
-          label="Course / Strand"
+          label="Department / Group"
           required
           value={values.course}
           onChange={(v) =>
@@ -89,7 +89,7 @@ export default function AcademicInformationSection({
 
         <div className="sis-field">
           <label className="sis-label" htmlFor="yearLevel">
-            Year Level <span className="sis-req">*</span>
+            Category <span className="sis-req">*</span>
           </label>
 
           <select
@@ -103,7 +103,7 @@ export default function AcademicInformationSection({
               visibleError("yearLevel") && errors.yearLevel ? "yearLevel-error" : undefined
             }
           >
-            <option value="">Select year level</option>
+            <option value="">Select category</option>
             <option value="1st">1st Year</option>
             <option value="2nd">2nd Year</option>
             <option value="3rd">3rd Year</option>
@@ -119,7 +119,7 @@ export default function AcademicInformationSection({
 
         <div className="sis-field">
           <label className="sis-label" htmlFor="section">
-            Section <span className="sis-req">*</span>
+            Team <span className="sis-req">*</span>
           </label>
 
           <select
@@ -135,7 +135,7 @@ export default function AcademicInformationSection({
             }
           >
             <option value="">
-              {values.yearLevel ? "Select section" : "Select year level first"}
+              {values.yearLevel ? "Select team" : "Select category first"}
             </option>
             {availableSectionOptions.map((sec) => (
               <option key={sec} value={sec}>

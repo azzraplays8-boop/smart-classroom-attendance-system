@@ -1,7 +1,7 @@
 -- Create attendance table
 CREATE TABLE IF NOT EXISTS attendance (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  student_id INT NOT NULL,
+  participant_id INT NOT NULL,
   attendance_date DATE NOT NULL,
   time_in DATETIME NULL,
   time_out DATETIME NULL,
@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS attendance (
   remarks TEXT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_attendance_student_date (student_id, attendance_date)
+  UNIQUE KEY uq_attendance_participant_date (participant_id, attendance_date)
 );
 
 -- Index for lookups by attendance_date

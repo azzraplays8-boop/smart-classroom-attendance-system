@@ -5,6 +5,8 @@ import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 
 import ConfirmDialog from "../components/students/ConfirmDialog";
+import { useOrgLabels } from "../config/labels";
+import { APP_NAME, APP_TAGLINE } from "../constants";
 import "../styles/attendance/AttendanceHistory.css";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
@@ -154,16 +156,16 @@ function AttendanceHistory() {
       const doc = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
-      const columns = ["#", "Date", "Student Number", "Student Name", "Course / Strand", "Year Level", "Section", "Time In", "Status"];
+      const columns = ["#", "Date", "Participant Number", "Participant Name", "Department", "Level", "Group", "Time In", "Status"];
       const rows = buildExportRows(exportRows);
 
       doc.setFillColor(79, 70, 229);
       doc.rect(0, 0, pageWidth, 72, "F");
       doc.setTextColor(255, 255, 255);
       doc.setFontSize(18);
-      doc.text("School Name", 40, 32);
+      doc.text("Organization Name", 40, 32);
       doc.setFontSize(11);
-      doc.text("Smart Classroom Attendance System", 40, 52);
+      doc.text("Attendance Management Platform", 40, 52);
 
       doc.setTextColor(15, 23, 42);
       doc.setFontSize(16);
@@ -206,7 +208,7 @@ function AttendanceHistory() {
       setError("");
       setExportMessage("");
 
-      const columns = ["#", "Date", "Student Number", "Student Name", "Course / Strand", "Year Level", "Section", "Time In", "Status"];
+      const columns = ["#", "Date", "Participant Number", "Participant Name", "Department", "Level", "Group", "Time In", "Status"];
       const rows = buildExportRows(exportRows);
       const worksheet = XLSX.utils.aoa_to_sheet([columns, ...rows]);
       const workbook = XLSX.utils.book_new();
@@ -349,7 +351,7 @@ function AttendanceHistory() {
     <div className="page students-page">
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap", marginBottom: 16 }}>
         <div>
-          <h2 style={{ margin: 0 }}>Attendance History</h2>
+<h3 style={{ margin: 0 }}>Attendance Records</h3>
           <p style={{ margin: "4px 0 0", color: "#64748b" }}>View and filter all attendance records from the database.</p>
         </div>
         <Link to="/attendance" style={{ color: "#4f46e5", fontWeight: 700, textDecoration: "none" }}>
@@ -372,7 +374,7 @@ function AttendanceHistory() {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Student Number or Name"
+placeholder="Participant ID or Name"
               className="attendance-history-control"
             />
           </div>
@@ -454,8 +456,8 @@ function AttendanceHistory() {
 
       <div className="printable-report" aria-hidden="true">
         <div className="printable-report__header">
-          <h3>School Name</h3>
-          <p>Smart Classroom Attendance System</p>
+          <h3>Organization Name</h3>
+<p>Attendance Management Platform</p>
           <h4>Attendance Report</h4>
           <span>Export Date: {new Date().toLocaleString()}</span>
         </div>
@@ -464,8 +466,8 @@ function AttendanceHistory() {
             <tr>
               <th>#</th>
               <th>Date</th>
-              <th>Student Number</th>
-              <th>Student Name</th>
+<th>Participant Number</th>
+                <th>Participant Name</th>
               <th>Course / Strand</th>
               <th>Year Level</th>
               <th>Section</th>
@@ -504,8 +506,8 @@ function AttendanceHistory() {
               <tr style={{ background: "#f8fafc" }}>
                 <th style={{ padding: "12px 14px", textAlign: "left", fontWeight: 700, color: "#334155" }}>#</th>
                 <th style={{ padding: "12px 14px", textAlign: "left", fontWeight: 700, color: "#334155" }}>Date</th>
-                <th style={{ padding: "12px 14px", textAlign: "left", fontWeight: 700, color: "#334155" }}>Student Number</th>
-                <th style={{ padding: "12px 14px", textAlign: "left", fontWeight: 700, color: "#334155" }}>Student Name</th>
+<th style={{ padding: "12px 14px", textAlign: "left", fontWeight: 700, color: "#334155" }}>Participant Number</th>
+                <th style={{ padding: "12px 14px", textAlign: "left", fontWeight: 700, color: "#334155" }}>Participant Name</th>
                 <th style={{ padding: "12px 14px", textAlign: "left", fontWeight: 700, color: "#334155" }}>Course / Strand</th>
                 <th style={{ padding: "12px 14px", textAlign: "left", fontWeight: 700, color: "#334155" }}>Year Level</th>
                 <th style={{ padding: "12px 14px", textAlign: "left", fontWeight: 700, color: "#334155" }}>Section</th>

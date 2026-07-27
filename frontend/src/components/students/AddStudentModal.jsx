@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import AcademicInformationSection from "./AcademicInformationSection";
 import StudentPhoto from "./StudentPhoto";
+import { useOrgLabels } from "../../config/labels";
 import "../../styles/students/AddStudentModal.css";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
@@ -64,7 +65,7 @@ function validateForm({ values, existingStudentNumbers, ignoreStudentNumber }) {
     existingStudentNumbers.has(sn.toLowerCase()) &&
     (!ignoreStudentNumber || normalizeStudentNumber(ignoreStudentNumber).toLowerCase() !== sn.toLowerCase())
   ) {
-    errors.studentNumber = "Student Number must be unique.";
+    errors.studentNumber = `${labels.primaryIdLabel} must be unique.`;
   }
 
 
@@ -95,6 +96,7 @@ function AddStudentModal({
   initialStudent = null,
   isSubmitting = false,
 }) {
+  const labels = useOrgLabels();
   const firstFocusableRef = useRef(null);
   const overlayRef = useRef(null);
 
@@ -386,7 +388,7 @@ function AddStudentModal({
       className="add-student-overlay"
       role="dialog"
       aria-modal="true"
-          aria-label={editMode ? "Edit Student" : "Add Student"}
+      aria-label={editMode ? "Edit Participant" : "Add Participant"}
       id="add-student-modal-root"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose?.();
@@ -401,9 +403,9 @@ function AddStudentModal({
       <div className="sis-modal" onMouseDown={(e) => e.stopPropagation()}>
         <div className="sis-modal-header" role="banner">
           <div className="sis-header-left">
-            <h2 className="sis-title">{editMode ? "Edit Student" : "Add Student"}</h2>
+            <h2 className="sis-title">{editMode ? "Edit Participant" : "Add Participant"}</h2>
             <p className="sis-subtitle">
-              Create an official student record with verified enrollment details.
+              Register a participant with complete profile and enrollment details.
             </p>
           </div>
 
@@ -432,15 +434,15 @@ function AddStudentModal({
           </button>
         </div>
 
-        <div className="sis-modal-body" aria-label="Add student form">
+        <div className="sis-modal-body" aria-label="Add participant form">
           <div className="sis-body-scroll">
             <div className="sis-form">
               <section
                 className="sis-card"
-                aria-label="PERSONAL INFORMATION"
+                aria-label="PARTICIPANT INFORMATION"
               >
                 <header className="sis-card-header">
-                  <div className="sis-card-title">Personal Information</div>
+                  <div className="sis-card-title">Participant Information</div>
                   <div className="sis-card-sub">
                   </div>
                 </header>
@@ -453,7 +455,7 @@ function AddStudentModal({
                         photoPath={photoPreview || initialStudent?.photo}
                         studentName={`${values.firstName} ${values.lastName}`}
                         size={80}
-                        alt="Student photo preview"
+                      alt="Participant photo preview"
                       />
                     </div>
                   ) : (
@@ -500,7 +502,7 @@ function AddStudentModal({
                 <div className="sis-grid sis-grid-3">
                   <div className="sis-field">
                     <label className="sis-label" htmlFor="studentNumber">
-                      Student Number <span className="sis-req">*</span>
+                      Participant ID <span className="sis-req">*</span>
                     </label>
                     <input
                       ref={firstFocusableRef}

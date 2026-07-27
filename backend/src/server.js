@@ -7,7 +7,7 @@ import { fileURLToPath } from "url";
 import multer from "multer";
 
 import { createAppPool, ensureDatabaseExists, getEnvDb } from "./db.js";
-import studentsRouter from "./routes/students.js";
+import participantsRouter from "./routes/participants.js";
 import attendanceRouter from "./routes/attendance.js";
 import settingsRouter from "./routes/settings.js";
 import qrRouter from "./routes/qr.js";
@@ -41,19 +41,19 @@ const uploadsDir = path.resolve(__dirname, "../uploads");
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
-const studentsUploadsDir = path.join(uploadsDir, "students");
-if (!fs.existsSync(studentsUploadsDir)) {
-  fs.mkdirSync(studentsUploadsDir, { recursive: true });
+const participantsUploadsDir = path.join(uploadsDir, "participants");
+if (!fs.existsSync(participantsUploadsDir)) {
+  fs.mkdirSync(participantsUploadsDir, { recursive: true });
 }
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, studentsUploadsDir);
+    cb(null, participantsUploadsDir);
   },
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
     const ext = path.extname(file.originalname).toLowerCase() || ".jpg";
-    cb(null, `student-${uniqueSuffix}${ext}`);
+    cb(null, `participant-${uniqueSuffix}${ext}`);
   },
 });
 
@@ -129,7 +129,7 @@ async function start() {
 
   // Routes
   app.use("/auth", authRouter({ pool }));
-  app.use("/students", studentsRouter({ pool, upload }));
+  app.use("/participants", participantsRouter({ pool, upload }));
   app.use("/attendance", attendanceRouter({ pool }));
   app.use("/settings", settingsRouter({ pool }));
   app.use("/qr", qrRouter({ pool }));

@@ -1,4 +1,4 @@
--- QR Code Management fields for students table
+-- QR Code Management fields for participants table
 -- MySQL 8.0 compatible - uses Node.js migration runner to handle column checks
 
 -- This file is processed by the Node.js migration runner in run-migration.js

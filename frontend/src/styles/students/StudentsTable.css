@@ -4,21 +4,23 @@
   overflow-x: auto;
   overflow-y: hidden;
   width: 100%;
+  border: 1px solid #eef2f6;
+  border-radius: 14px;
+  background: #ffffff;
 }
 
-
 .students-table {
-  width: max-content;
+  width: 100%;
   border-collapse: collapse;
   min-width: 1450px;
 }
 
 .students-table th,
 .students-table td {
-  padding: 12px 14px;
-  border-bottom: 1px solid #eef2ff;
+  padding: 14px 16px;
+  border-bottom: 1px solid #f1f5f9;
   text-align: left;
-  font-size: 14px;
+  font-size: 13.5px;
   color: #0f172a;
   white-space: nowrap;
 }
@@ -30,17 +32,22 @@
   position: sticky;
   top: 0;
   z-index: 3;
+  font-size: 12.5px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
 }
 
-.students-table tbody tr:nth-child(even){
-  background: #f8fafc;
+.students-table tbody tr:nth-child(even) {
+  background: #fafbfc;
 }
 
-.students-table tbody tr:hover{
+.students-table tbody tr:hover {
   background: #eef2ff;
 }
 
-
+.students-table tbody tr:last-child td {
+  border-bottom: none;
+}
 
 .status {
   display: inline-block;
@@ -48,8 +55,8 @@
   border-radius: 999px;
   font-weight: 600;
   font-size: 12px;
-  background: #e5e7eb;
-  color: #374151;
+  background: #f1f5f9;
+  color: #475569;
 }
 
 .status.ok {
@@ -59,23 +66,29 @@
 
 .students-action-cell {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
 }
 
 .students-action-btn {
-  background: #fff;
+  background: #ffffff;
   color: #4f46e5;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  padding: 8px 10px;
-  font-weight: 700;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-weight: 600;
+  font-size: 13px;
   cursor: pointer;
+  transition: all 160ms ease;
 }
 
 .students-action-btn:hover {
   background: #eef2ff;
   border-color: #c7d2fe;
+}
+
+.students-action-btn:active {
+  transform: translateY(1px);
 }
 
 .students-action-btn-danger {
@@ -87,6 +100,41 @@
 .students-action-btn-danger:hover {
   background: #dc2626;
   border-color: #dc2626;
+}
+
+.cell-id {
+  font-weight: 650;
+  color: #0f172a;
+}
+
+/* Empty state */
+.students-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 64px 24px;
+  text-align: center;
+}
+
+.students-empty-icon {
+  color: #cbd5e1;
+  margin-bottom: 16px;
+}
+
+.students-empty-title {
+  margin: 0 0 8px;
+  font-size: 18px;
+  font-weight: 750;
+  color: #0f172a;
+}
+
+.students-empty-text {
+  margin: 0;
+  font-size: 14px;
+  color: #64748b;
+  max-width: 360px;
+  line-height: 1.5;
 }
 
 .students-deleteall-guard {
@@ -130,7 +178,6 @@
   font-size: 14px;
 }
 
-
 @media (max-width: 900px) {
   .students-table {
     min-width: 1450px;
@@ -138,8 +185,6 @@
 }
 
 @media (max-width: 720px) {
-  /* Preserve previous responsive behavior: allow horizontal scrolling;
-     do not force stacked mobile layout that breaks admin-style tables. */
   .students-table {
     min-width: 1150px;
   }

@@ -8,15 +8,15 @@ const translations = {
     settingsSaved: "Settings saved successfully.",
     failedToSave: "Failed to save settings.",
 
-    // School Information
-    schoolInfo: "School Information",
-    schoolName: "School Name",
-    enterSchoolName: "Enter school name",
-    schoolLogo: "School Logo",
+    // Organization Information
+    orgInfo: "Organization Information",
+    orgName: "Organization Name",
+    enterOrgName: "Enter organization name",
+    orgLogo: "Organization Logo",
     chooseFile: "📁 Choose File",
     remove: "🗑 Remove",
-    schoolAddress: "School Address",
-    enterSchoolAddress: "Enter school address",
+    orgAddress: "Organization Address",
+    enterOrgAddress: "Enter organization address",
 
     // Attendance Settings
     attendanceSettings: "Attendance Settings",
@@ -26,18 +26,18 @@ const translations = {
     attendanceEndTime: "Attendance End Time",
     autoMarkAbsent: "Auto Mark Absent",
     autoMarkAbsentDesc:
-      "When enabled, students who have no attendance record after the attendance end time will automatically be marked as Absent.",
+      "When enabled, participants who have no attendance record after the attendance end time will automatically be marked as Absent.",
     gracePeriod: "Grace Period",
     attendanceMode: "Attendance Mode",
 
-    // Academic Information
-    academicInfo: "Academic Information",
-    schoolYear: "School Year",
-    enterSchoolYear: "e.g. 2024-2025",
+    // Organization Information (Academic)
+    orgInfoSection: "Organization Information",
+    orgYear: "Year / Term",
+    enterOrgYear: "e.g. 2024-2025",
     semester: "Semester",
-    defaultCourseList: "Default Course List (optional)",
-    defaultCoursePlaceholder: "e.g. BSIT, BSCS, BSBio",
-    commaSeparated: "Comma-separated list of default courses",
+    defaultDepartmentList: "Default Department List (optional)",
+    defaultDepartmentPlaceholder: "e.g. Engineering, Marketing, IT",
+    commaSeparated: "Comma-separated list of default departments",
 
     // System Preferences
     systemPreferences: "System Preferences",
@@ -55,7 +55,7 @@ const translations = {
     email: "Email",
     adminName: "Administrator",
     adminRole: "System Administrator",
-    adminEmail: "admin@school.edu",
+adminEmail: "admin@org.edu",
     changePassword: "🔑 Change Password",
     passwordComingSoon: "Password change feature coming soon.",
 
@@ -101,15 +101,15 @@ const translations = {
     settingsSaved: "Matagumpay na na-save ang mga setting.",
     failedToSave: "Hindi na-save ang mga setting.",
 
-    // School Information
-    schoolInfo: "Impormasyon ng Paaralan",
-    schoolName: "Pangalan ng Paaralan",
-    enterSchoolName: "Ilagay ang pangalan ng paaralan",
-    schoolLogo: "Logo ng Paaralan",
+// Organization Information
+    orgInfo: "Impormasyon ng Organisasyon",
+    orgName: "Pangalan ng Organisasyon",
+    enterOrgName: "Ilagay ang pangalan ng organisasyon",
+    orgLogo: "Logo ng Organisasyon",
     chooseFile: "📁 Pumili ng File",
     remove: "🗑 Alisin",
-    schoolAddress: "Address ng Paaralan",
-    enterSchoolAddress: "Ilagay ang address ng paaralan",
+    orgAddress: "Address ng Organisasyon",
+    enterOrgAddress: "Ilagay ang address ng organisasyon",
 
     // Attendance Settings
     attendanceSettings: "Mga Setting ng Attendance",
@@ -119,18 +119,18 @@ const translations = {
     attendanceEndTime: "Oras ng Pagtatapos ng Attendance",
     autoMarkAbsent: "Awtomatikong Markahan ang Absent",
     autoMarkAbsentDesc:
-      "Kapag naka-enable, ang mga mag-aaral na walang record ng attendance pagkatapos ng oras ng pagtatapos ay awtomatikong mamarkahan bilang Absent.",
+"Kapag naka-enable, ang mga kalahok na walang record ng attendance pagkatapos ng oras ng pagtatapos ay awtomatikong mamarkahan bilang Absent.",
     gracePeriod: "Grace Period",
     attendanceMode: "Mode ng Attendance",
 
-    // Academic Information
-    academicInfo: "Impormasyong Pang-akademiko",
-    schoolYear: "Taon ng Pag-aaral",
-    enterSchoolYear: "Hal. 2024-2025",
+// Organization Information
+    orgInfoSection: "Impormasyon ng Organisasyon",
+    orgYear: "Taon / Termino",
+    enterOrgYear: "Hal. 2024-2025",
     semester: "Semestre",
-    defaultCourseList: "Default na Listahan ng Kurso (opsyonal)",
-    defaultCoursePlaceholder: "Hal. BSIT, BSCS, BSBio",
-    commaSeparated: "Listahan ng mga kursong pinaghihiwalay ng kuwit",
+    defaultDepartmentList: "Default na Listahan ng Departamento (opsyonal)",
+    defaultDepartmentPlaceholder: "Hal. Engineering, Marketing, IT",
+    commaSeparated: "Listahan ng mga departamentong pinaghihiwalay ng kuwit",
 
     // System Preferences
     systemPreferences: "Mga Kagustuhan ng System",
@@ -148,7 +148,7 @@ const translations = {
     email: "Email",
     adminName: "Administrator",
     adminRole: "System Administrator",
-    adminEmail: "admin@school.edu",
+adminEmail: "admin@org.edu",
     changePassword: "🔑 Palitan ang Password",
     passwordComingSoon: "Ang pagpapalit ng password ay darating pa.",
 

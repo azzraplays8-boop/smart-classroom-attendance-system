@@ -1,11 +1,13 @@
 import { useLocation } from "react-router-dom";
+import { useOrgLabels } from "../config/labels";
 
 function PageHeader() {
   const location = useLocation();
+  const labels = useOrgLabels();
 
   const titleByPath = {
     "/": "Dashboard",
-    "/students": "Students",
+    "/students": labels.entityLabel || "Entities",
     "/attendance": "Attendance",
     "/attendance-history": "Attendance History",
     "/qr-management": "QR Management",

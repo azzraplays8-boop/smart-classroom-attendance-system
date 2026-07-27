@@ -1,11 +1,11 @@
--- Create students table for Student Information System
+-- Create participants table for Universal Attendance Management Platform
 -- MySQL 8.0 compatible
 
-CREATE TABLE IF NOT EXISTS students (
+CREATE TABLE IF NOT EXISTS participants (
   id INT AUTO_INCREMENT PRIMARY KEY,
 
   -- Identification / profile
-  student_number VARCHAR(64) NOT NULL,
+  participant_identifier VARCHAR(64) NOT NULL,
   last_name VARCHAR(255) NOT NULL,
   first_name VARCHAR(255) NOT NULL,
   middle_name VARCHAR(255) NOT NULL,
@@ -14,10 +14,10 @@ CREATE TABLE IF NOT EXISTS students (
   email VARCHAR(255) NOT NULL,
   contact_number VARCHAR(64) NOT NULL,
 
-  -- Enrollment
-  course VARCHAR(64) NOT NULL,
-  year VARCHAR(16) NOT NULL,
-  section VARCHAR(16) NOT NULL,
+  -- Organization grouping
+  department VARCHAR(64) NOT NULL,
+  level VARCHAR(16) NOT NULL,
+  group_name VARCHAR(16) NOT NULL,
   status VARCHAR(32) NOT NULL DEFAULT 'Active',
   qr_code VARCHAR(255) NULL,
   photo VARCHAR(255) NULL,
@@ -25,9 +25,9 @@ CREATE TABLE IF NOT EXISTS students (
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
-  UNIQUE KEY uq_students_student_number (student_number)
+  UNIQUE KEY uq_participants_identifier (participant_identifier)
 );
 
 -- Helpful indexes
--- CREATE INDEX idx_students_course_year ON students (course, year);
+-- CREATE INDEX idx_participants_department_level ON participants (department, level);
 

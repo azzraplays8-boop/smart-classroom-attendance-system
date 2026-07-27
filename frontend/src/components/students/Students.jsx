@@ -4,12 +4,14 @@ import AddStudentModal from "./AddStudentModal";
 import ConfirmDialog from "./ConfirmDialog";
 import StudentsTable from "./StudentsTable";
 import StudentsToolbar from "./StudentsToolbar";
+import { useOrgLabels } from "../../config/labels";
 
 import "../../styles/students/Students.css";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
 
 export default function Students() {
+  const labels = useOrgLabels();
   const [query, setQuery] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -39,7 +41,7 @@ export default function Students() {
       const data = await res.json();
       setStudents(Array.isArray(data.students) ? data.students : []);
     } catch {
-      setLoadError("Failed to load students.");
+      setLoadError("Failed to load participants.");
     } finally {
       setIsLoading(false);
     }
@@ -120,7 +122,7 @@ export default function Students() {
       });
 
       if (duplicateStudent) {
-        showToast("error", "Student Number already exists.");
+        showToast("error", `${labels.primaryIdLabel} already exists.`);
         return false;
       }
 
@@ -158,10 +160,10 @@ export default function Students() {
       if (!res.ok) {
         const backendMessage = responseBody?.message || responseBody?.error || "";
         const message = backendMessage === "Student Number must be unique." || backendMessage === "Student Number already exists."
-          ? "Student Number already exists."
+          ? `${labels.primaryIdLabel} already exists.`
           : editMode
-            ? "Failed to update student."
-            : "Failed to add student.";
+            ? `Failed to update ${labels.entityName?.toLowerCase() || "entity"}.`
+            : `Failed to add ${labels.entityName?.toLowerCase() || "entity"}.`;
         showToast("error", message);
         return false;
       }
@@ -178,7 +180,7 @@ export default function Students() {
           });
           if (!photoRes.ok) {
             console.error("Photo upload failed");
-            showToast("error", "Student saved but photo upload failed.");
+            showToast("error", `${labels.entityName} saved but photo upload failed.`);
           }
         }
       } else if (newStudent.removePhoto && editMode) {
@@ -195,7 +197,7 @@ export default function Students() {
       setIsModalOpen(false);
       showToast(
         "success",
-        editMode ? "Student updated successfully." : "Student added successfully."
+        editMode ? `${labels.entityName} updated successfully.` : `${labels.entityName} added successfully.`
       );
       return true;
     } catch (e) {
@@ -246,10 +248,10 @@ export default function Students() {
       setIsDeleteDialogOpen(false);
       setPendingDeleteStudent(null);
       await fetchStudents();
-      showToast("success", `Student ${studentNumber} deleted successfully.`);
+      showToast("success", `${labels.entityName} ${studentNumber} deleted successfully.`);
       return true;
     } catch (e) {
-      showToast("error", e?.message || "Failed to delete student.");
+      showToast("error", e?.message || `Failed to delete ${labels.entityName?.toLowerCase() || "entity"}.`);
       return false;
     } finally {
       setIsDeletingStudent(false);
@@ -283,10 +285,10 @@ export default function Students() {
       setIsDeleteAllDialogOpen(false);
       setDeleteAllDraft("");
       await fetchStudents();
-      showToast("success", "All students deleted successfully.");
+      showToast("success", `All ${labels.entityLabel?.toLowerCase() || "entities"} deleted successfully.`);
       return true;
     } catch (e) {
-      showToast("error", e?.message || "Failed to delete all students.");
+      showToast("error", e?.message || `Failed to delete all ${labels.entityLabel?.toLowerCase() || "entities"}.`);
       return false;
     } finally {
       setIsDeletingAll(false);
@@ -364,10 +366,10 @@ export default function Students() {
         isSubmitting={isSaving}
       />
 
-      <ConfirmDialog
+<ConfirmDialog
         isOpen={isDeleteDialogOpen}
-        title="Delete Student"
-        message="Are you sure you want to permanently delete this student?"
+        title="Delete Participant"
+        message="Are you sure you want to permanently delete this participant?"
         primaryLabel={isDeletingStudent ? "Deleting..." : "Delete"}
         primaryVariant="danger"
         primaryDisabled={isDeletingStudent}
@@ -381,7 +383,7 @@ export default function Students() {
           pendingDeleteStudent ? (
             <div>
               <div>
-                <b>Student Number:</b> {pendingDeleteStudent?.studentNumber}
+                <b>Participant ID:</b> {pendingDeleteStudent?.studentNumber}
               </div>
               <div>
                 <b>Full Name:</b> {studentFullName(pendingDeleteStudent)}
@@ -393,8 +395,8 @@ export default function Students() {
 
       <ConfirmDialog
         isOpen={isDeleteAllDialogOpen}
-        title="Delete All Students"
-        message="This action will permanently delete ALL student records."
+        title="Delete All Participants"
+        message="This action will permanently delete ALL participant records."
         primaryLabel={isDeletingAll ? "Deleting All..." : "Delete All"}
         primaryVariant="danger"
         primaryDisabled={isDeletingAll}

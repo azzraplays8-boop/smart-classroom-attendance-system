@@ -11,9 +11,12 @@ import {
 
 import "../styles/Sidebar.css";
 import { useAuth } from "../hooks/useAuth";
+import { useOrgLabels } from "../config/labels";
+import { APP_SHORT_NAME, APP_TAGLINE } from "../constants";
 
 function Sidebar() {
   const { user } = useAuth();
+  const labels = useOrgLabels();
   const role = user?.role;
 
   const hasAccess = (route) => {
@@ -23,14 +26,21 @@ function Sidebar() {
     if (role === "teacher") {
       return ["dashboard", "attendance", "attendance-history"].includes(route);
     }
+    // Future roles
+    if (role === "manager" || role === "officer") {
+      return ["dashboard", "attendance", "attendance-history", "reports"].includes(route);
+    }
+    if (role === "staff" || role === "viewer") {
+      return ["dashboard"].includes(route);
+    }
     return false;
   };
 
   return (
     <aside className="sidebar">
       <div className="sidebar-header">
-        <h2>Smart Classroom</h2>
-        <p>Attendance System</p>
+        <h2>{APP_SHORT_NAME}</h2>
+        <p>{APP_TAGLINE}</p>
       </div>
 
       <nav>
@@ -42,7 +52,7 @@ function Sidebar() {
         {hasAccess("students") && (
           <NavLink to="/students" className="nav-item">
             <FaUserGraduate />
-            <span>Students</span>
+            <span>{labels.entityLabel}</span>
           </NavLink>
         )}
 
@@ -53,19 +63,19 @@ function Sidebar() {
 
         <NavLink to="/attendance-history" className="nav-item">
           <FaHistory />
-          <span>Attendance History</span>
+          <span>Attendance Records</span>
         </NavLink>
 
         {hasAccess("qr-management") && (
-          <NavLink to="/qr-management" className="nav-item">
+        <NavLink to="/qr-management" className="nav-item">
             <FaQrcode />
-            <span>QR Management</span>
+            <span>QR Check-in</span>
           </NavLink>
         )}
 
         <NavLink to="/reports" className="nav-item">
           <FaChartBar />
-          <span>Reports</span>
+          <span>Analytics & Reports</span>
         </NavLink>
 
         {hasAccess("settings") && (

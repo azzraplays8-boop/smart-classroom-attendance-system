@@ -1,10 +1,10 @@
--- Safe migration for Student Information System (SIS)
--- Adds missing columns to `students` without deleting existing data.
+-- Safe migration for Universal Attendance Management Platform
+-- Adds missing columns to `participants` without deleting existing data.
 -- Compatible with MySQL 8.0
 
 -- Note: This script is idempotent (uses IF NOT EXISTS / existence checks where possible)
 
-SET @table := 'students';
+SET @table := 'participants';
 
 -- Helper: add column if not exists
 -- MySQL doesn't support IF NOT EXISTS for ADD COLUMN reliably, so we check information_schema.
@@ -12,7 +12,7 @@ SET @table := 'students';
 -- Legacy column `name` is being replaced by split fields.
 -- We keep `name` as-is to avoid breaking old deployments until cleanup is confirmed.
 
--- student_number already exists in current schema; keep as-is.
+-- participant_identifier already exists in current schema; keep as-is.
 
 
 -- Split full name fields
@@ -25,7 +25,7 @@ SET @exists := (
     AND COLUMN_NAME = @col
 );
 SET @sql := IF(@exists = 0,
-  'ALTER TABLE `students` ADD COLUMN `last_name` VARCHAR(255) NOT NULL DEFAULT ""',
+  'ALTER TABLE `participants` ADD COLUMN `last_name` VARCHAR(255) NOT NULL DEFAULT ""',
   'SELECT 1'
 );
 PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
@@ -39,7 +39,7 @@ SET @exists := (
     AND COLUMN_NAME = @col
 );
 SET @sql := IF(@exists = 0,
-  'ALTER TABLE `students` ADD COLUMN `first_name` VARCHAR(255) NOT NULL DEFAULT "" AFTER `last_name`',
+  'ALTER TABLE `participants` ADD COLUMN `first_name` VARCHAR(255) NOT NULL DEFAULT "" AFTER `last_name`',
   'SELECT 1'
 );
 PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
@@ -53,7 +53,7 @@ SET @exists := (
     AND COLUMN_NAME = @col
 );
 SET @sql := IF(@exists = 0,
-  'ALTER TABLE `students` ADD COLUMN `middle_name` VARCHAR(255) NOT NULL DEFAULT "" AFTER `first_name`',
+  'ALTER TABLE `participants` ADD COLUMN `middle_name` VARCHAR(255) NOT NULL DEFAULT "" AFTER `first_name`',
   'SELECT 1'
 );
 PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
@@ -68,7 +68,7 @@ SET @exists := (
     AND COLUMN_NAME = @col
 );
 SET @sql := IF(@exists = 0,
-  'ALTER TABLE `students` ADD COLUMN `gender` VARCHAR(32) NOT NULL DEFAULT "" AFTER `middle_name`',
+  'ALTER TABLE `participants` ADD COLUMN `gender` VARCHAR(32) NOT NULL DEFAULT "" AFTER `middle_name`',
   'SELECT 1'
 );
 PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
@@ -83,7 +83,7 @@ SET @exists := (
     AND COLUMN_NAME = @col
 );
 SET @sql := IF(@exists = 0,
-  'ALTER TABLE `students` ADD COLUMN `date_of_birth` DATE NULL AFTER `gender`',
+  'ALTER TABLE `participants` ADD COLUMN `date_of_birth` DATE NULL AFTER `gender`',
   'SELECT 1'
 );
 PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
@@ -98,7 +98,7 @@ SET @exists := (
     AND COLUMN_NAME = @col
 );
 SET @sql := IF(@exists = 0,
-  'ALTER TABLE `students` ADD COLUMN `email` VARCHAR(255) NOT NULL DEFAULT "" AFTER `date_of_birth`',
+  'ALTER TABLE `participants` ADD COLUMN `email` VARCHAR(255) NOT NULL DEFAULT "" AFTER `date_of_birth`',
   'SELECT 1'
 );
 PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
@@ -113,7 +113,7 @@ SET @exists := (
     AND COLUMN_NAME = @col
 );
 SET @sql := IF(@exists = 0,
-  'ALTER TABLE `students` ADD COLUMN `contact_number` VARCHAR(64) NOT NULL DEFAULT "" AFTER `email`',
+  'ALTER TABLE `participants` ADD COLUMN `contact_number` VARCHAR(64) NOT NULL DEFAULT "" AFTER `email`',
   'SELECT 1'
 );
 PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;

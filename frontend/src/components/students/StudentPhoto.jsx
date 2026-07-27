@@ -20,7 +20,7 @@ function getInitials(name) {
   return `${parts[0][0] || ""}${parts[parts.length - 1][0] || ""}`.toUpperCase();
 }
 
-export default function StudentPhoto({ photoPath, studentName, size = 48, className = "", alt = "Student photo" }) {
+export default function StudentPhoto({ photoPath, studentName, size = 48, className = "", alt = "Participant photo" }) {
   const [hasError, setHasError] = useState(false);
 
   const imageUrl = useMemo(() => (hasError ? null : getDisplayUrl(photoPath)), [hasError, photoPath]);

@@ -17,8 +17,29 @@ function formatDateOnly(value) {
   return String(value);
 }
 
-function StudentsTable({ students, query, onEditClick, onDeleteClick, isDeleting = false }) {
+function EmptyState({ hasQuery, onAddClick }) {
+  return (
+    <div className="students-empty-state" role="status">
+      <div className="students-empty-icon">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+          <circle cx="9" cy="7" r="4" />
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+          <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+        </svg>
+      </div>
+      <h3 className="students-empty-title">No participants found</h3>
+      <p className="students-empty-text">
+        {hasQuery
+          ? "Try adjusting your search query."
+          : "Click 'Add Participant' to create your first participant."
+        }
+      </p>
+    </div>
+  );
+}
 
+function StudentsTable({ students, query, onEditClick, onDeleteClick, isDeleting = false }) {
   const filtered = useMemo(() => {
     const q = (query || "").trim().toLowerCase();
 
@@ -47,83 +68,92 @@ function StudentsTable({ students, query, onEditClick, onDeleteClick, isDeleting
     });
   }, [students, query]);
 
+  const hasQuery = (query || "").trim().length > 0;
+
+  if (!filtered || filtered.length === 0) {
+    return (
+      <div className="students-table-wrap">
+        <EmptyState hasQuery={hasQuery} />
+      </div>
+    );
+  }
+
   return (
     <div className="students-table-wrap">
-      <table className="students-table">
+      <table className="students-table" role="table" aria-label="Participants table">
         <thead>
           <tr>
-            <th className="col-id">#</th>
-            <th className="col-photo">Photo</th>
-            <th className="col-student-number">Student Number</th>
-            <th className="col-last-name">Last Name</th>
-            <th className="col-first-name">First Name</th>
-            <th className="col-middle-name">Middle Name</th>
-            <th className="col-gender">Gender</th>
-            <th className="col-dob">Date of Birth</th>
-            <th className="col-course">Course / Strand</th>
-            <th className="col-year">Year Level</th>
-            <th className="col-section">Section</th>
-            <th className="col-email">Email Address</th>
-            <th className="col-contact">Contact Number</th>
-            <th className="col-status">Status</th>
-            <th className="col-action">Action</th>
+            <th className="col-id" scope="col">#</th>
+            <th className="col-photo" scope="col">Photo</th>
+            <th className="col-student-number" scope="col">Participant ID</th>
+            <th className="col-last-name" scope="col">Last Name</th>
+            <th className="col-first-name" scope="col">First Name</th>
+            <th className="col-middle-name" scope="col">Middle Name</th>
+            <th className="col-gender" scope="col">Gender</th>
+            <th className="col-dob" scope="col">Date of Birth</th>
+            <th className="col-course" scope="col">Department / Group</th>
+            <th className="col-year" scope="col">Category</th>
+            <th className="col-section" scope="col">Team</th>
+            <th className="col-email" scope="col">Email Address</th>
+            <th className="col-contact" scope="col">Contact Number</th>
+            <th className="col-status" scope="col">Status</th>
+            <th className="col-action" scope="col">Actions</th>
           </tr>
         </thead>
 
         <tbody>
-{filtered.map((s, index) => (
-            <tr key={s.id ?? `${s.studentNumber ?? "student"}-${index}`}>
+          {filtered.map((s, index) => (
+            <tr key={s.id ?? `${s.studentNumber ?? "participant"}-${index}`}>
               <td data-label="#">{index + 1}</td>
               <td data-label="Photo">
                 <StudentPhoto
                   photoPath={s.photo}
                   studentName={`${s.firstName || ""} ${s.lastName || ""}`.trim()}
                   size={48}
-                  alt="Student photo"
+                  alt="Participant photo"
                 />
               </td>
-              <td data-label="Student Number">{s.studentNumber}</td>
+              <td data-label="Participant ID" className="cell-id">{s.studentNumber}</td>
               <td data-label="Last Name">{s.lastName}</td>
               <td data-label="First Name">{s.firstName}</td>
               <td data-label="Middle Name">{s.middleName}</td>
               <td data-label="Gender">{s.gender}</td>
               <td data-label="Date of Birth">{formatDateOnly(s.dateOfBirth)}</td>
-
-              <td data-label="Course / Strand">{s.course}</td>
-              <td data-label="Year Level">{s.year}</td>
-              <td data-label="Section">{s.section}</td>
+              <td data-label="Department / Group">{s.course}</td>
+              <td data-label="Category">{s.year}</td>
+              <td data-label="Team">{s.section}</td>
               <td data-label="Email Address">{s.email}</td>
               <td data-label="Contact Number">{s.contactNumber}</td>
               <td data-label="Status">
-                <span className={s.status === "Active" ? "status ok" : "status"}>
+                <span className={`status${s.status === "Active" ? " ok" : ""}`}>
                   {s.status}
                 </span>
               </td>
-              <td data-label="Action">
+              <td data-label="Actions">
                 <div className="students-action-cell">
-                  <button type="button" className="students-action-btn" onClick={() => onEditClick?.(s)}>
+                  <button
+                    type="button"
+                    className="students-action-btn"
+                    onClick={() => onEditClick?.(s)}
+                    aria-label={`Edit participant ${s.studentNumber}`}
+                  >
                     Edit
                   </button>
                   <button
                     type="button"
                     className="students-action-btn students-action-btn-danger"
                     onClick={() => onDeleteClick?.(s)}
-                    aria-label={`Delete ${s.studentNumber}`}
+                    aria-label={`Delete participant ${s.studentNumber}`}
                     disabled={Boolean(isDeleting)}
                   >
                     {isDeleting ? "Deleting..." : "Delete"}
                   </button>
                 </div>
               </td>
-
             </tr>
           ))}
         </tbody>
       </table>
-
-      <div className="students-table-empty" aria-live="polite">
-        {filtered.length === 0 ? "No students found." : null}
-      </div>
     </div>
   );
 }

@@ -5,11 +5,16 @@ function StudentsToolbar({ value, onChange, onAddClick, onDeleteAllClick, isDele
     <div className="students-toolbar">
 
       <div className="students-search">
+        <svg className="students-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <circle cx="11" cy="11" r="8" />
+          <path d="M21 21l-4.35-4.35" />
+        </svg>
         <input
           type="text"
           value={value || ""}
-          placeholder="Search student..."
+          placeholder="Search participants..."
           onChange={(e) => onChange?.(e.target.value)}
+          aria-label="Search participants"
         />
       </div>
 
@@ -19,7 +24,7 @@ function StudentsToolbar({ value, onChange, onAddClick, onDeleteAllClick, isDele
           type="button"
           onClick={onAddClick}
         >
-          + Add Student
+          + Add Participant
         </button>
 
         <button
@@ -29,7 +34,7 @@ function StudentsToolbar({ value, onChange, onAddClick, onDeleteAllClick, isDele
           disabled={Boolean(isDeleteAllDisabled)}
           aria-disabled={Boolean(isDeleteAllDisabled)}
         >
-          {isDeletingAll ? "Deleting All..." : "Delete All Students"}
+          {isDeletingAll ? "Deleting All..." : "Delete All Participants"}
         </button>
       </div>
 

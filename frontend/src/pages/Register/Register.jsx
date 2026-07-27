@@ -166,10 +166,10 @@ export default function Register() {
         <div className="register-branding">
           <div className="register-logo-area">
             <div className="register-logo-icon">
-              <span className="register-logo-text">SC</span>
+              <span className="register-logo-text">SA</span>
             </div>
-            <h1 className="register-school-name">Smart Classroom</h1>
-            <p className="register-school-subtitle">Attendance System</p>
+            <h1 className="register-school-name">Smart Attendance</h1>
+            <p className="register-school-subtitle">Management Platform</p>
           </div>
           <div className="register-branding-info">
             <h3 className="register-branding-title">First Account?</h3>
@@ -192,7 +192,7 @@ export default function Register() {
               </Link>
               <h2 className="register-form-title">Create Account</h2>
               <p className="register-form-subtitle">
-                Register to access the attendance system
+                Register to access the attendance management platform
               </p>
             </div>
 

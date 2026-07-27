@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import "../styles/Settings.css";
 import translations from "../data/translations.js";
+import { useOrgLabels } from "../config/labels";
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "http://localhost:5000").replace(/\/$/, "");
 
@@ -56,11 +57,13 @@ function teardownSystemThemeListener() {
 }
 
 function Settings() {
+  const orgLabels = useOrgLabels();
+
   // ── State ──────────────────────────────────────────────
   const [settings, setSettings] = useState({
-    schoolName: "",
-    schoolLogo: "",
-    schoolAddress: "",
+    orgName: "",
+    orgLogo: "",
+    orgAddress: "",
     attendanceStartTime: "07:30",
     lateCutoffTime: "08:00",
     attendanceEndTime: "17:00",
@@ -68,9 +71,9 @@ function Settings() {
     timezone: "(UTC+08:00) Asia/Manila",
     gracePeriod: "None",
     attendanceMode: "QR + Manual",
-    schoolYear: "",
+    orgYear: "",
     semester: "1st",
-    defaultCourses: "",
+    defaultDepartments: "",
     theme: "light",
     primaryColor: DEFAULT_PRIMARY_COLOR,
     language: "en",
@@ -161,7 +164,6 @@ function Settings() {
           language: mergedLang,
         });
       } else {
-        // Apply localStorage / defaults if backend fails
         const fallbackTheme = storedTheme || "light";
         const fallbackColor = storedColor || DEFAULT_PRIMARY_COLOR;
         const fallbackLang = storedLang || "en";
@@ -169,7 +171,6 @@ function Settings() {
         setSettings((prev) => ({ ...prev, theme: fallbackTheme, primaryColor: fallbackColor, language: fallbackLang }));
       }
     } catch (err) {
-      // Network error — use localStorage defaults
       const fallbackTheme = storedTheme || "light";
       const fallbackColor = storedColor || DEFAULT_PRIMARY_COLOR;
       const fallbackLang = storedLang || "en";
@@ -189,14 +190,13 @@ function Settings() {
 
   // ── Save section ──────────────────────────────────────
   const handleSave = async (sectionKeys) => {
-    // Validate required fields
-    const requiredFields = ["schoolName", "schoolAddress", "schoolYear"];
+    const requiredFields = ["orgName", "orgAddress", "orgYear"];
     for (const key of requiredFields) {
       if (sectionKeys.includes(key) && !settings[key]?.trim()) {
         const fieldLabels = {
-          schoolName: t("schoolName"),
-          schoolAddress: t("schoolAddress"),
-          schoolYear: t("schoolYear"),
+          orgName: t("orgName"),
+          orgAddress: t("orgAddress"),
+          orgYear: t("orgYear"),
         };
         showToast("error", `${fieldLabels[key] || key} is required.`);
         return;
@@ -208,7 +208,6 @@ function Settings() {
       payload[key] = settings[key];
     }
 
-    // Determine the saving key — "all" for Save All, otherwise use the first key
     const savingKey = sectionKeys.length >= 10 ? "all" : sectionKeys[0];
     setSaving((prev) => ({ ...prev, [savingKey]: true }));
     try {
@@ -223,8 +222,6 @@ function Settings() {
         throw new Error(data.message || "Failed to save");
       }
       showToast("success", t("settingsSaved"));
-
-      // Reload settings from backend after successful save
       await loadSettings();
     } catch (err) {
       showToast("error", err?.message || t("failedToSave"));
@@ -241,13 +238,13 @@ function Settings() {
 
     const reader = new FileReader();
     reader.onload = (event) => {
-      setSettings((prev) => ({ ...prev, schoolLogo: event.target.result }));
+      setSettings((prev) => ({ ...prev, orgLogo: event.target.result }));
     };
     reader.readAsDataURL(file);
   };
 
   const handleRemoveLogo = () => {
-    setSettings((prev) => ({ ...prev, schoolLogo: "" }));
+    setSettings((prev) => ({ ...prev, orgLogo: "" }));
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -256,7 +253,6 @@ function Settings() {
     setSettings((prev) => {
       const updated = { ...prev, [key]: value };
 
-      // Apply theme immediately on selection
       if (key === "theme") {
         applyTheme(value);
         localStorage.setItem("app_theme", value);
@@ -269,13 +265,11 @@ function Settings() {
         }
       }
 
-      // Apply primary color immediately on selection
       if (key === "primaryColor") {
         applyPrimaryColor(value);
         localStorage.setItem("app_primaryColor", value);
       }
 
-      // Apply language immediately on selection
       if (key === "language") {
         localStorage.setItem("app_language", value);
       }
@@ -299,7 +293,6 @@ function Settings() {
   // ── Render ────────────────────────────────────────────
   return (
     <div className="settings-page">
-      {/* Toast */}
       {toast.visible && (
         <div className="settings-toast">
           <div
@@ -322,31 +315,31 @@ function Settings() {
       <h2>{t("settings")}</h2>
 
       <div className="settings-grid">
-        {/* ═══════════════ 1. School Information ═══════════════ */}
+        {/* ═══════════════ 1. Organization Information ═══════════════ */}
         <div className="settings-card">
           <div className="settings-card-header">
-            <div className="card-icon blue">🏫</div>
-            <h3>{t("schoolInfo")}</h3>
+            <div className="card-icon blue">{orgLabels.orgIcon || "🏢"}</div>
+            <h3>{t("orgInfo")}</h3>
           </div>
           <div className="settings-card-body">
             <div className="settings-field">
-              <label>{t("schoolName")}</label>
+              <label>{t("orgName")}</label>
               <input
                 type="text"
                 className="ui-input"
-                placeholder={t("enterSchoolName")}
-                value={settings.schoolName}
-                onChange={(e) => handleChange("schoolName", e.target.value)}
+                placeholder={t("enterOrgName")}
+                value={settings.orgName}
+                onChange={(e) => handleChange("orgName", e.target.value)}
               />
             </div>
             <div className="settings-field">
-              <label>{t("schoolLogo")}</label>
+              <label>{t("orgLogo")}</label>
               <div className="settings-logo-upload">
                 <div className="settings-logo-preview">
-                  {settings.schoolLogo ? (
-                    <img src={settings.schoolLogo} alt="School Logo" />
+                  {settings.orgLogo ? (
+                    <img src={settings.orgLogo} alt="Organization Logo" />
                   ) : (
-                    <span className="logo-placeholder">🏫</span>
+                    <span className="logo-placeholder">{orgLabels.orgIcon || "🏢"}</span>
                   )}
                 </div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -359,7 +352,7 @@ function Settings() {
                       onChange={handleLogoUpload}
                     />
                   </label>
-                  {settings.schoolLogo && (
+                  {settings.orgLogo && (
                     <button
                       type="button"
                       className="logo-upload-btn"
@@ -373,13 +366,13 @@ function Settings() {
               </div>
             </div>
             <div className="settings-field">
-              <label>{t("schoolAddress")}</label>
+              <label>{t("orgAddress")}</label>
               <input
                 type="text"
                 className="ui-input"
-                placeholder={t("enterSchoolAddress")}
-                value={settings.schoolAddress}
-                onChange={(e) => handleChange("schoolAddress", e.target.value)}
+                placeholder={t("enterOrgAddress")}
+                value={settings.orgAddress}
+                onChange={(e) => handleChange("orgAddress", e.target.value)}
               />
             </div>
           </div>
@@ -387,10 +380,10 @@ function Settings() {
             <button
               type="button"
               className="ui-btn ui-btn-primary"
-              disabled={saving.schoolName}
-              onClick={() => handleSave(["schoolName", "schoolLogo", "schoolAddress"])}
+              disabled={saving.orgName}
+              onClick={() => handleSave(["orgName", "orgLogo", "orgAddress"])}
             >
-              {saving.schoolName ? t("saving") : t("save")}
+              {saving.orgName ? t("saving") : t("save")}
             </button>
           </div>
         </div>
@@ -503,22 +496,22 @@ function Settings() {
           </div>
         </div>
 
-        {/* ═══════════════ 3. Academic Settings ═══════════════ */}
+        {/* ═══════════════ 3. Organization Details ═══════════════ */}
         <div className="settings-card">
           <div className="settings-card-header">
-            <div className="card-icon amber">📚</div>
-            <h3>{t("academicInfo")}</h3>
+            <div className="card-icon amber">📋</div>
+            <h3>{t("orgInfoSection")}</h3>
           </div>
           <div className="settings-card-body">
             <div className="settings-row">
               <div className="settings-field">
-                <label>{t("schoolYear")}</label>
+                <label>{t("orgYear")}</label>
                 <input
                   type="text"
                   className="ui-input"
-                  placeholder={t("enterSchoolYear")}
-                  value={settings.schoolYear}
-                  onChange={(e) => handleChange("schoolYear", e.target.value)}
+                  placeholder={t("enterOrgYear")}
+                  value={settings.orgYear}
+                  onChange={(e) => handleChange("orgYear", e.target.value)}
                 />
               </div>
               <div className="settings-field">
@@ -535,13 +528,13 @@ function Settings() {
               </div>
             </div>
             <div className="settings-field">
-              <label>{t("defaultCourseList")}</label>
+              <label>{t("defaultDepartmentList")}</label>
               <input
                 type="text"
                 className="ui-input"
-                placeholder={t("defaultCoursePlaceholder")}
-                value={settings.defaultCourses}
-                onChange={(e) => handleChange("defaultCourses", e.target.value)}
+                placeholder={t("defaultDepartmentPlaceholder")}
+                value={settings.defaultDepartments}
+                onChange={(e) => handleChange("defaultDepartments", e.target.value)}
               />
               <div style={{ fontSize: 12, color: "var(--muted-2)", marginTop: 4 }}>
                 {t("commaSeparated")}
@@ -552,10 +545,10 @@ function Settings() {
             <button
               type="button"
               className="ui-btn ui-btn-primary"
-              disabled={saving.schoolYear}
-              onClick={() => handleSave(["schoolYear", "semester", "defaultCourses"])}
+              disabled={saving.orgYear}
+              onClick={() => handleSave(["orgYear", "semester", "defaultDepartments"])}
             >
-              {saving.schoolYear ? t("saving") : t("save")}
+              {saving.orgYear ? t("saving") : t("save")}
             </button>
           </div>
         </div>

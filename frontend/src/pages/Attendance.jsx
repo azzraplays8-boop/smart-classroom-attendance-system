@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { BrowserMultiFormatReader } from "@zxing/browser";
 import StudentPhoto from "../components/students/StudentPhoto";
+import { useOrgLabels } from "../config/labels";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
 
@@ -28,6 +29,7 @@ function formatTime(value) {
 }
 
 function Attendance() {
+  const labels = useOrgLabels();
 
   const [statusMessage, setStatusMessage] = useState("Opening camera for QR scanning...");
   const [attendanceList, setAttendanceList] = useState([]);
@@ -195,9 +197,9 @@ function Attendance() {
   };
 
   const handleAttendanceScan = async (qrValue) => {
-    const studentNumber = String(qrValue || "").trim();
+    const participantIdentifier = String(qrValue || "").trim();
 
-    if (!studentNumber) {
+    if (!participantIdentifier) {
       const message = "Invalid QR code.";
       setStatusMessage(message);
       setScanError(message);
@@ -213,7 +215,7 @@ function Attendance() {
       const res = await fetch(`${API_BASE_URL}/attendance`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ studentNumber }),
+        body: JSON.stringify({ participantIdentifier }),
       });
       const data = await res.json();
 
@@ -229,22 +231,22 @@ function Attendance() {
       const successMessage = "✓ Attendance recorded successfully";
       const timeIn = data.attendance?.timeIn ? formatTime(data.attendance.timeIn) : formatTime(new Date().toISOString());
 
-      const matchedStudent = data.student || null;
+      const matchedParticipant = data.participant || null;
 
       setAttendanceResult({
-        studentName: matchedStudent
-          ? `${matchedStudent.firstName || ""} ${matchedStudent.lastName || ""}`.trim()
-          : studentNumber,
-        fullName: matchedStudent
-          ? `${matchedStudent.firstName || ""} ${matchedStudent.middleName ? matchedStudent.middleName + " " : ""}${matchedStudent.lastName || ""}`.trim()
-          : studentNumber,
-        studentNumber: matchedStudent?.studentNumber || studentNumber,
-        course: matchedStudent?.course || "-",
-        year: matchedStudent?.year || "-",
-        section: matchedStudent?.section || "-",
+        participantName: matchedParticipant
+          ? `${matchedParticipant.firstName || ""} ${matchedParticipant.lastName || ""}`.trim()
+          : participantIdentifier,
+        fullName: matchedParticipant
+          ? `${matchedParticipant.firstName || ""} ${matchedParticipant.middleName ? matchedParticipant.middleName + " " : ""}${matchedParticipant.lastName || ""}`.trim()
+          : participantIdentifier,
+        participantIdentifier: matchedParticipant?.participantIdentifier || participantIdentifier,
+        department: matchedParticipant?.department || "-",
+        year: matchedParticipant?.year || "-",
+        section: matchedParticipant?.section || "-",
         timeIn,
         status: data.attendance?.status || "Present",
-        photo: matchedStudent?.photo || null,
+        photo: matchedParticipant?.photo || null,
       });
       setStatusMessage(successMessage);
       showToast("success", successMessage);
@@ -377,24 +379,24 @@ function Attendance() {
             </div>
 
             <div style={{ display: "flex", gap: 16, alignItems: "center", marginBottom: 16 }}>
-              <StudentPhoto
+<StudentPhoto
                 photoPath={attendanceResult.photo}
                 studentName={attendanceResult.fullName}
                 size={64}
-                alt="Student photo"
+                alt="Participant photo"
               />
               <div>
                 <div style={{ fontWeight: 700, fontSize: 16, color: "#0f172a" }}>{attendanceResult.fullName}</div>
-                <div style={{ color: "#475569", fontSize: 13 }}>{attendanceResult.studentNumber}</div>
+                <div style={{ color: "#475569", fontSize: 13 }}>{attendanceResult.participantIdentifier}</div>
               </div>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 16px", fontSize: 13 }}>
-              <div><span style={{ color: "#64748b" }}>Course / Strand:</span></div>
-              <div style={{ fontWeight: 600, color: "#0f172a" }}>{attendanceResult.course}</div>
-              <div><span style={{ color: "#64748b" }}>Year Level:</span></div>
+<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 16px", fontSize: 13 }}>
+<div><span style={{ color: "#64748b" }}>{labels.departmentLabel || "Department"}:</span></div>
+              <div style={{ fontWeight: 600, color: "#0f172a" }}>{attendanceResult.department}</div>
+<div><span style={{ color: "#64748b" }}>{labels.roleLabel || "Level"}:</span></div>
               <div style={{ fontWeight: 600, color: "#0f172a" }}>{attendanceResult.year}</div>
-              <div><span style={{ color: "#64748b" }}>Section:</span></div>
+<div><span style={{ color: "#64748b" }}>{labels.groupLabel || "Group"}:</span></div>
               <div style={{ fontWeight: 600, color: "#0f172a" }}>{attendanceResult.section}</div>
               <div><span style={{ color: "#64748b" }}>Attendance Status:</span></div>
               <div style={{
@@ -422,10 +424,10 @@ function Attendance() {
       <h3 style={{ marginTop: 16 }}>Today's Attendance</h3>
       <table style={{ width: "100%", borderCollapse: "collapse" }}>
         <thead>
-          <tr>
+<tr>
             <th>#</th>
-            <th>Student Number</th>
-            <th>Student Name</th>
+<th>{labels.primaryIdLabel || "Participant Number"}</th>
+            <th>{labels.entityName || "Participant"} Name</th>
             <th>Time In</th>
             <th>Status</th>
           </tr>
@@ -439,7 +441,7 @@ function Attendance() {
             attendanceList.map((r, idx) => (
               <tr key={r.id}>
                 <td>{idx + 1}</td>
-                <td>{r.studentNumber}</td>
+<td>{r.participantIdentifier || r.studentNumber || "-"}</td>
                 <td>{`${r.firstName || ""} ${r.lastName || ""}`.trim()}</td>
                 <td>{r.timeIn ? formatTime(r.timeIn) : "-"}</td>
 

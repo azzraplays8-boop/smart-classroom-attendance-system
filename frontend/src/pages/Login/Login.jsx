@@ -57,15 +57,15 @@ export default function Login() {
         <div className="login-branding">
           <div className="login-logo-area">
             <div className="login-logo-icon">
-              <span className="login-logo-text">SC</span>
+              <span className="login-logo-text">SA</span>
             </div>
-            <h1 className="login-school-name">Smart Classroom</h1>
-            <p className="login-school-subtitle">Attendance System</p>
+            <h1 className="login-school-name">Smart Attendance</h1>
+            <p className="login-school-subtitle">Management Platform</p>
           </div>
           <div className="login-branding-features">
             <div className="login-feature-item">
               <span className="login-feature-icon">{String.fromCharCode(10003)}</span>
-              <span>Student Management</span>
+              <span>Entity Management</span>
             </div>
             <div className="login-feature-item">
               <span className="login-feature-icon">{String.fromCharCode(10003)}</span>
@@ -167,7 +167,7 @@ export default function Login() {
               </button>
             </form>
             <p className="login-footer-text">
-              Smart Classroom Attendance System v1.0
+              Smart Attendance Management Platform v2.0
             </p>
             <p className="login-register-link">
               Don&apos;t have an account?{" "}
