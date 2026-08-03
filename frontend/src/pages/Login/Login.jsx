@@ -1,5 +1,5 @@
 /**
- * Login Page - Smart Classroom Attendance System
+ * Login Page - Universal Attendance Management Platform
  */
 import { useState } from "react";
 import { Navigate, useNavigate, Link } from "react-router-dom";
@@ -59,8 +59,8 @@ export default function Login() {
             <div className="login-logo-icon">
               <span className="login-logo-text">SA</span>
             </div>
-            <h1 className="login-school-name">Smart Attendance</h1>
-            <p className="login-school-subtitle">Management Platform</p>
+            <h1 className="login-school-name">Attendance Management</h1>
+            <p className="login-school-subtitle">Platform</p>
           </div>
           <div className="login-branding-features">
             <div className="login-feature-item">
@@ -167,7 +167,7 @@ export default function Login() {
               </button>
             </form>
             <p className="login-footer-text">
-              Smart Attendance Management Platform v2.0
+              Universal Attendance Management Platform v2.0
             </p>
             <p className="login-register-link">
               Don&apos;t have an account?{" "}

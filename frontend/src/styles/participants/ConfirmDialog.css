@@ -1,0 +1,218 @@
+/* ── Overlay ─────────────────────────────── */
+.confirmdlg-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  background: rgba(2, 6, 23, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+}
+
+/* ── Card ────────────────────────────────── */
+.confirmdlg-card {
+  width: 100%;
+  max-width: 480px;
+  background: #ffffff;
+  border: 1px solid rgba(226, 232, 240, 0.85);
+  border-radius: 18px;
+  box-shadow: 0 30px 90px rgba(2, 6, 23, 0.22), 0 8px 22px rgba(2, 6, 23, 0.12);
+  overflow: hidden;
+}
+
+/* ── Header ──────────────────────────────── */
+.confirmdlg-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 22px 24px 14px;
+}
+
+.confirmdlg-titlewrap {
+  flex: 1;
+  min-width: 0;
+}
+
+.confirmdlg-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 850;
+  color: #0f172a;
+  line-height: 1.3;
+}
+
+.confirmdlg-close {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: 1px solid rgba(226, 232, 240, 1);
+  background: rgba(255, 255, 255, 0.85);
+  color: #334155;
+  font-size: 18px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 140ms ease, border-color 140ms ease;
+}
+
+.confirmdlg-close:hover {
+  background: #ffffff;
+  border-color: rgba(203, 213, 225, 1);
+}
+
+/* ── Body ────────────────────────────────── */
+.confirmdlg-body {
+  padding: 0 24px 18px;
+}
+
+.confirmdlg-message {
+  font-size: 14.5px;
+  color: #475569;
+  line-height: 1.55;
+}
+
+.confirmdlg-details {
+  margin-top: 14px;
+  padding: 14px;
+  background: #f8fafc;
+  border: 1px solid rgba(226, 232, 240, 0.85);
+  border-radius: 12px;
+  font-size: 14px;
+  color: #0f172a;
+  line-height: 1.7;
+}
+
+/* ── Typed confirmation ──────────────────── */
+.confirmdlg-typed {
+  margin-top: 18px;
+}
+
+.confirmdlg-typed-warning {
+  font-size: 13px;
+  font-weight: 700;
+  color: #b91c1c;
+  margin-bottom: 10px;
+}
+
+.confirmdlg-typed-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  outline: none;
+  font-size: 14px;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.confirmdlg-typed-input:focus {
+  border-color: #f87171;
+  box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.2);
+}
+
+.confirmdlg-typed-helper {
+  margin-top: 6px;
+  font-size: 13px;
+  color: #64748b;
+}
+
+/* ── Footer ──────────────────────────────── */
+.confirmdlg-footer {
+  padding: 14px 24px 20px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  border-top: 1px solid rgba(226, 232, 240, 0.85);
+}
+
+/* ── Buttons ─────────────────────────────── */
+.confirmdlg-btn {
+  height: 40px;
+  border-radius: 12px;
+  padding: 0 16px;
+  font-weight: 750;
+  font-size: 14px;
+  cursor: pointer;
+  transition: transform 120ms ease, box-shadow 140ms ease, background 140ms ease, border-color 140ms ease;
+  user-select: none;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+
+.confirmdlg-btn:active {
+  transform: translateY(1px);
+}
+
+.confirmdlg-btn-outline {
+  background: transparent;
+  border-color: rgba(203, 213, 225, 1);
+  color: #334155;
+}
+
+.confirmdlg-btn-outline:hover {
+  background: #f8fafc;
+}
+
+.confirmdlg-btn-danger {
+  background: #ef4444;
+  border-color: #ef4444;
+  color: #ffffff;
+}
+
+.confirmdlg-btn-danger:hover {
+  background: #dc2626;
+}
+
+.confirmdlg-btn-danger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.confirmdlg-btn-primary {
+  background: #4f46e5;
+  border-color: #4f46e5;
+  color: #ffffff;
+}
+
+.confirmdlg-btn-primary:hover {
+  background: #4338ca;
+}
+
+.confirmdlg-btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Responsive ──────────────────────────── */
+@media (max-width: 720px) {
+  .confirmdlg-overlay {
+    padding: 14px;
+  }
+
+  .confirmdlg-card {
+    max-width: 100%;
+  }
+
+  .confirmdlg-header {
+    padding: 18px 18px 12px;
+  }
+
+  .confirmdlg-body {
+    padding: 0 18px 14px;
+  }
+
+  .confirmdlg-footer {
+    padding: 12px 18px 16px;
+    flex-direction: column;
+  }
+
+  .confirmdlg-btn {
+    width: 100%;
+  }
+}
+

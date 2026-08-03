@@ -9,7 +9,7 @@ const QR_STATUS_OPTIONS = [
 ];
 
 function QRFilters({ filters, onFilterChange, onApply, onReset, loading }) {
-  const [options, setOptions] = useState({ courses: [], years: [], sections: [] });
+  const [options, setOptions] = useState({ departments: [], levels: [], sections: [] });
 
   useEffect(() => {
     qrService
@@ -17,8 +17,8 @@ function QRFilters({ filters, onFilterChange, onApply, onReset, loading }) {
       .then((data) => {
         if (data) {
           setOptions({
-            courses: Array.isArray(data.courses) ? data.courses : [],
-            years: Array.isArray(data.years) ? data.years : [],
+            departments: Array.isArray(data.departments) ? data.departments : [],
+            levels: Array.isArray(data.levels) ? data.levels : [],
             sections: Array.isArray(data.sections) ? data.sections : [],
           });
         }
@@ -31,67 +31,67 @@ function QRFilters({ filters, onFilterChange, onApply, onReset, loading }) {
       <div className="qr-filters-grid">
         <div className="qr-filter-item qr-filter-item--wide">
           <label className="qr-filter-label" htmlFor="qr-search">
-            Search Student
+            Search Participant
           </label>
           <input
             id="qr-search"
             type="text"
             className="qr-filter-control"
-            placeholder="Student Number or Name"
+            placeholder="Participant ID or Name"
             value={filters.search}
             onChange={(e) => onFilterChange("search", e.target.value)}
           />
         </div>
 
         <div className="qr-filter-item">
-          <label className="qr-filter-label" htmlFor="qr-course">
-            Course
+          <label className="qr-filter-label" htmlFor="qr-department">
+            Department
           </label>
           <select
-            id="qr-course"
+            id="qr-department"
             className="qr-filter-control"
-            value={filters.course}
-            onChange={(e) => onFilterChange("course", e.target.value)}
+            value={filters.department}
+            onChange={(e) => onFilterChange("department", e.target.value)}
           >
-            <option value="">All Courses</option>
-            {options.courses.map((c) => (
-              <option key={c} value={c}>
-                {c}
+            <option value="">All Departments</option>
+            {options.departments.map((d) => (
+              <option key={d} value={d}>
+                {d}
               </option>
             ))}
           </select>
         </div>
 
         <div className="qr-filter-item">
-          <label className="qr-filter-label" htmlFor="qr-year">
-            Year Level
+          <label className="qr-filter-label" htmlFor="qr-level">
+            Level
           </label>
           <select
-            id="qr-year"
+            id="qr-level"
             className="qr-filter-control"
-            value={filters.year}
-            onChange={(e) => onFilterChange("year", e.target.value)}
+            value={filters.level}
+            onChange={(e) => onFilterChange("level", e.target.value)}
           >
-            <option value="">All Years</option>
-            {options.years.map((y) => (
-              <option key={y} value={y}>
-                {y}
+            <option value="">All Levels</option>
+            {options.levels.map((l) => (
+              <option key={l} value={l}>
+                {l}
               </option>
             ))}
           </select>
         </div>
 
         <div className="qr-filter-item">
-          <label className="qr-filter-label" htmlFor="qr-section">
-            Section
+          <label className="qr-filter-label" htmlFor="qr-group">
+            Group
           </label>
           <select
-            id="qr-section"
+            id="qr-group"
             className="qr-filter-control"
-            value={filters.section}
-            onChange={(e) => onFilterChange("section", e.target.value)}
+            value={filters.group}
+            onChange={(e) => onFilterChange("group", e.target.value)}
           >
-            <option value="">All Sections</option>
+            <option value="">All Groups</option>
             {options.sections.map((s) => (
               <option key={s} value={s}>
                 {s}

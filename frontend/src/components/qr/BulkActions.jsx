@@ -11,7 +11,7 @@ function BulkActions({
   return (
     <div className="qr-bulk-actions">
       <div className="qr-bulk-actions-label">
-        <strong>{selectedCount}</strong> student{selectedCount !== 1 ? "s" : ""} selected
+        <strong>{selectedCount}</strong> participant{selectedCount !== 1 ? "s" : ""} selected
       </div>
       <div className="qr-bulk-actions-buttons">
         <button
@@ -19,7 +19,7 @@ function BulkActions({
           className="ui-btn ui-btn-primary"
           onClick={onGenerateMissing}
           disabled={loading}
-          title="Generate QR for selected students with missing QR"
+          title="Generate QR for selected participants with missing QR"
         >
           📱 Generate Missing
         </button>

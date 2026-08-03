@@ -18,16 +18,16 @@ export const ORG_TYPE_CONFIGS = {
     label: "School",
     icon: "🏫",
     entity: {
-      entityName: "Student",
-      entityLabel: "Students",
-      entityNamePlural: "Students",
-      primaryIdLabel: "Student Number",
+      entityName: "Participant",
+      entityLabel: "Participants",
+      entityNamePlural: "Participants",
+      primaryIdLabel: "Participant ID",
       departmentLabel: "Course / Strand",
       groupLabel: "Section",
       roleLabel: "Year Level",
     },
     attendance: {
-      registeredMemberLabel: "Students",
+      registeredMemberLabel: "Participants",
       checkedInLabel: "Present",
       lateLabel: "Late",
       absentLabel: "Absent",
@@ -38,16 +38,16 @@ export const ORG_TYPE_CONFIGS = {
     label: "University",
     icon: "🎓",
     entity: {
-      entityName: "Student",
-      entityLabel: "Students",
-      entityNamePlural: "Students",
-      primaryIdLabel: "Student ID",
+      entityName: "Participant",
+      entityLabel: "Participants",
+      entityNamePlural: "Participants",
+      primaryIdLabel: "Participant ID",
       departmentLabel: "College / Department",
       groupLabel: "Section",
       roleLabel: "Year Level",
     },
     attendance: {
-      registeredMemberLabel: "Students",
+      registeredMemberLabel: "Participants",
       checkedInLabel: "Present",
       lateLabel: "Late",
       absentLabel: "Absent",
@@ -257,6 +257,4 @@ export const DEFAULT_ORG_SETTINGS = {
   qrFormat: "svg",
   brandColor: "#4f46e5",
 };
-
-
 

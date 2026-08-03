@@ -16,28 +16,28 @@ export const qrService = {
   },
 
   // ── List with filters & pagination ───────────────────────────
-  async getList({ page = 1, limit = 25, search = "", course = "", year = "", section = "", qrStatus = "" } = {}) {
+  async getList({ page = 1, limit = 25, search = "", department = "", level = "", group = "", qrStatus = "" } = {}) {
     const params = new URLSearchParams({
       page: String(page),
       limit: String(limit),
     });
     if (search.trim()) params.set("search", search.trim());
-    if (course.trim()) params.set("course", course.trim());
-    if (year.trim()) params.set("year", year.trim());
-    if (section.trim()) params.set("section", section.trim());
+    if (department.trim()) params.set("department", department.trim());
+    if (level.trim()) params.set("level", level.trim());
+    if (group.trim()) params.set("group", group.trim());
     if (qrStatus.trim()) params.set("qrStatus", qrStatus.trim());
 
     const res = await fetch(`${API_BASE_URL}/qr?${params.toString()}`);
     return handleResponse(res);
   },
 
-  // ── Get single student QR data ───────────────────────────────
+  // ── Get single participant QR data ───────────────────────────
   async getById(id) {
     const res = await fetch(`${API_BASE_URL}/qr/${id}`);
     return handleResponse(res);
   },
 
-  // ── Generate QR for a student ────────────────────────────────
+  // ── Generate QR for a participant ────────────────────────────
   async generate(id) {
     const res = await fetch(`${API_BASE_URL}/qr/generate/${id}`, {
       method: "POST",
@@ -45,7 +45,7 @@ export const qrService = {
     return handleResponse(res);
   },
 
-  // ── Generate QR for multiple students ────────────────────────
+  // ── Generate QR for multiple participants ────────────────────
   async generateBulk(ids) {
     const res = await fetch(`${API_BASE_URL}/qr/generate-bulk`, {
       method: "POST",

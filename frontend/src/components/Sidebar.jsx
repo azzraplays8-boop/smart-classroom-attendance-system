@@ -49,8 +49,8 @@ function Sidebar() {
           <span>Dashboard</span>
         </NavLink>
 
-        {hasAccess("students") && (
-          <NavLink to="/students" className="nav-item">
+        {hasAccess("participants") && (
+          <NavLink to="/participants" className="nav-item">
             <FaUserGraduate />
             <span>{labels.entityLabel}</span>
           </NavLink>
@@ -63,7 +63,7 @@ function Sidebar() {
 
         <NavLink to="/attendance-history" className="nav-item">
           <FaHistory />
-          <span>Attendance Records</span>
+          <span>Attendance History</span>
         </NavLink>
 
         {hasAccess("qr-management") && (

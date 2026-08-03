@@ -90,7 +90,7 @@
   position: absolute;
   top: calc(100% + 10px);
   right: 0;
-  width: 300px;
+  width: 320px;
   max-width: calc(100vw - 32px);
   background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(20px);
@@ -264,6 +264,57 @@
 
 .user-menu-dropdown-item:active {
   transform: scale(0.98);
+}
+
+/* ---- Launcher (Manage Account) ---- */
+.user-menu-dropdown-item-launcher {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  background: linear-gradient(135deg, rgba(79, 70, 229, 0.08), rgba(37, 99, 235, 0.05));
+  border: 1px solid rgba(99, 102, 241, 0.22);
+}
+
+.user-menu-dropdown-item-launcher:hover {
+  background: linear-gradient(135deg, rgba(79, 70, 229, 0.14), rgba(37, 99, 235, 0.08));
+  border-color: rgba(99, 102, 241, 0.4);
+}
+
+.user-menu-launcher-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.user-menu-launcher-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--primary-2, #4f46e5);
+}
+
+.user-menu-launcher-hint {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--muted-2, #64748b);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.user-menu-launcher-arrow {
+  color: var(--primary-2, #4f46e5);
+  transition: transform 0.18s ease;
+  flex-shrink: 0;
+}
+
+.user-menu-dropdown-item-launcher:hover .user-menu-launcher-arrow {
+  transform: translateX(3px);
 }
 
 /* ---- Danger item (Logout) ---- */

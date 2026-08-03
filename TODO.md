@@ -1,33 +1,31 @@
-# Refactoring Completed - Participants Page
+# Dashboard Redesign — Modern Enterprise Admin Command Center
 
-## Summary
+## Objective
+Transform the Dashboard into a modern Admin Command Center matching the design language of Attendance History, Analytics & Reports, Settings, and Account.
+Frontend UI/UX only — preserve all backend logic, APIs, routes, auth, QR, and attendance logic.
 
-All changes applied to rename the Students page to Participants page across the frontend UI components.
+## Approved Requirements
+- Use only existing endpoints: `/attendance/dashboard`, `/attendance/history`, `/settings`, `/participants`, `/health`
+- Total Participants must come from `/participants` (real count), never zero incorrectly
+- No fake System Status values — derive from real requests; label QR Scanner as "Local status"
+- Reuse fetched data (`useMemo`), avoid duplicate requests
+- Lightweight charts only (Today's donut + 7-day trend via Recharts)
+- Quick Actions use existing routes; "Start Session" preserves the attendance workflow (`/attendance`)
+- Empty states use existing routes (`/participants`, `/attendance`)
+- theme.css variables only, dark-mode compatible, responsive, no excessive animation
 
-### Files Modified
-
-#### Component Files:
-| File | Changes |
-|------|---------|
-| `Students.jsx` | Updated ConfirmDialog titles/messages to use "Participant" terminology |
-| `StudentsTable.jsx` | Updated table headers: Participant ID, Department / Group, Category, Team, Actions |
-| `StudentsToolbar.jsx` | Updated placeholder to "Search participants...", buttons to "+ Add Participant" / "Delete All Participants" |
-| `AddStudentModal.jsx` | Updated aria-labels, titles, field labels (Participant ID, Participant Information, etc.) |
-| `AcademicInformationSection.jsx` | Updated section title, labels (Department & Grouping, Category, Team) |
-| `StudentPhoto.jsx` | Updated default alt text to "Participant photo" |
-
-#### Styles:
-| File | Changes |
-|------|---------|
-| `Students.css` | Improved padding/spacing, added responsive breakpoint |
-| `StudentsPage.css` | Updated card/title styling for modern look |
-| `StudentsToolbar.css` | Improved search input with icon positioning, enhanced button styles with transitions/hover effects |
-| `StudentsTable.css` | Added table container border/radius, improved header typography, added empty state styles |
-
-### What was NOT changed (as requested):
-- Backend logic/routes
-- Database schema
-- API endpoints (still use `/students`)
-- Internal variable names (e.g., `studentNumber`, `student` state)
-- Logic/CRUD functionality remains intact
+## Steps
+- [x] 1. Analyze codebase (Dashboard.jsx, theme.css, Settings.css, AccountWorkspace.css, Reports.css, backend routes)
+- [x] 2. Rewrite `frontend/src/pages/Dashboard.jsx`
+      - [x] Hero (greeting, admin name, live date/time, org name, session status)
+      - [x] 8 KPI cards (gradients + icons, hover animations, real data)
+      - [x] Quick Actions panel (7 buttons → existing routes)
+      - [x] Live Activity card (latest 5 records, scrollable)
+      - [x] Today's Session card (from `/settings`)
+      - [x] Charts: Today's Attendance donut + 7-day trend (Recharts)
+      - [x] System Status card (real health + "Local status" labels)
+      - [x] Empty states (no participants / no attendance)
+- [x] 3. Rewrite `frontend/src/styles/Dashboard.css` (glass cards, theme.css vars, dark mode, responsive)
+- [x] 4. Run `npm run build` and verify 0 errors
+- [x] 5. Final verification (KPI accuracy, quick actions, mobile, no duplicate requests, no console errors)
 

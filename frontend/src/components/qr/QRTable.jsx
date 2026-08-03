@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import QRCode from "qrcode";
-import StudentPhoto from "../students/StudentPhoto";
-import ConfirmDialog from "../students/ConfirmDialog";
+import ParticipantAvatar from "../participants/ParticipantAvatar";
+import ConfirmDialog from "../participants/ConfirmDialog";
 
 function QRPreviewThumb({ qrCode, size = 40 }) {
   const [dataUrl, setDataUrl] = useState("");
@@ -65,7 +65,7 @@ function QRPreviewThumb({ qrCode, size = 40 }) {
 }
 
 function QRTable({
-  students,
+  participants,
   pagination,
   loading,
   selectedIds,
@@ -80,15 +80,15 @@ function QRTable({
   onPageChange,
 }) {
   const allSelected = useMemo(() => {
-    if (!students || students.length === 0) return false;
-    return students.every((s) => selectedIds.includes(s.id));
-  }, [students, selectedIds]);
+    if (!participants || participants.length === 0) return false;
+    return participants.every((p) => selectedIds.includes(p.id));
+  }, [participants, selectedIds]);
 
   const [pendingDelete, setPendingDelete] = useState(null);
 
   const handleDelete = useCallback(
-    (student) => {
-      setPendingDelete(student);
+    (participant) => {
+      setPendingDelete(participant);
     },
     []
   );
@@ -121,8 +121,8 @@ function QRTable({
     return <span className="qr-badge qr-badge--missing">Missing</span>;
   };
 
-  const getFullName = (s) =>
-    [s.lastName, s.firstName, s.middleName].filter(Boolean).join(" ") || "-";
+  const getFullName = (p) =>
+    [p.lastName, p.firstName, p.middleName].filter(Boolean).join(" ") || "-";
 
   return (
     <>
@@ -134,17 +134,17 @@ function QRTable({
                 <th style={{ width: 40 }}>
                   <input
                     type="checkbox"
-                    checked={allSelected && students.length > 0}
+                    checked={allSelected && participants.length > 0}
                     onChange={() => onSelectAll(!allSelected)}
                     aria-label="Select all"
                   />
                 </th>
                 <th>QR Preview</th>
-                <th>Student Number</th>
-                <th>Student Name</th>
-                <th>Course</th>
-                <th>Year</th>
-                <th>Section</th>
+                <th>Participant ID</th>
+                <th>Participant Name</th>
+                <th>Department</th>
+                <th>Level</th>
+                <th>Group</th>
                 <th>QR Status</th>
                 <th>Actions</th>
               </tr>
@@ -156,48 +156,48 @@ function QRTable({
                     Loading QR records...
                   </td>
                 </tr>
-              ) : students.length === 0 ? (
+              ) : participants.length === 0 ? (
                 <tr>
                   <td colSpan={9} style={{ padding: 32, textAlign: "center", color: "#64748b" }}>
-                    No students found matching the current filters.
+                    No participants found matching the current filters.
                   </td>
                 </tr>
               ) : (
-                students.map((s) => (
-                  <tr key={s.id}>
+                participants.map((p) => (
+                  <tr key={p.id}>
                     <td>
                       <input
                         type="checkbox"
-                        checked={selectedIds.includes(s.id)}
-                        onChange={() => onSelect(s.id)}
-                        aria-label={`Select ${s.studentNumber}`}
+                        checked={selectedIds.includes(p.id)}
+                        onChange={() => onSelect(p.id)}
+                        aria-label={`Select ${p.participantIdentifier ?? p.studentNumber}`}
                       />
                     </td>
                     <td>
-                      <QRPreviewThumb qrCode={s.qrCode} size={40} />
+                      <QRPreviewThumb qrCode={p.qrCode} size={40} />
                     </td>
-                    <td>{s.studentNumber}</td>
-                    <td>{getFullName(s)}</td>
-                    <td>{s.course || "-"}</td>
-                    <td>{s.year || "-"}</td>
-                    <td>{s.section || "-"}</td>
-                    <td>{getStatusBadge(s.qrStatus)}</td>
+                    <td>{p.participantIdentifier ?? p.studentNumber}</td>
+                    <td>{getFullName(p)}</td>
+                    <td>{p.course || p.department || "-"}</td>
+                    <td>{p.year || p.level || "-"}</td>
+                    <td>{p.section || p.groupName || "-"}</td>
+                    <td>{getStatusBadge(p.qrStatus)}</td>
                     <td>
                       <div className="qr-actions-cell">
                         <button
                           type="button"
                           className="qr-action-btn"
-                          onClick={() => onViewQr(s)}
+                          onClick={() => onViewQr(p)}
                           title="View QR"
                         >
                           👁️
                         </button>
-                        {s.qrStatus !== "missing" ? (
+                        {p.qrStatus !== "missing" ? (
                           <>
                             <button
                               type="button"
                               className="qr-action-btn"
-                              onClick={() => onDownloadPng(s)}
+                              onClick={() => onDownloadPng(p)}
                               title="Download PNG"
                             >
                               🖼️
@@ -205,7 +205,7 @@ function QRTable({
                             <button
                               type="button"
                               className="qr-action-btn"
-                              onClick={() => onDownloadPdf(s)}
+                              onClick={() => onDownloadPdf(p)}
                               title="Download PDF"
                             >
                               📄
@@ -213,7 +213,7 @@ function QRTable({
                             <button
                               type="button"
                               className="qr-action-btn"
-                              onClick={() => onPrint(s)}
+                              onClick={() => onPrint(p)}
                               title="Print QR"
                             >
                               🖨️
@@ -221,7 +221,7 @@ function QRTable({
                             <button
                               type="button"
                               className="qr-action-btn"
-                              onClick={() => onRegenerate(s)}
+                              onClick={() => onRegenerate(p)}
                               title="Regenerate QR"
                             >
                               🔄
@@ -231,7 +231,7 @@ function QRTable({
                           <button
                             type="button"
                             className="qr-action-btn qr-action-btn--generate"
-                            onClick={() => onRegenerate(s)}
+                            onClick={() => onRegenerate(p)}
                             title="Generate QR"
                           >
                             ✨
@@ -240,7 +240,7 @@ function QRTable({
                         <button
                           type="button"
                           className="qr-action-btn qr-action-btn--delete"
-                          onClick={() => handleDelete(s)}
+                          onClick={() => handleDelete(p)}
                           title="Delete QR"
                         >
                           🗑️
@@ -259,7 +259,7 @@ function QRTable({
       {pagination.pages > 1 && (
         <div className="qr-pagination">
           <div className="qr-pagination-info">
-            Showing {students.length} of {pagination.total} records
+            Showing {participants.length} of {pagination.total} records
             {pagination.page > 1 && ` (Page ${pagination.page} of ${pagination.pages})`}
           </div>
           <div className="qr-pagination-buttons">
@@ -286,14 +286,14 @@ function QRTable({
       <ConfirmDialog
         isOpen={Boolean(pendingDelete)}
         title="Delete QR Code"
-        message="Are you sure you want to delete this student's QR code? This will require regenerating a new QR code."
+        message="Are you sure you want to delete this participant's QR code? This will require regenerating a new QR code."
         primaryLabel="Delete QR"
         primaryVariant="danger"
         onPrimary={confirmDelete}
         onCancel={() => setPendingDelete(null)}
         details={
           pendingDelete
-            ? `${pendingDelete.studentNumber} — ${getFullName(pendingDelete)}`
+            ? `${pendingDelete.participantIdentifier ?? pendingDelete.studentNumber} — ${getFullName(pendingDelete)}`
             : null
         }
       />
@@ -302,4 +302,3 @@ function QRTable({
 }
 
 export default QRTable;
-

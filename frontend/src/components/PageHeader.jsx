@@ -5,14 +5,15 @@ function PageHeader() {
   const location = useLocation();
   const labels = useOrgLabels();
 
-  const titleByPath = {
+const titleByPath = {
     "/": "Dashboard",
-    "/students": labels.entityLabel || "Entities",
+    "/participants": labels.entityLabel || "Entities",
     "/attendance": "Attendance",
     "/attendance-history": "Attendance History",
     "/qr-management": "QR Management",
     "/reports": "Reports",
     "/settings": "Settings",
+    "/account": "Account",
   };
 
   const title = titleByPath[location.pathname] || "";

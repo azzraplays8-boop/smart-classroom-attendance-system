@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { BrowserMultiFormatReader } from "@zxing/browser";
-import StudentPhoto from "../components/students/StudentPhoto";
+import ParticipantAvatar from "../components/participants/ParticipantAvatar";
 import { useOrgLabels } from "../config/labels";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
@@ -197,15 +197,34 @@ function Attendance() {
   };
 
   const handleAttendanceScan = async (qrValue) => {
-    const participantIdentifier = String(qrValue || "").trim();
-
-    if (!participantIdentifier) {
+    const rawValue = String(qrValue || "").trim();
+    if (!rawValue) {
       const message = "Invalid QR code.";
       setStatusMessage(message);
       setScanError(message);
       showToast("error", message);
       pauseAndResume();
       return;
+    }
+
+    // Try to parse the QR payload as JSON (for JSON-encoded QRs)
+    let qrPayload;
+    try {
+      qrPayload = JSON.parse(rawValue);
+    } catch {
+      // Not JSON — treat the raw value as a plain participantIdentifier (legacy fallback)
+      qrPayload = null;
+    }
+
+    // Build request body:
+    // If QR contains JSON with a uuid field, use the indexed qrUuid lookup path
+    // Otherwise fall back to participantIdentifier lookup (legacy/direct scan)
+    const requestBody = {};
+    if (qrPayload && qrPayload.uuid) {
+      requestBody.qrUuid = String(qrPayload.uuid).trim();
+    } else {
+      // Legacy QR (plain identifier) — send as participantIdentifier
+      requestBody.participantIdentifier = rawValue;
     }
 
     setStatusMessage("Checking attendance...");
@@ -215,7 +234,7 @@ function Attendance() {
       const res = await fetch(`${API_BASE_URL}/attendance`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ participantIdentifier }),
+        body: JSON.stringify(requestBody),
       });
       const data = await res.json();
 
@@ -232,15 +251,16 @@ function Attendance() {
       const timeIn = data.attendance?.timeIn ? formatTime(data.attendance.timeIn) : formatTime(new Date().toISOString());
 
       const matchedParticipant = data.participant || null;
+      const displayIdentifier = matchedParticipant?.participantIdentifier || rawValue;
 
       setAttendanceResult({
         participantName: matchedParticipant
           ? `${matchedParticipant.firstName || ""} ${matchedParticipant.lastName || ""}`.trim()
-          : participantIdentifier,
+          : displayIdentifier,
         fullName: matchedParticipant
           ? `${matchedParticipant.firstName || ""} ${matchedParticipant.middleName ? matchedParticipant.middleName + " " : ""}${matchedParticipant.lastName || ""}`.trim()
-          : participantIdentifier,
-        participantIdentifier: matchedParticipant?.participantIdentifier || participantIdentifier,
+          : displayIdentifier,
+        participantIdentifier: matchedParticipant?.participantIdentifier || displayIdentifier,
         department: matchedParticipant?.department || "-",
         year: matchedParticipant?.year || "-",
         section: matchedParticipant?.section || "-",
@@ -261,12 +281,40 @@ function Attendance() {
     }
   };
 
+  const restartDecoder = () => {
+    if (!detectorRef.current || !videoRef.current || !cameraActiveRef.current) return;
+    try {
+      detectorRef.current.reset();
+      const trackSettings = videoRef.current.srcObject?.getVideoTracks?.()?.[0]?.getSettings?.();
+      const deviceId = trackSettings?.deviceId || undefined;
+      detectorRef.current.decodeFromVideoDevice(
+        deviceId,
+        videoRef.current,
+        async (result, err) => {
+          if (!cameraActiveRef.current || pauseScanRef.current) return;
+          if (err) return;
+          const rawValue = result?.getText?.()?.trim?.() || result?.text?.trim?.();
+          if (!rawValue || rawValue === processedCodeRef.current) return;
+          processedCodeRef.current = rawValue;
+          await handleAttendanceScan(rawValue);
+        }
+      );
+    } catch {
+      // ignore restart errors
+    }
+  };
+
   const pauseAndResume = () => {
     pauseScanRef.current = true;
+    // Stop the decoder loop to eliminate unnecessary frame processing during pause
+    if (detectorRef.current) {
+      try { detectorRef.current.reset(); } catch {}
+    }
     window.setTimeout(() => {
       pauseScanRef.current = false;
       processedCodeRef.current = "";
       setStatusMessage("Point the camera at a QR code to record attendance.");
+      restartDecoder();
     }, 2000);
   };
 
@@ -379,9 +427,9 @@ function Attendance() {
             </div>
 
             <div style={{ display: "flex", gap: 16, alignItems: "center", marginBottom: 16 }}>
-<StudentPhoto
+<ParticipantAvatar
                 photoPath={attendanceResult.photo}
-                studentName={attendanceResult.fullName}
+                participantName={attendanceResult.fullName}
                 size={64}
                 alt="Participant photo"
               />

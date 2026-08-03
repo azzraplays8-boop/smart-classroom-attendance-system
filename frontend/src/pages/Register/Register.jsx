@@ -1,5 +1,5 @@
 /**
- * Register Page - Smart Classroom Attendance System
+ * Register Page - Universal Attendance Management Platform
  *
  * First registered user becomes Super Administrator.
  * Subsequent registrations become Administrator.
@@ -168,8 +168,8 @@ export default function Register() {
             <div className="register-logo-icon">
               <span className="register-logo-text">SA</span>
             </div>
-            <h1 className="register-school-name">Smart Attendance</h1>
-            <p className="register-school-subtitle">Management Platform</p>
+            <h1 className="register-school-name">Attendance Management</h1>
+            <p className="register-school-subtitle">Platform</p>
           </div>
           <div className="register-branding-info">
             <h3 className="register-branding-title">First Account?</h3>
@@ -273,4 +273,3 @@ export default function Register() {
     </div>
   );
 }
-

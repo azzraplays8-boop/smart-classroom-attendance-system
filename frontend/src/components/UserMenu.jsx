@@ -4,11 +4,7 @@ import { useAuth } from "../hooks/useAuth";
 import {
   FiChevronDown,
   FiLogOut,
-  FiShield,
-  FiUser,
-  FiSettings,
-  FiLock,
-  FiSun,
+  FiArrowRight,
 } from "react-icons/fi";
 import "./UserMenu.css";
 
@@ -61,9 +57,9 @@ export default function UserMenu() {
     await logout();
   };
 
-  const handleNavigate = (path) => {
+  const handleManageAccount = () => {
     setIsOpen(false);
-    navigate(path);
+    navigate("/account");
   };
 
   return (
@@ -109,45 +105,24 @@ export default function UserMenu() {
 
           <div className="user-menu-dropdown-divider" />
 
-          {/* Menu Items */}
+          {/* Launcher — Manage Account */}
           <button
-            className="user-menu-dropdown-item"
-            onClick={() => handleNavigate("/settings")}
+            className="user-menu-dropdown-item user-menu-dropdown-item-launcher"
+            onClick={handleManageAccount}
             role="menuitem"
           >
-            <FiUser size={16} />
-            Profile
-          </button>
-
-          <button
-            className="user-menu-dropdown-item"
-            onClick={() => handleNavigate("/settings")}
-            role="menuitem"
-          >
-            <FiSettings size={16} />
-            Account Settings
-          </button>
-
-          <button
-            className="user-menu-dropdown-item"
-            onClick={() => handleNavigate("/settings")}
-            role="menuitem"
-          >
-            <FiLock size={16} />
-            Security
-          </button>
-
-          <button
-            className="user-menu-dropdown-item"
-            onClick={() => handleNavigate("/settings")}
-            role="menuitem"
-          >
-            <FiSun size={16} />
-            Theme
+            <span className="user-menu-launcher-text">
+              <span className="user-menu-launcher-label">Manage Account</span>
+              <span className="user-menu-launcher-hint">
+                Profile, security &amp; preferences
+              </span>
+            </span>
+            <FiArrowRight className="user-menu-launcher-arrow" size={17} />
           </button>
 
           <div className="user-menu-dropdown-divider" />
 
+          {/* Logout */}
           <button
             className="user-menu-dropdown-item user-menu-dropdown-item-danger"
             onClick={handleLogout}
@@ -161,3 +136,4 @@ export default function UserMenu() {
     </div>
   );
 }
+

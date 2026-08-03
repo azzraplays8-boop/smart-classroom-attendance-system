@@ -1,4 +1,4 @@
-/**
+ /**
  * AuthContext provides authentication state and actions to the entire app.
  *
  * Features:
@@ -22,7 +22,7 @@ export const PERMISSIONS = {
     label: "Super Admin",
     routes: [
       "dashboard",
-      "students",
+      "participants",
       "attendance",
       "attendance-history",
       "qr-management",
@@ -36,7 +36,7 @@ export const PERMISSIONS = {
     label: "Administrator",
     routes: [
       "dashboard",
-      "students",
+      "participants",
       "attendance",
       "attendance-history",
       "qr-management",
@@ -57,7 +57,7 @@ export const PERMISSIONS = {
 /**
  * Check if a user has permission to access a given route.
  * @param {Object} user - User object with role property
- * @param {string} route - Route name to check (e.g. "students", "settings")
+ * @param {string} route - Route name to check (e.g. "participants", "settings")
  * @returns {boolean}
  */
 export function canAccessRoute(user, route) {

@@ -286,7 +286,7 @@ export default function participantsRouter({ pool, upload }) {
             group_name,
             status,
             photo
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         : `INSERT INTO participants (
             participant_identifier,
             qr_code,

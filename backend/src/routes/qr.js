@@ -12,19 +12,19 @@ export default function qrRouter({ pool }) {
   // ── Summary Stats ─────────────────────────────────────────────
   router.get("/stats", async (req, res) => {
     try {
-      const [[{ total }]] = await pool.query("SELECT COUNT(*) AS total FROM students");
+      const [[{ total }]] = await pool.query("SELECT COUNT(*) AS total FROM participants");
       const [[{ qrGenerated }]] = await pool.query(
-        "SELECT COUNT(*) AS qrGenerated FROM students WHERE qr_status = 'generated'"
+        "SELECT COUNT(*) AS qrGenerated FROM participants WHERE qr_status = 'generated'"
       );
       const [[{ missingQr }]] = await pool.query(
-        "SELECT COUNT(*) AS missingQr FROM students WHERE qr_status = 'missing'"
+        "SELECT COUNT(*) AS missingQr FROM participants WHERE qr_status = 'missing'"
       );
       const [[{ printedQr }]] = await pool.query(
-        "SELECT COUNT(*) AS printedQr FROM students WHERE printed = 1"
+        "SELECT COUNT(*) AS printedQr FROM participants WHERE printed = 1"
       );
 
-res.json({
-        totalStudents: Number(total),
+      res.json({
+        totalParticipants: Number(total),
         qrGenerated: Number(qrGenerated),
         missingQr: Number(missingQr),
         printedQr: Number(printedQr),
@@ -35,16 +35,16 @@ res.json({
     }
   });
 
-  // ── List Students for QR Management ──────────────────────────
+  // ── List Participants for QR Management ──────────────────────────
   router.get("/", async (req, res) => {
     try {
       const {
         page = 1,
         limit = 25,
         search = "",
-        course = "",
-        year = "",
-        section = "",
+        department = "",
+        level = "",
+        group = "",
         qrStatus = "",
       } = req.query;
 
@@ -54,31 +54,31 @@ res.json({
 
       if (String(search).trim()) {
         whereClauses.push(`(
-          s.student_number LIKE ? OR
-          CONCAT(s.first_name, ' ', s.last_name) LIKE ? OR
-          CONCAT(s.last_name, ' ', s.first_name) LIKE ?
+          p.participant_identifier LIKE ? OR
+          CONCAT(p.first_name, ' ', p.last_name) LIKE ? OR
+          CONCAT(p.last_name, ' ', p.first_name) LIKE ?
         )`);
         const likeTerm = `%${String(search).trim()}%`;
         params.push(likeTerm, likeTerm, likeTerm);
       }
 
-      if (String(course).trim()) {
-        whereClauses.push("s.course = ?");
-        params.push(String(course).trim());
+      if (String(department).trim()) {
+        whereClauses.push("p.department = ?");
+        params.push(String(department).trim());
       }
 
-      if (String(year).trim()) {
-        whereClauses.push("s.year = ?");
-        params.push(String(year).trim());
+      if (String(level).trim()) {
+        whereClauses.push("p.level = ?");
+        params.push(String(level).trim());
       }
 
-      if (String(section).trim()) {
-        whereClauses.push("s.section = ?");
-        params.push(String(section).trim());
+      if (String(group).trim()) {
+        whereClauses.push("p.group_name = ?");
+        params.push(String(group).trim());
       }
 
       if (String(qrStatus).trim()) {
-        whereClauses.push("s.qr_status = ?");
+        whereClauses.push("p.qr_status = ?");
         params.push(String(qrStatus).trim());
       }
 
@@ -87,38 +87,38 @@ res.json({
         : "";
 
       const [[{ total }]] = await pool.query(
-        `SELECT COUNT(*) AS total FROM students s ${whereSql}`,
+        `SELECT COUNT(*) AS total FROM participants p ${whereSql}`,
         params
       );
 
       const [rows] = await pool.query(
         `SELECT
-          s.id,
-          s.student_number AS studentNumber,
-          s.qr_code AS qrCode,
-          s.qr_uuid AS qrUuid,
-          s.qr_generated_at AS qrGeneratedAt,
-          s.qr_image AS qrImage,
-          s.printed,
-          s.qr_status AS qrStatus,
-          s.last_regenerated AS lastRegenerated,
-          s.first_name AS firstName,
-          s.last_name AS lastName,
-          s.middle_name AS middleName,
-          s.photo,
-          s.course,
-          s.year,
-          s.section,
-          s.status
-        FROM students s
+          p.id,
+          p.participant_identifier AS participantIdentifier,
+          p.qr_code AS qrCode,
+          p.qr_uuid AS qrUuid,
+          p.qr_generated_at AS qrGeneratedAt,
+          p.qr_image AS qrImage,
+          p.printed,
+          p.qr_status AS qrStatus,
+          p.last_regenerated AS lastRegenerated,
+          p.first_name AS firstName,
+          p.last_name AS lastName,
+          p.middle_name AS middleName,
+          p.photo,
+          p.department,
+          p.level AS year,
+          p.group_name AS section,
+          p.status
+        FROM participants p
         ${whereSql}
-        ORDER BY s.id ASC
+        ORDER BY p.id ASC
         LIMIT ? OFFSET ?`,
         [...params, Number(limit), offset]
       );
 
       res.json({
-        students: rows,
+        participants: rows,
         pagination: {
           page: Number(page),
           limit: Number(limit),
@@ -132,39 +132,39 @@ res.json({
     }
   });
 
-  // ── Generate QR for a single student ─────────────────────────
+  // ── Generate QR for a single participant ─────────────────────────
   router.post("/generate/:id", async (req, res) => {
     try {
       const id = Number(req.params.id);
       if (!id || Number.isNaN(id)) {
-        return res.status(400).json({ message: "Invalid student id" });
+        return res.status(400).json({ message: "Invalid participant id" });
       }
 
       const [rows] = await pool.query(
-        "SELECT id, student_number, qr_status FROM students WHERE id = ? LIMIT 1",
+        "SELECT id, participant_identifier, qr_status FROM participants WHERE id = ? LIMIT 1",
         [id]
       );
 
       if (!rows || rows.length === 0) {
-        return res.status(404).json({ message: "Student not found" });
+        return res.status(404).json({ message: "Participant not found" });
       }
 
-      const student = rows[0];
+      const participant = rows[0];
 
       // Generate secure UUID
       const uuid = crypto.randomUUID();
 
-      // Generate QR payload: JSON with id, studentNumber, uuid
+      // Generate QR payload: JSON with id, participantIdentifier, uuid
       const qrPayload = JSON.stringify({
-        id: student.id,
-        studentNumber: student.student_number,
+        id: participant.id,
+        participantIdentifier: participant.participant_identifier,
         uuid,
       });
 
       const now = new Date();
 
       await pool.query(
-        `UPDATE students
+        `UPDATE participants
          SET qr_uuid = ?, qr_code = ?, qr_generated_at = ?, qr_status = 'generated',
              last_regenerated = ?, printed = 0
          WHERE id = ?`,
@@ -173,16 +173,16 @@ res.json({
 
       const [[updated]] = await pool.query(
         `SELECT
-          id, student_number AS studentNumber, qr_uuid AS qrUuid,
+          id, participant_identifier AS participantIdentifier, qr_uuid AS qrUuid,
           qr_code AS qrCode, qr_generated_at AS qrGeneratedAt,
           qr_status AS qrStatus, printed
-        FROM students WHERE id = ?`,
+        FROM participants WHERE id = ?`,
         [id]
       );
 
       res.status(201).json({
         message: "QR code generated successfully",
-        student: updated,
+        participant: updated,
       });
     } catch (err) {
       console.error("POST /qr/generate/:id error:", err);
@@ -190,7 +190,7 @@ res.json({
     }
   });
 
-  // ── Generate QR for multiple students (bulk) ─────────────────
+  // ── Generate QR for multiple participants (bulk) ─────────────────
   router.post("/generate-bulk", async (req, res) => {
     try {
       const { ids } = req.body;
@@ -204,37 +204,37 @@ res.json({
         .filter((id) => !Number.isNaN(id) && id > 0);
 
       if (numericIds.length === 0) {
-        return res.status(400).json({ message: "No valid student ids provided" });
+        return res.status(400).json({ message: "No valid participant ids provided" });
       }
 
-      // Get students that are missing QR
+      // Get participants that are missing QR
       const placeholders = numericIds.map(() => "?").join(",");
-      const [students] = await pool.query(
-        `SELECT id, student_number FROM students WHERE id IN (${placeholders})`,
+      const [participants] = await pool.query(
+        `SELECT id, participant_identifier FROM participants WHERE id IN (${placeholders})`,
         numericIds
       );
 
-      if (!students || students.length === 0) {
-        return res.status(404).json({ message: "No students found" });
+      if (!participants || participants.length === 0) {
+        return res.status(404).json({ message: "No participants found" });
       }
 
       const now = new Date();
       let generatedCount = 0;
 
-      for (const student of students) {
+      for (const participant of participants) {
         const uuid = crypto.randomUUID();
         const qrPayload = JSON.stringify({
-          id: student.id,
-          studentNumber: student.student_number,
+          id: participant.id,
+          participantIdentifier: participant.participant_identifier,
           uuid,
         });
 
         await pool.query(
-          `UPDATE students
+          `UPDATE participants
            SET qr_uuid = ?, qr_code = ?, qr_generated_at = ?, qr_status = 'generated',
                last_regenerated = ?, printed = 0
            WHERE id = ?`,
-          [uuid, qrPayload, now, now, student.id]
+          [uuid, qrPayload, now, now, participant.id]
         );
         generatedCount++;
       }
@@ -249,34 +249,34 @@ res.json({
     }
   });
 
-  // ── Regenerate QR for a student ──────────────────────────────
+  // ── Regenerate QR for a participant ──────────────────────────────
   router.post("/regenerate/:id", async (req, res) => {
     try {
       const id = Number(req.params.id);
       if (!id || Number.isNaN(id)) {
-        return res.status(400).json({ message: "Invalid student id" });
+        return res.status(400).json({ message: "Invalid participant id" });
       }
 
       const [rows] = await pool.query(
-        "SELECT id, student_number FROM students WHERE id = ? LIMIT 1",
+        "SELECT id, participant_identifier FROM participants WHERE id = ? LIMIT 1",
         [id]
       );
 
       if (!rows || rows.length === 0) {
-        return res.status(404).json({ message: "Student not found" });
+        return res.status(404).json({ message: "Participant not found" });
       }
 
-      const student = rows[0];
+      const participant = rows[0];
       const uuid = crypto.randomUUID();
       const qrPayload = JSON.stringify({
-        id: student.id,
-        studentNumber: student.student_number,
+        id: participant.id,
+        participantIdentifier: participant.participant_identifier,
         uuid,
       });
       const now = new Date();
 
       await pool.query(
-        `UPDATE students
+        `UPDATE participants
          SET qr_uuid = ?, qr_code = ?, qr_generated_at = ?,
              qr_status = 'generated', last_regenerated = ?, printed = 0
          WHERE id = ?`,
@@ -285,16 +285,16 @@ res.json({
 
       const [[updated]] = await pool.query(
         `SELECT
-          id, student_number AS studentNumber, qr_uuid AS qrUuid,
+          id, participant_identifier AS participantIdentifier, qr_uuid AS qrUuid,
           qr_code AS qrCode, qr_generated_at AS qrGeneratedAt,
           qr_status AS qrStatus, printed, last_regenerated AS lastRegenerated
-        FROM students WHERE id = ?`,
+        FROM participants WHERE id = ?`,
         [id]
       );
 
       res.json({
         message: "QR code regenerated successfully",
-        student: updated,
+        participant: updated,
       });
     } catch (err) {
       console.error("POST /qr/regenerate/:id error:", err);
@@ -307,16 +307,16 @@ res.json({
     try {
       const id = Number(req.params.id);
       if (!id || Number.isNaN(id)) {
-        return res.status(400).json({ message: "Invalid student id" });
+        return res.status(400).json({ message: "Invalid participant id" });
       }
 
       const [result] = await pool.query(
-        "UPDATE students SET printed = 1, qr_status = 'printed' WHERE id = ?",
+        "UPDATE participants SET printed = 1, qr_status = 'printed' WHERE id = ?",
         [id]
       );
 
       if (!result.affectedRows) {
-        return res.status(404).json({ message: "Student not found" });
+        return res.status(404).json({ message: "Participant not found" });
       }
 
       res.json({ message: "QR marked as printed" });
@@ -339,12 +339,12 @@ res.json({
         .filter((id) => !Number.isNaN(id) && id > 0);
 
       if (numericIds.length === 0) {
-        return res.status(400).json({ message: "No valid student ids provided" });
+        return res.status(400).json({ message: "No valid participant ids provided" });
       }
 
       const placeholders = numericIds.map(() => "?").join(",");
       const [result] = await pool.query(
-        `UPDATE students SET printed = 1, qr_status = 'printed'
+        `UPDATE participants SET printed = 1, qr_status = 'printed'
          WHERE id IN (${placeholders})`,
         numericIds
       );
@@ -359,16 +359,16 @@ res.json({
     }
   });
 
-  // ── Delete QR for a student ──────────────────────────────────
+  // ── Delete QR for a participant ──────────────────────────────────
   router.delete("/:id", async (req, res) => {
     try {
       const id = Number(req.params.id);
       if (!id || Number.isNaN(id)) {
-        return res.status(400).json({ message: "Invalid student id" });
+        return res.status(400).json({ message: "Invalid participant id" });
       }
 
       const [result] = await pool.query(
-        `UPDATE students
+        `UPDATE participants
          SET qr_uuid = NULL, qr_code = NULL, qr_generated_at = NULL,
              qr_image = NULL, printed = 0, qr_status = 'missing',
              last_regenerated = NULL
@@ -377,7 +377,7 @@ res.json({
       );
 
       if (!result.affectedRows) {
-        return res.status(404).json({ message: "Student not found" });
+        return res.status(404).json({ message: "Participant not found" });
       }
 
       res.json({ message: "QR code deleted successfully" });
@@ -400,12 +400,12 @@ res.json({
         .filter((id) => !Number.isNaN(id) && id > 0);
 
       if (numericIds.length === 0) {
-        return res.status(400).json({ message: "No valid student ids provided" });
+        return res.status(400).json({ message: "No valid participant ids provided" });
       }
 
       const placeholders = numericIds.map(() => "?").join(",");
       const [result] = await pool.query(
-        `UPDATE students
+        `UPDATE participants
          SET qr_uuid = NULL, qr_code = NULL, qr_generated_at = NULL,
              qr_image = NULL, printed = 0, qr_status = 'missing',
              last_regenerated = NULL
@@ -423,67 +423,67 @@ res.json({
     }
   });
 
-  // ── Get QR data for a student (for preview) ──────────────────
+  // ── Get QR data for a participant (for preview) ──────────────────
   router.get("/:id", async (req, res) => {
     try {
       const id = Number(req.params.id);
       if (!id || Number.isNaN(id)) {
-        return res.status(400).json({ message: "Invalid student id" });
+        return res.status(400).json({ message: "Invalid participant id" });
       }
 
       const [rows] = await pool.query(
         `SELECT
-          s.id,
-          s.student_number AS studentNumber,
-          s.qr_code AS qrCode,
-          s.qr_uuid AS qrUuid,
-          s.qr_generated_at AS qrGeneratedAt,
-          s.qr_image AS qrImage,
-          s.printed,
-          s.qr_status AS qrStatus,
-          s.last_regenerated AS lastRegenerated,
-          s.first_name AS firstName,
-          s.last_name AS lastName,
-          s.middle_name AS middleName,
-          s.photo,
-          s.course,
-          s.year,
-          s.section,
-          s.status
-        FROM students s
-        WHERE s.id = ?
+          p.id,
+          p.participant_identifier AS participantIdentifier,
+          p.qr_code AS qrCode,
+          p.qr_uuid AS qrUuid,
+          p.qr_generated_at AS qrGeneratedAt,
+          p.qr_image AS qrImage,
+          p.printed,
+          p.qr_status AS qrStatus,
+          p.last_regenerated AS lastRegenerated,
+          p.first_name AS firstName,
+          p.last_name AS lastName,
+          p.middle_name AS middleName,
+          p.photo,
+          p.department,
+          p.level AS year,
+          p.group_name AS section,
+          p.status
+        FROM participants p
+        WHERE p.id = ?
         LIMIT 1`,
         [id]
       );
 
       if (!rows || rows.length === 0) {
-        return res.status(404).json({ message: "Student not found" });
+        return res.status(404).json({ message: "Participant not found" });
       }
 
-      res.json({ student: rows[0] });
+      res.json({ participant: rows[0] });
     } catch (err) {
       console.error("GET /qr/:id error:", err);
       res.status(500).json({ message: "Failed to fetch QR data" });
     }
   });
 
-  // ── Get distinct courses, years, sections for filters ────────
+  // ── Get distinct departments, levels, sections for filters ────────
   router.get("/filters/options", async (req, res) => {
     try {
-      const [courses] = await pool.query(
-        "SELECT DISTINCT course FROM students WHERE course IS NOT NULL AND course != '' ORDER BY course ASC"
+      const [departments] = await pool.query(
+        "SELECT DISTINCT department FROM participants WHERE department IS NOT NULL AND department != '' ORDER BY department ASC"
       );
-      const [years] = await pool.query(
-        "SELECT DISTINCT year FROM students WHERE year IS NOT NULL AND year != '' ORDER BY year ASC"
+      const [levels] = await pool.query(
+        "SELECT DISTINCT level FROM participants WHERE level IS NOT NULL AND level != '' ORDER BY level ASC"
       );
       const [sections] = await pool.query(
-        "SELECT DISTINCT section FROM students WHERE section IS NOT NULL AND section != '' ORDER BY section ASC"
+        "SELECT DISTINCT group_name FROM participants WHERE group_name IS NOT NULL AND group_name != '' ORDER BY group_name ASC"
       );
 
       res.json({
-        courses: courses.map((r) => r.course),
-        years: years.map((r) => r.year),
-        sections: sections.map((r) => r.section),
+        departments: departments.map((r) => r.department),
+        levels: levels.map((r) => r.level),
+        sections: sections.map((r) => r.group_name),
       });
     } catch (err) {
       console.error("GET /qr/filters/options error:", err);
@@ -493,4 +493,3 @@ res.json({
 
   return router;
 }
-

@@ -6,8 +6,8 @@
  * 
  * Usage:
  *   const labels = useOrgLabels(); // Returns all resolved labels
- *   labels.entityLabel       => "Students" | "Members" | "Employees" | etc.
- *   labels.primaryIdLabel    => "Student Number" | "Member ID" | etc.
+ *   labels.entityLabel       => "Participants" | "Members" | "Employees" | etc.
+ *   labels.primaryIdLabel    => "Participant ID" | "Member ID" | etc.
  */
 
 import { useMemo } from "react";

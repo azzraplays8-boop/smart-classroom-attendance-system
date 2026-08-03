@@ -289,9 +289,10 @@ const [rows] = await pool.query(
     }
   });
 
-  router.post("/", async (req, res) => {
+router.post("/", async (req, res) => {
     try {
       const { participantIdentifier, qrUuid, status, remarks } = req.body || {};
+      console.log("🔍 [TRACE] 1. Request body:", JSON.stringify(req.body));
       let participant = null;
       let resolvedIdentifier = null;
 
@@ -299,6 +300,7 @@ const [rows] = await pool.query(
       if (qrUuid && String(qrUuid).trim()) {
         // Scan by QR UUID — validate UUID, participant exists, QR is active
         const normalizedUuid = String(qrUuid).trim();
+        console.log("🔍 [TRACE] 2. Looking up qrUuid:", normalizedUuid);
 
         const [rows] = await pool.query(
           `SELECT
@@ -319,6 +321,7 @@ const [rows] = await pool.query(
         );
 
         participant = rows?.[0] ?? null;
+        console.log("🔍 [TRACE] 3. Participant found by qrUuid:", JSON.stringify(participant));
 
         if (!participant) {
           return res.status(404).json({ message: "Invalid QR code: Participant not found." });
@@ -338,6 +341,7 @@ const [rows] = await pool.query(
         );
 
         const existing = existingRows?.[0] ?? null;
+        console.log("🔍 [TRACE] 4. Existing attendance today:", JSON.stringify(existing));
         if (existing) {
           return res.status(409).json({ message: "Attendance has already been recorded today." });
         }
@@ -348,6 +352,7 @@ const [rows] = await pool.query(
         }
 
         const normalizedIdentifier = String(participantIdentifier).trim();
+        console.log("🔍 [TRACE] 2. Looking up participantIdentifier:", normalizedIdentifier);
 
         const [participantRows] = await pool.query(
           `SELECT
@@ -366,6 +371,7 @@ const [rows] = await pool.query(
         );
 
         participant = participantRows?.[0] ?? null;
+        console.log("🔍 [TRACE] 3. Participant found by identifier:", JSON.stringify(participant));
         if (!participant) {
           return res.status(404).json({ message: "Participant identifier was not found." });
         }
@@ -378,6 +384,7 @@ const [rows] = await pool.query(
         );
 
         const existing = existingRows?.[0] ?? null;
+        console.log("🔍 [TRACE] 4. Existing attendance today:", JSON.stringify(existing));
         if (existing) {
           return res.status(409).json({ message: "Attendance has already been recorded today." });
         }
@@ -397,14 +404,19 @@ const [rows] = await pool.query(
             : row.setting_value === "false" ? false
             : row.setting_value;
         }
+        console.log("🔍 [TRACE] 5. Settings loaded:", JSON.stringify(settings));
         computedStatus = computeAttendanceStatus(settings);
       }
+      console.log("🔍 [TRACE] 6. Computed status:", computedStatus);
 
       const insertSql = `INSERT INTO attendance (participant_id, attendance_date, time_in, status, remarks, created_at)
                          VALUES (?, CURDATE(), NOW(), ?, ?, NOW())`;
       const insertParams = [participant.id, computedStatus, remarks || null];
+      console.log("🔍 [TRACE] 7. INSERT SQL:", insertSql);
+      console.log("🔍 [TRACE] 8. INSERT params:", JSON.stringify(insertParams));
 
       const [result] = await pool.query(insertSql, insertParams);
+      console.log("🔍 [TRACE] 9. INSERT result:", JSON.stringify(result));
       const [newRow] = await pool.query(
         `SELECT a.id, a.participant_id AS participantId, a.attendance_date AS attendanceDate,
                 a.time_in AS timeIn, a.time_out AS timeOut, a.status, a.remarks, a.created_at AS createdAt,

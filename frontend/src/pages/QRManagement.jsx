@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import QRCodeLib from "qrcode";
 import QRCard from "../components/qr/QRCard";
 import QRFilters from "../components/qr/QRFilters";
@@ -10,7 +10,7 @@ import "../styles/qr/QRManagement.css";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
 
-function getStudentPhotoUrl(photoPath) {
+function getParticipantPhotoUrl(photoPath) {
   if (!photoPath) return null;
   const trimmed = String(photoPath).trim();
   if (!trimmed) return null;
@@ -67,48 +67,41 @@ function ToastContainer() {
 }
 
 function QRManagement() {
-  const [stats, setStats] = useState({ totalStudents: 0, qrGenerated: 0, missingQr: 0, printedQr: 0 });
-  const [students, setStudents] = useState([]);
+  const [stats, setStats] = useState({ totalParticipants: 0, qrGenerated: 0, missingQr: 0, printedQr: 0 });
+  const [participants, setParticipants] = useState([]);
   const [pagination, setPagination] = useState({ page: 1, limit: 25, total: 0, pages: 1 });
-  const [filters, setFilters] = useState({ search: "", course: "", year: "", section: "", qrStatus: "" });
+  const [filters, setFilters] = useState({ search: "", department: "", level: "", group: "", qrStatus: "" });
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState([]);
-  const [previewStudent, setPreviewStudent] = useState(null);
+  const [previewParticipant, setPreviewParticipant] = useState(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const pageRef = useRef(1);
   const filtersRef = useRef(filters);
 
-  // Keep refs in sync
   useEffect(() => { filtersRef.current = filters; }, [filters]);
   useEffect(() => { pageRef.current = pagination.page; }, [pagination.page]);
 
-  // ── Fetch Stats ──────────────────────────────────────────────
   const fetchStats = useCallback(async () => {
     try {
       const data = await qrService.getStats();
       if (data) {
         setStats({
-          totalStudents: data.totalStudents ?? 0,
+          totalParticipants: data.totalParticipants ?? 0,
           qrGenerated: data.qrGenerated ?? 0,
           missingQr: data.missingQr ?? 0,
           printedQr: data.printedQr ?? 0,
         });
       }
-    } catch {
-      // Silently fail
-    }
+    } catch {}
   }, []);
 
-  // ── Fetch List ───────────────────────────────────────────────
   const fetchList = useCallback(async (page = 1) => {
     setLoading(true);
     try {
       const data = await qrService.getList({ ...filtersRef.current, page, limit: 25 });
       if (data) {
-        setStudents(Array.isArray(data.students) ? data.students : []);
-        setPagination(
-          data.pagination || { page: 1, limit: 25, total: 0, pages: 1 }
-        );
+        setParticipants(Array.isArray(data.participants) ? data.participants : []);
+        setPagination(data.pagination || { page: 1, limit: 25, total: 0, pages: 1 });
       }
     } catch {
       showToast("error", "Failed to load QR records.");
@@ -117,13 +110,11 @@ function QRManagement() {
     }
   }, []);
 
-  // ── Initial load ─────────────────────────────────────────────
   useEffect(() => {
     fetchStats();
     fetchList(1);
   }, [fetchStats, fetchList]);
 
-  // ── Filter handlers ──────────────────────────────────────────
   const handleFilterChange = useCallback((key, value) => {
     setFilters((prev) => ({ ...prev, [key]: value }));
   }, []);
@@ -134,110 +125,83 @@ function QRManagement() {
   }, [fetchList]);
 
   const handleResetFilters = useCallback(() => {
-    setFilters({ search: "", course: "", year: "", section: "", qrStatus: "" });
+    setFilters({ search: "", department: "", level: "", group: "", qrStatus: "" });
     setSelectedIds([]);
     setTimeout(() => fetchList(1), 0);
   }, [fetchList]);
 
-  const handlePageChange = useCallback(
-    (page) => {
-      fetchList(page);
-    },
-    [fetchList]
-  );
+  const handlePageChange = useCallback((page) => { fetchList(page); }, [fetchList]);
 
-  // ── Selection handlers ───────────────────────────────────────
   const handleSelect = useCallback((id) => {
-    setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
-    );
+    setSelectedIds((prev) => prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]);
   }, []);
 
-  const handleSelectAll = useCallback(
-    (select) => {
-      if (select) {
-        setSelectedIds(students.map((s) => s.id));
-      } else {
-        setSelectedIds([]);
-      }
-    },
-    [students]
-  );
+  const handleSelectAll = useCallback((select) => {
+    if (select) {
+      setSelectedIds(participants.map((p) => p.id));
+    } else {
+      setSelectedIds([]);
+    }
+  }, [participants]);
 
-  // ── Generate QR ──────────────────────────────────────────────
-  const handleGenerate = useCallback(
-    async (student) => {
-      try {
-        await qrService.generate(student.id);
-        showToast("success", `QR code generated for ${student.studentNumber}`);
-        fetchStats();
-        fetchList(pageRef.current);
-      } catch (err) {
-        showToast("error", err?.message || "Failed to generate QR code.");
-      }
-    },
-    [fetchStats, fetchList]
-  );
-
-  // ── Regenerate QR ────────────────────────────────────────────
-  const handleRegenerate = useCallback(
-    async (student) => {
-      try {
-        await qrService.regenerate(student.id);
-        showToast("success", `QR code regenerated for ${student.studentNumber}`);
-        fetchStats();
-        fetchList(pageRef.current);
-      } catch (err) {
-        showToast("error", err?.message || "Failed to regenerate QR code.");
-      }
-    },
-    [fetchStats, fetchList]
-  );
-
-  // ── Delete QR ────────────────────────────────────────────────
-  const handleDelete = useCallback(
-    async (student) => {
-      try {
-        await qrService.delete(student.id);
-        showToast("success", `QR code deleted for ${student.studentNumber}`);
-        setSelectedIds((prev) => prev.filter((id) => id !== student.id));
-        fetchStats();
-        fetchList(pageRef.current);
-      } catch (err) {
-        showToast("error", err?.message || "Failed to delete QR code.");
-      }
-    },
-    [fetchStats, fetchList]
-  );
-
-  // ── View QR Preview ──────────────────────────────────────────
-  const handleViewQr = useCallback(async (student) => {
+  const handleGenerate = useCallback(async (participant) => {
     try {
-      const data = await qrService.getById(student.id);
-      setPreviewStudent(data?.student || student);
+      await qrService.generate(participant.id);
+      showToast("success", `QR code generated for ${participant.participantIdentifier ?? participant.studentNumber}`);
+      fetchStats();
+      fetchList(pageRef.current);
+    } catch (err) {
+      showToast("error", err?.message || "Failed to generate QR code.");
+    }
+  }, [fetchStats, fetchList]);
+
+  const handleRegenerate = useCallback(async (participant) => {
+    try {
+      await qrService.regenerate(participant.id);
+      showToast("success", `QR code regenerated for ${participant.participantIdentifier ?? participant.studentNumber}`);
+      fetchStats();
+      fetchList(pageRef.current);
+    } catch (err) {
+      showToast("error", err?.message || "Failed to regenerate QR code.");
+    }
+  }, [fetchStats, fetchList]);
+
+  const handleDelete = useCallback(async (participant) => {
+    try {
+      await qrService.delete(participant.id);
+      showToast("success", `QR code deleted for ${participant.participantIdentifier ?? participant.studentNumber}`);
+      setSelectedIds((prev) => prev.filter((id) => id !== participant.id));
+      fetchStats();
+      fetchList(pageRef.current);
+    } catch (err) {
+      showToast("error", err?.message || "Failed to delete QR code.");
+    }
+  }, [fetchStats, fetchList]);
+
+  const handleViewQr = useCallback(async (participant) => {
+    try {
+      const data = await qrService.getById(participant.id);
+      setPreviewParticipant(data?.participant || participant);
       setIsPreviewOpen(true);
     } catch {
-      setPreviewStudent(student);
+      setPreviewParticipant(participant);
       setIsPreviewOpen(true);
     }
   }, []);
 
-  // ── Download PNG ─────────────────────────────────────────────
-  const handleDownloadPng = useCallback(async (student) => {
+  const handleDownloadPng = useCallback(async (participant) => {
     try {
-      const payload = student.qrCode || JSON.stringify({
-        id: student.id,
-        studentNumber: student.studentNumber,
-        uuid: student.qrUuid,
+      const payload = participant.qrCode || JSON.stringify({
+        id: participant.id,
+        participantIdentifier: participant.participantIdentifier ?? participant.studentNumber,
+        uuid: participant.qrUuid,
       });
       const dataUrl = await QRCodeLib.toDataURL(String(payload), {
-        errorCorrectionLevel: "H",
-        margin: 2,
-        width: 512,
+        errorCorrectionLevel: "H", margin: 2, width: 512,
       });
       const link = document.createElement("a");
       link.href = dataUrl;
-      link.download = `${student.studentNumber || "student"}_qr.png`;
+      link.download = `${participant.participantIdentifier ?? participant.studentNumber ?? "participant"}_qr.png`;
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -247,73 +211,59 @@ function QRManagement() {
     }
   }, []);
 
-  // ── Download PDF (individual) ────────────────────────────────
-  const handleDownloadPdf = useCallback(async (student) => {
+  const handleDownloadPdf = useCallback(async (participant) => {
     try {
       const { default: jsPDF } = await import("jspdf");
       const doc = new jsPDF("portrait", "mm", "a4");
       const pageWidth = doc.internal.pageSize.getWidth();
 
-      // School header
       doc.setFillColor(79, 70, 229);
       doc.rect(0, 0, pageWidth, 30, "F");
       doc.setTextColor(255, 255, 255);
       doc.setFontSize(16);
-      doc.text("Smart Classroom Attendance System", pageWidth / 2, 16, { align: "center" });
+      doc.text("Attendance Management System", pageWidth / 2, 16, { align: "center" });
       doc.setFontSize(10);
-      doc.text("QR Code - Student Identification", pageWidth / 2, 24, { align: "center" });
+      doc.text("QR Code - Participant Identification", pageWidth / 2, 24, { align: "center" });
 
-      // Student info
-      const fullName = [student.lastName, student.firstName, student.middleName]
-        .filter(Boolean)
-        .join(" ") || student.studentNumber;
+      const participantId = participant.participantIdentifier ?? participant.studentNumber;
+      const nameParts = [participant.lastName, participant.firstName, participant.middleName].filter(Boolean).join(" ");
+      // Use name if available, otherwise fall back to participantId
+      const fullName = nameParts || participantId;
 
       doc.setTextColor(15, 23, 42);
       doc.setFontSize(22);
       doc.text(fullName, pageWidth / 2, 52, { align: "center" });
-
       doc.setFontSize(12);
       doc.setTextColor(71, 85, 105);
-      doc.text(`Student Number: ${student.studentNumber}`, pageWidth / 2, 64, { align: "center" });
-      doc.text(`Course: ${student.course || "-"}`, pageWidth / 2, 74, { align: "center" });
-      doc.text(`Section: ${student.section || "-"}`, pageWidth / 2, 84, { align: "center" });
+      doc.text(`Participant ID: ${participantId}`, pageWidth / 2, 64, { align: "center" });
+      doc.text(`Department: ${participant.course || participant.department || "-"}`, pageWidth / 2, 74, { align: "center" });
+      doc.text(`Group: ${participant.section || participant.groupName || "-"}`, pageWidth / 2, 84, { align: "center" });
 
-      // Generate QR in PDF
-      const payload = student.qrCode || JSON.stringify({
-        id: student.id,
-        studentNumber: student.studentNumber,
-        uuid: student.qrUuid,
+      const payload = participant.qrCode || JSON.stringify({
+        id: participant.id,
+        participantIdentifier: participantId,
+        uuid: participant.qrUuid,
       });
       const dataUrl = await QRCodeLib.toDataURL(String(payload), {
-        errorCorrectionLevel: "H",
-        margin: 2,
-        width: 512,
+        errorCorrectionLevel: "H", margin: 2, width: 512,
       });
 
-      // Add QR image centered
       const qrSize = 80;
       const qrX = (pageWidth - qrSize) / 2;
       doc.addImage(dataUrl, "PNG", qrX, 96, qrSize, qrSize);
 
-      // QR UUID
-      if (student.qrUuid) {
+      if (participant.qrUuid) {
         doc.setFontSize(8);
         doc.setTextColor(148, 163, 184);
-        doc.text(`UUID: ${student.qrUuid}`, pageWidth / 2, 190, { align: "center" });
+        doc.text(`UUID: ${participant.qrUuid}`, pageWidth / 2, 190, { align: "center" });
       }
 
-      // Footer
       const now = new Date();
       doc.setFontSize(8);
       doc.setTextColor(148, 163, 184);
-      doc.text(
-        `Generated: ${now.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" })}`,
-        pageWidth / 2,
-        200,
-        { align: "center" }
-      );
+      doc.text(`Generated: ${now.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" })}`, pageWidth / 2, 200, { align: "center" });
 
-      const filename = `${student.studentNumber || "student"}_qr.pdf`;
+      const filename = `${participantId}_qr.pdf`;
       doc.save(filename);
       showToast("success", "QR PDF downloaded.");
     } catch {
@@ -321,28 +271,25 @@ function QRManagement() {
     }
   }, []);
 
-  // ── Print QR Card ────────────────────────────────────────────
-  const handlePrint = useCallback(async (student) => {
+  const handlePrint = useCallback(async (participant) => {
     try {
-      const payload = student.qrCode || JSON.stringify({
-        id: student.id,
-        studentNumber: student.studentNumber,
-        uuid: student.qrUuid,
+      const participantId = participant.participantIdentifier ?? participant.studentNumber;
+      const payload = participant.qrCode || JSON.stringify({
+        id: participant.id,
+        participantIdentifier: participantId,
+        uuid: participant.qrUuid,
       });
       const dataUrl = await QRCodeLib.toDataURL(String(payload), {
-        errorCorrectionLevel: "H",
-        margin: 2,
-        width: 512,
+        errorCorrectionLevel: "H", margin: 2, width: 512,
       });
 
-      const fullName = [student.lastName, student.firstName, student.middleName]
-        .filter(Boolean)
-        .join(" ") || student.studentNumber;
+      const fullName = [participant.lastName, participant.firstName, participant.middleName]
+        .filter(Boolean).join(" ") || participantId;
 
-      const photoUrl = getStudentPhotoUrl(student.photo);
+      const photoUrl = getParticipantPhotoUrl(participant.photo);
       const photoTag = photoUrl
         ? `<img src="${photoUrl}" alt="Photo" style="width:120px;height:120px;border-radius:50%;object-fit:cover;border:3px solid #e2e8f0;" />`
-        : `<div style="width:120px;height:120px;border-radius:50%;background:linear-gradient(135deg,#4338ca,#7c3aed);display:flex;align-items:center;justify-content:center;color:#fff;font-size:36px;font-weight:700;border:3px solid #e2e8f0;">${(fullName.match(/\b\w/g) || ["S"]).slice(0, 2).join("").toUpperCase()}</div>`;
+        : `<div style="width:120px;height:120px;border-radius:50%;background:linear-gradient(135deg,#4338ca,#7c3aed);display:flex;align-items:center;justify-content:center;color:#fff;font-size:36px;font-weight:700;border:3px solid #e2e8f0;">${(fullName.match(/\b\w/g) || ["P"]).slice(0, 2).join("").toUpperCase()}</div>`;
 
       const printWindow = window.open("", "_blank", "width=600,height=800");
       if (!printWindow) {
@@ -358,84 +305,56 @@ function QRManagement() {
           <style>
             @page { margin: 0; size: 54mm 86mm; }
             * { box-sizing: border-box; margin: 0; padding: 0; }
-            body {
-              font-family: 'Segoe UI', Arial, sans-serif;
-              display: flex;
-              justify-content: center;
-              align-items: center;
-              min-height: 100vh;
-              background: #f1f5f9;
-              padding: 10px;
-            }
-            .card {
-              width: 50mm;
-              min-height: 80mm;
-              background: #fff;
-              border-radius: 8px;
-              padding: 12px;
-              box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-              display: flex;
-              flex-direction: column;
-              align-items: center;
-              gap: 6px;
-            }
+            body { font-family: 'Segoe UI', Arial, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #f1f5f9; padding: 10px; }
+            .card { width: 50mm; min-height: 80mm; background: #fff; border-radius: 8px; padding: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); display: flex; flex-direction: column; align-items: center; gap: 6px; }
             .school-name { font-size: 9px; font-weight: 700; color: #4338ca; text-align: center; text-transform: uppercase; letter-spacing: 0.5px; }
             .divider { width: 80%; height: 1px; background: #e2e8f0; margin: 2px 0; }
             .qr-img { width: 140px; height: 140px; }
             .qr-img img { width: 100%; height: 100%; object-fit: contain; }
             .name { font-size: 13px; font-weight: 700; color: #0f172a; text-align: center; }
-            .student-num { font-size: 10px; color: #475569; text-align: center; }
+            .participant-num { font-size: 10px; color: #475569; text-align: center; }
             .info { font-size: 9px; color: #64748b; text-align: center; }
             .info-row { display: flex; gap: 8px; justify-content: center; }
-            @media print {
-              body { background: #fff; padding: 0; }
-              .card { box-shadow: none; border-radius: 0; }
-            }
+            @media print { body { background: #fff; padding: 0; } .card { box-shadow: none; border-radius: 0; } }
           </style>
         </head>
         <body>
           <div class="card">
-            <div class="school-name">Smart Classroom<br/>Attendance System</div>
+            <div class="school-name">Attendance<br/>Management System</div>
             <div class="divider"></div>
             ${photoTag}
             <div class="qr-img"><img src="${dataUrl}" alt="QR" /></div>
             <div class="name">${fullName}</div>
-            <div class="student-num">${student.studentNumber}</div>
+            <div class="participant-num">${participantId}</div>
             <div class="info-row">
-              <span class="info">${student.course || ""}</span>
-              <span class="info">${student.section || ""}</span>
+              <span class="info">${participant.course || participant.department || ""}</span>
+              <span class="info">${participant.section || participant.groupName || ""}</span>
             </div>
-            ${student.qrUuid ? `<div style="font-size:6px;color:#94a3b8;word-break:break-all;text-align:center;">${student.qrUuid}</div>` : ""}
+            ${participant.qrUuid ? `<div style="font-size:6px;color:#94a3b8;word-break:break-all;text-align:center;">${participant.qrUuid}</div>` : ""}
           </div>
-          <script>
-            window.onload = function() { window.print(); window.close(); };
-          <\/script>
+          <script>window.onload = function() { window.print(); window.close(); };<\/script>
         </body>
         </html>
       `);
       printWindow.document.close();
 
-      // Mark as printed
       try {
-        await qrService.markPrinted(student.id);
+        await qrService.markPrinted(participant.id);
         fetchStats();
         fetchList(pageRef.current);
-      } catch {
-        // Silently fail
-      }
+      } catch {}
     } catch {
       showToast("error", "Failed to print QR card.");
     }
   }, [fetchStats, fetchList]);
 
-  // ── Bulk Generate Missing ────────────────────────────────────
   const handleBulkGenerateMissing = useCallback(async () => {
-    const missingIds = students
-      .filter((s) => selectedIds.includes(s.id) && s.qrStatus === "missing")
-      .map((s) => s.id);
+    const missingIds = participants
+      .filter((p) => selectedIds.includes(p.id) && p.qrStatus === "missing")
+      .map((p) => p.id);
 
     if (missingIds.length === 0) {
-      showToast("error", "No selected students with missing QR codes.");
+      showToast("error", "No selected participants with missing QR codes.");
       return;
     }
 
@@ -448,66 +367,51 @@ function QRManagement() {
     } catch (err) {
       showToast("error", err?.message || "Failed to generate QR codes.");
     }
-  }, [students, selectedIds, fetchStats, fetchList]);
+  }, [participants, selectedIds, fetchStats, fetchList]);
 
-  // ── Bulk Download ZIP ────────────────────────────────────────
   const handleBulkDownloadZip = useCallback(async () => {
     if (selectedIds.length === 0) {
-      showToast("error", "No students selected.");
+      showToast("error", "No participants selected.");
       return;
     }
 
-    try {
-      // Generate all QR data URLs and create a temporary combined approach
-      // Since we can't create ZIP in browser natively, we'll download individually
-      const selected = students.filter((s) => selectedIds.includes(s.id) && s.qrStatus !== "missing");
-
-      if (selected.length === 0) {
-        showToast("error", "No selected students with generated QR codes.");
-        return;
-      }
-
-      // Download each as PNG (simple bulk approach)
-      for (const student of selected) {
-        const payload = student.qrCode || JSON.stringify({
-          id: student.id,
-          studentNumber: student.studentNumber,
-          uuid: student.qrUuid,
-        });
-        const dataUrl = await QRCodeLib.toDataURL(String(payload), {
-          errorCorrectionLevel: "H",
-          margin: 2,
-          width: 512,
-        });
-        const link = document.createElement("a");
-        link.href = dataUrl;
-        link.download = `${student.studentNumber || "student"}_qr.png`;
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        // Small delay to avoid browser blocking multiple downloads
-        await new Promise((r) => setTimeout(r, 200));
-      }
-
-      showToast("success", `Downloaded ${selected.length} QR codes.`);
-    } catch {
-      showToast("error", "Failed to download QR codes.");
-    }
-  }, [students, selectedIds]);
-
-  // ── Bulk Print ───────────────────────────────────────────────
-  const handleBulkPrint = useCallback(async () => {
-    const selected = students.filter((s) => selectedIds.includes(s.id) && s.qrStatus !== "missing");
+    const selected = participants.filter((p) => selectedIds.includes(p.id) && p.qrStatus !== "missing");
     if (selected.length === 0) {
-      showToast("error", "No selected students with generated QR codes to print.");
+      showToast("error", "No selected participants with generated QR codes.");
       return;
     }
 
-    // Print first student's card as sample
-    handlePrint(selected[0]);
-  }, [students, selectedIds, handlePrint]);
+    for (const participant of selected) {
+      const participantId = participant.participantIdentifier ?? participant.studentNumber;
+      const payload = participant.qrCode || JSON.stringify({
+        id: participant.id,
+        participantIdentifier: participantId,
+        uuid: participant.qrUuid,
+      });
+      const dataUrl = await QRCodeLib.toDataURL(String(payload), {
+        errorCorrectionLevel: "H", margin: 2, width: 512,
+      });
+      const link = document.createElement("a");
+      link.href = dataUrl;
+      link.download = `${participantId}_qr.png`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      await new Promise((r) => setTimeout(r, 200));
+    }
 
-  // ── Bulk Delete ──────────────────────────────────────────────
+    showToast("success", `Downloaded ${selected.length} QR codes.`);
+  }, [participants, selectedIds]);
+
+  const handleBulkPrint = useCallback(async () => {
+    const selected = participants.filter((p) => selectedIds.includes(p.id) && p.qrStatus !== "missing");
+    if (selected.length === 0) {
+      showToast("error", "No selected participants with generated QR codes to print.");
+      return;
+    }
+    handlePrint(selected[0]);
+  }, [participants, selectedIds, handlePrint]);
+
   const handleBulkDelete = useCallback(async () => {
     if (selectedIds.length === 0) return;
     try {
@@ -521,10 +425,9 @@ function QRManagement() {
     }
   }, [selectedIds, fetchStats, fetchList]);
 
-  // ── Compute summary cards ────────────────────────────────────
   const cards = useMemo(
     () => [
-      { label: "Total Students", value: stats.totalStudents, type: "totalStudents" },
+      { label: "Total Participants", value: stats.totalParticipants, type: "totalParticipants" },
       { label: "QR Generated", value: stats.qrGenerated, type: "qrGenerated" },
       { label: "Missing QR", value: stats.missingQr, type: "missingQr" },
       { label: "Printed QR", value: stats.printedQr, type: "printedQr" },
@@ -536,22 +439,19 @@ function QRManagement() {
     <div className="qr-page">
       <ToastContainer />
 
-      {/* Page Header */}
       <div className="qr-page-header">
         <h2 className="qr-page-title">QR Code Management</h2>
         <p className="qr-page-subtitle">
-          Generate, manage, download, print and regenerate student QR codes.
+          Generate, manage, download, print and regenerate participant QR codes.
         </p>
       </div>
 
-      {/* Summary Cards */}
       <div className="qr-summary-grid">
         {cards.map((card) => (
           <QRCard key={card.type} label={card.label} value={card.value} type={card.type} />
         ))}
       </div>
 
-      {/* Filters */}
       <QRFilters
         filters={filters}
         onFilterChange={handleFilterChange}
@@ -560,7 +460,6 @@ function QRManagement() {
         loading={loading}
       />
 
-      {/* Bulk Actions */}
       <BulkActions
         selectedCount={selectedIds.length}
         onGenerateMissing={handleBulkGenerateMissing}
@@ -570,9 +469,8 @@ function QRManagement() {
         loading={loading}
       />
 
-      {/* Table */}
       <QRTable
-        students={students}
+        participants={participants}
         pagination={pagination}
         loading={loading}
         selectedIds={selectedIds}
@@ -582,20 +480,19 @@ function QRManagement() {
         onDownloadPng={handleDownloadPng}
         onDownloadPdf={handleDownloadPdf}
         onPrint={handlePrint}
-        onRegenerate={(s) =>
-          s.qrStatus === "missing" ? handleGenerate(s) : handleRegenerate(s)
+        onRegenerate={(p) =>
+          p.qrStatus === "missing" ? handleGenerate(p) : handleRegenerate(p)
         }
         onDelete={handleDelete}
         onPageChange={handlePageChange}
       />
 
-      {/* Preview Modal */}
       <QRPreviewModal
         isOpen={isPreviewOpen}
-        student={previewStudent}
+        participant={previewParticipant}
         onClose={() => {
           setIsPreviewOpen(false);
-          setPreviewStudent(null);
+          setPreviewParticipant(null);
         }}
         onDownloadPng={handleDownloadPng}
         onDownloadPdf={handleDownloadPdf}
@@ -606,4 +503,3 @@ function QRManagement() {
 }
 
 export default QRManagement;
-

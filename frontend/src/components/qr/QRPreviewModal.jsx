@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import QRCode from "qrcode";
-import StudentPhoto from "../students/StudentPhoto";
+import ParticipantAvatar from "../participants/ParticipantAvatar";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
 
@@ -17,31 +17,34 @@ function formatDate(val) {
   });
 }
 
-function QRPreviewModal({ isOpen, student, onClose, onDownloadPng, onDownloadPdf, onPrint }) {
+function QRPreviewModal({ isOpen, participant, onClose, onDownloadPng, onDownloadPdf, onPrint }) {
   const [dataUrl, setDataUrl] = useState("");
 
   useEffect(() => {
-    if (!isOpen || !student?.qrCode) {
+    if (!isOpen || !participant?.qrCode) {
       setDataUrl("");
       return;
     }
-    QRCode.toDataURL(String(student.qrCode), {
+    QRCode.toDataURL(String(participant.qrCode), {
       errorCorrectionLevel: "H",
       margin: 2,
       width: 512,
     })
       .then((url) => setDataUrl(url))
       .catch(() => setDataUrl(""));
-  }, [isOpen, student?.qrCode]);
+  }, [isOpen, participant?.qrCode]);
 
   const fullName = useMemo(() => {
-    if (!student) return "";
-    return [student.lastName, student.firstName, student.middleName]
-      .filter(Boolean)
-      .join(" ") || student.studentNumber;
-  }, [student]);
+    if (!participant) return "";
+    return (
+      [participant.lastName, participant.firstName, participant.middleName]
+        .filter(Boolean)
+        .join(" ") ||
+      (participant.participantIdentifier ?? participant.studentNumber)
+    );
+  }, [participant]);
 
-  if (!isOpen || !student) return null;
+  if (!isOpen || !participant) return null;
 
   return (
     <div
@@ -58,7 +61,7 @@ function QRPreviewModal({ isOpen, student, onClose, onDownloadPng, onDownloadPdf
           <div>
             <h3 style={{ margin: 0, fontSize: 18, color: "#0f172a" }}>QR Code Preview</h3>
             <p style={{ margin: "4px 0 0", color: "#64748b", fontSize: 13 }}>
-              Student QR Code Details
+              Participant QR Code Details
             </p>
           </div>
           <button
@@ -114,57 +117,57 @@ function QRPreviewModal({ isOpen, student, onClose, onDownloadPng, onDownloadPdf
                   <div style={{ color: "#94a3b8", fontSize: 13 }}>Loading QR...</div>
                 )}
               </div>
-              {student.qrUuid && (
+{participant.qrUuid && (
                 <div style={{ fontSize: 10, color: "#94a3b8", textAlign: "center", wordBreak: "break-all", maxWidth: 220 }}>
-                  UUID: {student.qrUuid}
+                  UUID: {participant.qrUuid}
                 </div>
               )}
             </div>
 
-            {/* Student Info */}
+            {/* Participant Info */}
             <div style={{ flex: 1, minWidth: 200 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
-                <StudentPhoto
-                  photoPath={student.photo}
-                  studentName={fullName}
+<ParticipantAvatar
+                  photoPath={participant.photo}
+                  participantName={fullName}
                   size={56}
-                  alt="Student photo"
+                  alt="Participant photo"
                 />
                 <div>
                   <div style={{ fontWeight: 700, fontSize: 15, color: "#0f172a" }}>{fullName}</div>
-                  <div style={{ color: "#475569", fontSize: 13 }}>{student.studentNumber}</div>
+                  <div style={{ color: "#475569", fontSize: 13 }}>{participant.participantIdentifier ?? participant.studentNumber}</div>
                 </div>
               </div>
 
               <div className="qr-preview-details">
-                <div className="qr-preview-detail-row">
-                  <span className="qr-preview-detail-label">Course</span>
-                  <span className="qr-preview-detail-value">{student.course || "-"}</span>
+<div className="qr-preview-detail-row">
+                  <span className="qr-preview-detail-label">Department</span>
+                  <span className="qr-preview-detail-value">{participant.course || participant.department || "-"}</span>
                 </div>
                 <div className="qr-preview-detail-row">
-                  <span className="qr-preview-detail-label">Year Level</span>
-                  <span className="qr-preview-detail-value">{student.year || "-"}</span>
+                  <span className="qr-preview-detail-label">Level</span>
+                  <span className="qr-preview-detail-value">{participant.year || participant.level || "-"}</span>
                 </div>
                 <div className="qr-preview-detail-row">
-                  <span className="qr-preview-detail-label">Section</span>
-                  <span className="qr-preview-detail-value">{student.section || "-"}</span>
+                  <span className="qr-preview-detail-label">Group</span>
+                  <span className="qr-preview-detail-value">{participant.section || participant.groupName || "-"}</span>
                 </div>
                 <div className="qr-preview-detail-row">
                   <span className="qr-preview-detail-label">QR Status</span>
                   <span className="qr-preview-detail-value">
-                    {student.qrStatus === "generated" ? (
+                    {participant.qrStatus === "generated" ? (
                       <span className="qr-badge qr-badge--generated">Generated</span>
-                    ) : student.qrStatus === "printed" ? (
+                    ) : participant.qrStatus === "printed" ? (
                       <span className="qr-badge qr-badge--printed">Printed</span>
                     ) : (
                       <span className="qr-badge qr-badge--missing">Missing</span>
                     )}
                   </span>
                 </div>
-                {student.qrGeneratedAt && (
+                {participant.qrGeneratedAt && (
                   <div className="qr-preview-detail-row">
                     <span className="qr-preview-detail-label">Date Generated</span>
-                    <span className="qr-preview-detail-value">{formatDate(student.qrGeneratedAt)}</span>
+                    <span className="qr-preview-detail-value">{formatDate(participant.qrGeneratedAt)}</span>
                   </div>
                 )}
               </div>
@@ -186,10 +189,10 @@ function QRPreviewModal({ isOpen, student, onClose, onDownloadPng, onDownloadPdf
           <button type="button" className="ui-btn ui-btn-secondary" onClick={onClose}>
             Close
           </button>
-          <button
+<button
             type="button"
             className="ui-btn ui-btn-primary"
-            onClick={() => onDownloadPng(student)}
+            onClick={() => onDownloadPng(participant)}
             disabled={!dataUrl}
           >
             🖼️ Download PNG
@@ -197,7 +200,7 @@ function QRPreviewModal({ isOpen, student, onClose, onDownloadPng, onDownloadPdf
           <button
             type="button"
             className="ui-btn ui-btn-primary"
-            onClick={() => onDownloadPdf(student)}
+            onClick={() => onDownloadPdf(participant)}
             disabled={!dataUrl}
           >
             📄 Download PDF
@@ -205,7 +208,7 @@ function QRPreviewModal({ isOpen, student, onClose, onDownloadPng, onDownloadPdf
           <button
             type="button"
             className="ui-btn ui-btn-secondary"
-            onClick={() => onPrint(student)}
+            onClick={() => onPrint(participant)}
             disabled={!dataUrl}
           >
             🖨️ Print

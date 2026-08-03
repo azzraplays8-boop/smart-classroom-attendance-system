@@ -12,7 +12,7 @@ import { useAuth } from "../hooks/useAuth";
  */
 const ROUTE_PERMISSION_MAP = {
   "/": "dashboard",
-  "/students": "students",
+  "/participants": "participants",
   "/attendance": "attendance",
   "/attendance-history": "attendance-history",
   "/qr-management": "qr-management",
