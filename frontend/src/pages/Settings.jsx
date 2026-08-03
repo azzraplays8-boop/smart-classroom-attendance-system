@@ -69,9 +69,8 @@ import {
 import "../styles/Settings.css";
 import translations from "../data/translations.js";
 import { useOrgLabels } from "../config/labels";
+import { API_BASE_URL } from "../config/api";
 import { APP_VERSION } from "../constants";
-
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "http://localhost:5000").replace(/\/$/, "");
 
 const DEFAULT_PRIMARY_COLOR = "#4f46e5";
 const LOCAL_PREFS_KEY = "app_system_prefs";

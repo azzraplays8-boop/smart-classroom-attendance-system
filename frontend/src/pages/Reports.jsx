@@ -12,9 +12,8 @@ import QuickInsights from "../components/analytics/QuickInsights";
 import ReportGenerator from "../components/analytics/ReportGenerator";
 import { useOrgLabels } from "../config/labels";
 import { formatHourLabel, getHour, normalizeStatus } from "../components/analytics/analyticsUtils";
+import { API_BASE_URL } from "../config/api";
 import "../styles/Reports.css";
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
 
 /**
  * Analytics & Reports — True Analytics Dashboard (frontend-only redesign).

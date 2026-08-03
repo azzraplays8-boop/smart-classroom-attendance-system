@@ -2,8 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { BrowserMultiFormatReader } from "@zxing/browser";
 import ParticipantAvatar from "../components/participants/ParticipantAvatar";
 import { useOrgLabels } from "../config/labels";
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
+import { API_BASE_URL } from "../config/api";
 
 function formatTime(value) {
   if (!value) return "-";

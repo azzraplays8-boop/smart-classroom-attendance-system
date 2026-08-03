@@ -6,9 +6,8 @@ import * as XLSX from "xlsx";
 import { FiEdit2, FiTrash2, FiChevronLeft, FiChevronRight } from "react-icons/fi";
 
 import ConfirmDialog from "../components/participants/ConfirmDialog";
+import { API_BASE_URL } from "../config/api";
 import "../styles/attendance/AttendanceHistory.css";
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
 
 function formatDate(value) {
   if (!value) return "-";

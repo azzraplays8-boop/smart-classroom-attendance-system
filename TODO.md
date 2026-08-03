@@ -1,31 +1,25 @@
-# Dashboard Redesign — Modern Enterprise Admin Command Center
+# Production Deployment Task List
 
-## Objective
-Transform the Dashboard into a modern Admin Command Center matching the design language of Attendance History, Analytics & Reports, Settings, and Account.
-Frontend UI/UX only — preserve all backend logic, APIs, routes, auth, QR, and attendance logic.
+## Backend
+- [x] 1. `backend/src/db.js` — Added SSL support (`DB_SSL`, `DB_SSL_CA_PATH`) + `DATABASE_URL` support; `getEnvDb()` now returns `ssl`
+- [x] 2. `backend/src/server.js` — Passes `ssl` to `ensureDatabaseExists` + `createAppPool`; already binds `0.0.0.0`, supports multi-origin CORS, gates auto-migrate behind `DB_AUTO_MIGRATE`
+- [x] 3. `backend/src/auth/authMiddleware.js` — Removed hardcoded JWT secret fallback; requires `JWT_SECRET` from env
+- [x] 4. `backend/.env.example` — Rewrote as production-ready template
+- [x] 5. `backend/.gitignore` — Already correct (ignores `.env`, `.env.*`, includes `.env.example`)
 
-## Approved Requirements
-- Use only existing endpoints: `/attendance/dashboard`, `/attendance/history`, `/settings`, `/participants`, `/health`
-- Total Participants must come from `/participants` (real count), never zero incorrectly
-- No fake System Status values — derive from real requests; label QR Scanner as "Local status"
-- Reuse fetched data (`useMemo`), avoid duplicate requests
-- Lightweight charts only (Today's donut + 7-day trend via Recharts)
-- Quick Actions use existing routes; "Start Session" preserves the attendance workflow (`/attendance`)
-- Empty states use existing routes (`/participants`, `/attendance`)
-- theme.css variables only, dark-mode compatible, responsive, no excessive animation
+## Frontend (remove localhost fallbacks; require VITE_API_BASE_URL)
+- [x] 6. `frontend/src/config/api.js` — Already production-ready (already requires `VITE_API_BASE_URL`, no localhost fallback)
+- [x] 7. `frontend/src/services/authService.js` — Already uses `config/api.js`
+- [x] 8. `frontend/src/services/qrService.js` — Already uses `config/api.js`
+- [x] 9. `frontend/src/components/participants/ParticipantAvatar.jsx` — Already uses `config/api.js`
+- [x] 10. `frontend/src/pages/Attendance.jsx` — Already uses `config/api.js`
+- [x] 11. `frontend/src/pages/Dashboard.jsx` — Already uses `config/api.js`
+- [x] 12. `frontend/src/pages/Reports.jsx` — Updated to import `API_BASE_URL` from `config/api.js`
+- [x] 13. `frontend/src/pages/Settings.jsx` — Updated to import `API_BASE_URL` from `config/api.js`
 
-## Steps
-- [x] 1. Analyze codebase (Dashboard.jsx, theme.css, Settings.css, AccountWorkspace.css, Reports.css, backend routes)
-- [x] 2. Rewrite `frontend/src/pages/Dashboard.jsx`
-      - [x] Hero (greeting, admin name, live date/time, org name, session status)
-      - [x] 8 KPI cards (gradients + icons, hover animations, real data)
-      - [x] Quick Actions panel (7 buttons → existing routes)
-      - [x] Live Activity card (latest 5 records, scrollable)
-      - [x] Today's Session card (from `/settings`)
-      - [x] Charts: Today's Attendance donut + 7-day trend (Recharts)
-      - [x] System Status card (real health + "Local status" labels)
-      - [x] Empty states (no participants / no attendance)
-- [x] 3. Rewrite `frontend/src/styles/Dashboard.css` (glass cards, theme.css vars, dark mode, responsive)
-- [x] 4. Run `npm run build` and verify 0 errors
-- [x] 5. Final verification (KPI accuracy, quick actions, mobile, no duplicate requests, no console errors)
+## Verification
+- [x] 14. Confirm all API routes unchanged
+- [x] 15. Deliver final deployment report (env vars, order, manual steps)
 
+## Result
+All backend changes complete. Frontend already production-ready (only Reports.jsx & Settings.jsx were patched to use the shared config; no localhost fallbacks remain).

@@ -5,8 +5,6 @@ import ParticipantAvatar from "./ParticipantAvatar";
 import { useOrgLabels } from "../../config/labels";
 import "../../styles/participants/ParticipantModal.css";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
-
 
 function normalizeText(v) {
   return String(v ?? "").trim();

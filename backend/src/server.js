@@ -28,9 +28,16 @@ const {
 
 const app = express();
 
+// CORS: accept a comma-separated list of allowed origins (e.g. Vercel domains).
+// When none are set, fall back to allowing all origins in development.
+const allowedOrigins = (CORS_ORIGIN || "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+
 app.use(
   cors({
-    origin: CORS_ORIGIN || "http://localhost:5173",
+    origin: allowedOrigins.length > 0 ? allowedOrigins : true,
     credentials: false,
   })
 );
@@ -82,6 +89,7 @@ async function start() {
     user: db.user,
     password: db.password,
     database: db.database,
+    ssl: db.ssl,
   });
 
   const pool = createAppPool({
@@ -91,33 +99,41 @@ async function start() {
     password: db.password,
     database: db.database,
     connectionLimit: db.connectionLimit,
+    ssl: db.ssl,
   });
 
 
-  // Run schema init
-  const schemaSqlPath = DB_ROOT_SQL_PATH
-    ? path.resolve(DB_ROOT_SQL_PATH)
-    : path.resolve(__dirname, "../sql/schema.sql");
+// Run schema + migrations on startup (idempotent SQL, safe to run repeatedly).
+  // Set DB_AUTO_MIGRATE=false to disable, e.g. when you provision the schema
+  // manually or via a separate migration step.
+  const autoMigrate = process.env.DB_AUTO_MIGRATE !== "false";
 
-  const schemaSql = fs.readFileSync(schemaSqlPath, "utf8");
-  await pool.query(schemaSql);
+  if (autoMigrate) {
+    // Run schema init
+    const schemaSqlPath = DB_ROOT_SQL_PATH
+      ? path.resolve(DB_ROOT_SQL_PATH)
+      : path.resolve(__dirname, "../sql/schema.sql");
 
-  // Run auth schema
-  const authSchemaPath = path.resolve(__dirname, "../sql/auth_schema.sql");
-  const authSchemaSql = fs.readFileSync(authSchemaPath, "utf8");
-  await pool.query(authSchemaSql);
+    const schemaSql = fs.readFileSync(schemaSqlPath, "utf8");
+    await pool.query(schemaSql);
 
-  const migrationsDir = path.resolve(__dirname, "../sql/migrations");
-  if (fs.existsSync(migrationsDir)) {
-    const migrationFiles = fs
-      .readdirSync(migrationsDir)
-      .filter((file) => file.endsWith(".sql"))
-      .sort();
+    // Run auth schema
+    const authSchemaPath = path.resolve(__dirname, "../sql/auth_schema.sql");
+    const authSchemaSql = fs.readFileSync(authSchemaPath, "utf8");
+    await pool.query(authSchemaSql);
 
-    for (const file of migrationFiles) {
-      const migrationSql = fs.readFileSync(path.join(migrationsDir, file), "utf8");
-      if (migrationSql.trim()) {
-        await pool.query(migrationSql);
+    const migrationsDir = path.resolve(__dirname, "../sql/migrations");
+    if (fs.existsSync(migrationsDir)) {
+      const migrationFiles = fs
+        .readdirSync(migrationsDir)
+        .filter((file) => file.endsWith(".sql"))
+        .sort();
+
+      for (const file of migrationFiles) {
+        const migrationSql = fs.readFileSync(path.join(migrationsDir, file), "utf8");
+        if (migrationSql.trim()) {
+          await pool.query(migrationSql);
+        }
       }
     }
   }
@@ -144,9 +160,10 @@ async function start() {
     res.status(500).json({ message: "Internal server error" });
   });
 
-  const port = Number(PORT || 5000);
-  app.listen(port, () => {
-    console.log(`API listening on http://localhost:${port}`);
+const port = Number(PORT || 5000);
+  // Bind to 0.0.0.0 so Render's reverse proxy can reach the app.
+  app.listen(port, "0.0.0.0", () => {
+    console.log(`API listening on port ${port}`);
   });
 }
 

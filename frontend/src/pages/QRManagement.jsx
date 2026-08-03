@@ -6,9 +6,8 @@ import QRTable from "../components/qr/QRTable";
 import QRPreviewModal from "../components/qr/QRPreviewModal";
 import BulkActions from "../components/qr/BulkActions";
 import qrService from "../services/qrService";
+import { API_BASE_URL } from "../config/api";
 import "../styles/qr/QRManagement.css";
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
 
 function getParticipantPhotoUrl(photoPath) {
   if (!photoPath) return null;

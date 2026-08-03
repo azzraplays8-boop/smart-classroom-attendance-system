@@ -46,6 +46,7 @@ import "../styles/Dashboard.css";
 import { useAuth } from "../hooks/useAuth";
 import { useSettings } from "../context/SettingsContext";
 import { useOrgLabels } from "../config/labels";
+import { API_BASE_URL } from "../config/api";
 import { APP_NAME } from "../constants";
 import {
   addDays,
@@ -56,8 +57,6 @@ import {
   normalizeStatus,
   todayString,
 } from "../components/analytics/analyticsUtils";
-
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "http://localhost:5000").replace(/\/$/, "");
 
 const STATUS_COLORS = {
   present: "#22c55e",

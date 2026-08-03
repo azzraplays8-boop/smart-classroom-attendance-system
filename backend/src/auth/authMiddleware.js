@@ -8,7 +8,12 @@
  */
 import jwt from "jsonwebtoken";
 
-const JWT_SECRET = process.env.JWT_SECRET || "smart-attendance-jwt-secret-dev-only";
+// JWT_SECRET is required in production. Fail fast if it is missing rather than
+// silently falling back to a hardcoded development secret.
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error("JWT_SECRET environment variable is required. Set it before starting the server.");
+}
 
 /**
  * Verify that a valid JWT is present in the Authorization header.
