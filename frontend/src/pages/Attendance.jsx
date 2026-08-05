@@ -1,8 +1,27 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BrowserMultiFormatReader } from "@zxing/browser";
+import {
+  FiCamera,
+  FiCameraOff,
+  FiVideo,
+  FiToggleLeft,
+  FiToggleRight,
+  FiZap,
+  FiRefreshCw,
+  FiUsers,
+  FiCalendar,
+  FiClock,
+  FiCheckCircle,
+  FiAlertTriangle,
+  FiXCircle,
+  FiUserCheck,
+  FiSearch,
+  FiActivity,
+} from "react-icons/fi";
 import ParticipantAvatar from "../components/participants/ParticipantAvatar";
 import { useOrgLabels } from "../config/labels";
 import { API_BASE_URL } from "../config/api";
+import "../styles/attendance/Attendance.css";
 
 // Key used to remember the user's chosen camera across visits.
 const CAMERA_STORAGE_KEY = "attendance-selected-camera";
@@ -30,6 +49,39 @@ function formatTime(value) {
   return `${hours12}:${minutes} ${suffix}`;
 }
 
+function getInitials(name) {
+  const trimmed = String(name || "Participant").trim();
+  if (!trimmed) return "PA";
+  const parts = trimmed.split(/\s+/).filter(Boolean);
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0] || ""}${parts[parts.length - 1][0] || ""}`.toUpperCase();
+}
+
+function getStatusClass(status) {
+  switch (String(status || "").toLowerCase()) {
+    case "present":
+      return "att-badge att-badge--present";
+    case "late":
+      return "att-badge att-badge--late";
+    case "absent":
+      return "att-badge att-badge--absent";
+    default:
+      return "att-badge att-badge--duplicate";
+  }
+}
+
+function statSkeleton(key) {
+  return (
+    <div className="att-stat-skeleton" key={key}>
+      <div className="att-skeleton att-stat-skeleton__icon" />
+      <div className="att-stat-skeleton__lines">
+        <div className="att-skeleton att-stat-skeleton__line att-stat-skeleton__line--sm" />
+        <div className="att-skeleton att-stat-skeleton__line att-stat-skeleton__line--lg" />
+      </div>
+    </div>
+  );
+}
+
 function Attendance() {
   const labels = useOrgLabels();
 
@@ -43,6 +95,11 @@ function Attendance() {
   const [cameras, setCameras] = useState([]);
   const [activeDeviceId, setActiveDeviceId] = useState("");
   const [torchOn, setTorchOn] = useState(false);
+  const [torchSupported, setTorchSupported] = useState(false);
+  const [isStartingCamera, setIsStartingCamera] = useState(false);
+  const [scanPhase, setScanPhase] = useState("idle"); // idle | loading | active | processing | success | error
+  const [highlightedId, setHighlightedId] = useState(null);
+  const [loadingToday, setLoadingToday] = useState(true);
 
   const videoRef = useRef(null);
   const streamRef = useRef(null);
@@ -54,6 +111,7 @@ function Attendance() {
   const pauseScanRef = useRef(false);
   const torchOnRef = useRef(false);
   const camerasRef = useRef([]);
+  const highlightTimerRef = useRef(null);
 
   const showToast = (kind, message) => {
     setToast({ kind, message });
@@ -73,6 +131,8 @@ function Attendance() {
       }
     } catch (err) {
       showToast("error", err?.message || "Unable to load today's attendance.");
+    } finally {
+      setLoadingToday(false);
     }
   };
 
@@ -80,7 +140,6 @@ function Attendance() {
   // Camera helpers
   // ------------------------------------------------------------------
 
-  // List every available video input device (camera).
   const loadCameras = useCallback(async () => {
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
@@ -101,10 +160,6 @@ function Attendance() {
     }
   }, []);
 
-  // Decide which camera to use on startup:
-  // 1. A previously saved camera (localStorage) if it still exists.
-  // 2. Otherwise, prefer the rear/environment camera on mobile.
-  // 3. Fall back to letting the browser pick via facingMode: "environment".
   const selectInitialCamera = useCallback((cameraList = []) => {
     const savedId = window.localStorage.getItem(CAMERA_STORAGE_KEY);
     if (savedId && cameraList.some((c) => c.id === savedId)) {
@@ -117,9 +172,6 @@ function Attendance() {
     return cameraList[0]?.id || "";
   }, []);
 
-  // Build constraints for getUserMedia.
-  // If a deviceId is give we lock to that exact camera (needed for switching).
-  // Otherwise we request the rear/environment camera.
   const buildConstraints = useCallback((deviceId) => {
     if (deviceId) {
       return { audio: false, video: { deviceId: { exact: deviceId } } };
@@ -127,7 +179,31 @@ function Attendance() {
     return { audio: false, video: { facingMode: { ideal: "environment" } } };
   }, []);
 
-  // Release every media stream track and stop the decoder/scan loop.
+  // Detect torch support + current state for the active video track.
+  const detectTorch = useCallback((track) => {
+    if (!track || typeof track.getCapabilities !== "function") {
+      setTorchSupported(false);
+      setTorchOn(false);
+      torchOnRef.current = false;
+      return false;
+    }
+    try {
+      const caps = track.getCapabilities();
+      const supported = Boolean(caps && caps.torch);
+      setTorchSupported(supported);
+      if (!supported) {
+        setTorchOn(false);
+        torchOnRef.current = false;
+      }
+      return supported;
+    } catch {
+      setTorchSupported(false);
+      setTorchOn(false);
+      torchOnRef.current = false;
+      return false;
+    }
+  }, []);
+
   const stopCamera = useCallback(() => {
     if (intervalRef.current) {
       window.clearInterval(intervalRef.current);
@@ -156,10 +232,10 @@ function Attendance() {
     setCameraActive(false);
     torchOnRef.current = false;
     setTorchOn(false);
+    setTorchSupported(false);
+    setScanPhase((prev) => (prev === "error" ? prev : "idle"));
   }, []);
 
-  // Shared scan callback. Kept in a ref so the decoder always uses the
-  // latest closure without re-binding the stream.
   const scanCallbackRef = useRef(null);
   scanCallbackRef.current = (result, err) => {
     if (!cameraActiveRef.current || pauseScanRef.current) return;
@@ -172,8 +248,6 @@ function Attendance() {
     handleAttendanceScan(rawValue);
   };
 
-  // Start the camera & decoder. Passing a deviceId selects a specific camera;
-  // passing undefined lets the browser pick a rear/environment camera.
   const startCamera = useCallback(
     async (deviceId) => {
       if (cameraActiveRef.current) return;
@@ -181,12 +255,15 @@ function Attendance() {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         const message = "Camera access is not available in this browser.";
         setScanError(message);
+        setScanPhase("error");
         showToast("error", message);
         return;
       }
 
       setStatusMessage("Opening camera...");
       setScanError("");
+      setScanPhase("loading");
+      setIsStartingCamera(true);
 
       try {
         const stream = await navigator.mediaDevices.getUserMedia(buildConstraints(deviceId));
@@ -200,8 +277,6 @@ function Attendance() {
         const detector = new BrowserMultiFormatReader();
         detectorRef.current = detector;
 
-        // decodeFromStream lets us own the MediaStream so we can reliably
-        // stop every track when cleaning up / switching cameras.
         controlsRef.current = detector.decodeFromStream(
           stream,
           videoRef.current || undefined,
@@ -210,11 +285,15 @@ function Attendance() {
 
         cameraActiveRef.current = true;
         setCameraActive(true);
+        setScanPhase("active");
 
-        // Record the actual active device so the selector highlights it.
         const trackSettings = stream.getVideoTracks?.()?.[0]?.getSettings?.();
         const actualDeviceId = trackSettings?.deviceId || deviceId || "";
         setActiveDeviceId(actualDeviceId);
+
+        // Detect torch support from the active track.
+        const track = stream.getVideoTracks?.()?.[0];
+        detectTorch(track);
 
         setStatusMessage("Point the camera at a QR code to record attendance.");
       } catch (err) {
@@ -227,22 +306,26 @@ function Attendance() {
         if (name === "NotAllowedError" || name === "PermissionDeniedError") {
           const message = "Camera permission denied. Please allow camera access and try again.";
           setScanError(message);
+          setScanPhase("error");
           showToast("error", message);
         } else if (name === "NotFoundError" || name === "OverconstrainedError") {
           const message = "No camera detected.";
           setScanError(message);
+          setScanPhase("error");
           showToast("error", message);
         } else {
           const message = "Unable to access the camera. Please allow camera permissions and try again.";
           setScanError(message);
+          setScanPhase("error");
           showToast("error", message);
         }
+      } finally {
+        setIsStartingCamera(false);
       }
     },
-    [buildConstraints]
+    [buildConstraints, detectTorch]
   );
 
-  // Restart the decode loop on the already-open stream (used after a pause).
   const restartDecoder = useCallback(() => {
     if (!detectorRef.current || !videoRef.current || !cameraActiveRef.current) return;
     if (!streamRef.current) return;
@@ -258,7 +341,6 @@ function Attendance() {
     }
   }, []);
 
-  // Switch to a specific camera from the dropdown.
   const handleCameraChange = useCallback(
     (e) => {
       const deviceId = e.target.value;
@@ -269,7 +351,6 @@ function Attendance() {
     [stopCamera, startCamera]
   );
 
-  // Cycle through available cameras.
   const switchCamera = useCallback(() => {
     const list = camerasRef.current;
     if (!list || list.length < 2) {
@@ -283,16 +364,40 @@ function Attendance() {
     window.setTimeout(() => startCamera(next.id), 150);
   }, [activeDeviceId, stopCamera, startCamera]);
 
-  // Toggle flashlight / torch when supported by the device.
+  // Torch toggle using constraints when supported, with graceful fallback.
   const toggleTorch = useCallback(async () => {
+    const stream = videoRef.current?.srcObject;
+    const track = stream?.getVideoTracks?.()?.[0];
+
+    // Constraint-based torch (most modern browsers).
+    if (track && typeof track.applyConstraints === "function") {
+      let supported = false;
+      if (typeof track.getCapabilities === "function") {
+        try {
+          const caps = track.getCapabilities();
+          supported = Boolean(caps && caps.torch);
+        } catch {}
+      }
+      if (supported) {
+        const next = !torchOnRef.current;
+        try {
+          await track.applyConstraints({ advanced: [{ torch: next }] });
+          torchOnRef.current = next;
+          setTorchOn(next);
+          return;
+        } catch {
+          // Fall through to legacy path below.
+        }
+      }
+    }
+
+    // Legacy path via @zxing controls.
     const controls = controlsRef.current;
     if (!controls || typeof controls.switchTorch !== "function") {
-      showToast("error", "Flashlight is not supported on this device.");
+      showToast("error", "Flashlight unavailable");
       return;
     }
     try {
-      const stream = videoRef.current?.srcObject;
-      const track = stream?.getVideoTracks?.()?.[0];
       if (!track) {
         showToast("error", "Camera is not active.");
         return;
@@ -316,6 +421,7 @@ function Attendance() {
       const message = "Invalid QR code.";
       setStatusMessage(message);
       setScanError(message);
+      setScanPhase("error");
       showToast("error", message);
       pauseAndResume();
       return;
@@ -324,28 +430,23 @@ function Attendance() {
     // Haptic feedback on successful decode (mobile only).
     try { navigator.vibrate?.(100); } catch {}
 
-    // Try to parse the QR payload as JSON (for JSON-encoded QRs)
     let qrPayload;
     try {
       qrPayload = JSON.parse(rawValue);
     } catch {
-      // Not JSON — treat the raw value as a plain participantIdentifier (legacy fallback)
       qrPayload = null;
     }
 
-    // Build request body:
-    // If QR contains JSON with a uuid field, use the indexed qrUuid lookup path
-    // Otherwise fall back to participantIdentifier lookup (legacy/direct scan)
     const requestBody = {};
     if (qrPayload && qrPayload.uuid) {
       requestBody.qrUuid = String(qrPayload.uuid).trim();
     } else {
-      // Legacy QR (plain identifier) — send as participantIdentifier
       requestBody.participantIdentifier = rawValue;
     }
 
-    setStatusMessage("Checking attendance...");
+    setStatusMessage("Processing...");
     setScanError("");
+    setScanPhase("processing");
 
     try {
       const res = await fetch(`${API_BASE_URL}/attendance`, {
@@ -359,6 +460,7 @@ function Attendance() {
         const message = data.message || "Failed to record attendance.";
         setStatusMessage(message);
         setScanError(message);
+        setScanPhase("error");
         showToast("error", message);
         pauseAndResume();
         return;
@@ -385,14 +487,26 @@ function Attendance() {
         status: data.attendance?.status || "Present",
         photo: matchedParticipant?.photo || null,
       });
+
+      setScanPhase("success");
       setStatusMessage(successMessage);
       showToast("success", successMessage);
+
+      // Auto-highlight the newly scanned attendee in the table.
+      const newRowId = data.attendance?.id;
+      if (newRowId) {
+        setHighlightedId(newRowId);
+        if (highlightTimerRef.current) window.clearTimeout(highlightTimerRef.current);
+        highlightTimerRef.current = window.setTimeout(() => setHighlightedId(null), 2400);
+      }
+
       await fetchToday();
       pauseAndResume();
     } catch (err) {
       const message = err?.message || "Network error. Please try again.";
       setStatusMessage(message);
       setScanError(message);
+      setScanPhase("error");
       showToast("error", message);
       pauseAndResume();
     }
@@ -400,7 +514,6 @@ function Attendance() {
 
   const pauseAndResume = () => {
     pauseScanRef.current = true;
-    // Stop the decoder loop to eliminate unnecessary frame processing during pause
     if (controlsRef.current) {
       try { controlsRef.current.stop?.(); } catch {}
       controlsRef.current = null;
@@ -412,6 +525,7 @@ function Attendance() {
       pauseScanRef.current = false;
       processedCodeRef.current = "";
       setStatusMessage("Point the camera at a QR code to record attendance.");
+      if (cameraActiveRef.current) setScanPhase("active");
       restartDecoder();
     }, 2000);
   };
@@ -425,6 +539,13 @@ function Attendance() {
     }
   }, [activeDeviceId]);
 
+  // Cleap up highlight timer on unmount.
+  useEffect(() => {
+    return () => {
+      if (highlightTimerRef.current) window.clearTimeout(highlightTimerRef.current);
+    };
+  }, []);
+
   // Initialisation + cleanup.
   useEffect(() => {
     let cancelled = false;
@@ -435,7 +556,6 @@ function Attendance() {
       if (cancelled) return;
       const deviceId = selectInitialCamera(list);
       await startCamera(deviceId);
-      // Refresh the list now that permission is granted so labels populate.
       const refreshed = await loadCameras();
       if (!cancelled) {
         camerasRef.current = refreshed;
@@ -451,68 +571,89 @@ function Attendance() {
     };
   }, [loadCameras, selectInitialCamera, startCamera, stopCamera]);
 
+  // ── Derived stats ─────────────────────────────────────────────
+  const stats = useMemo(() => {
+    const total = attendanceList.length;
+    const present = attendanceList.filter(
+      (r) => String(r.status || "").toLowerCase() === "present"
+    ).length;
+    const late = attendanceList.filter(
+      (r) => String(r.status || "").toLowerCase() === "late"
+    ).length;
+    const absent = attendanceList.filter(
+      (r) => String(r.status || "").toLowerCase() === "absent"
+    ).length;
+    const unique = new Set(
+      attendanceList.map((r) => r.participantId || r.participantIdentifier)
+    ).size;
+    return { total, present, late, absent, unique };
+  }, [attendanceList]);
+
+  const statCards = [
+    { key: "total", label: "Today's Total", value: stats.total, icon: <FiCalendar size={20} />, cls: "total" },
+    { key: "present", label: "Present", value: stats.present, icon: <FiCheckCircle size={20} />, cls: "present" },
+    { key: "late", label: "Late", value: stats.late, icon: <FiClock size={20} />, cls: "late" },
+    { key: "absent", label: "Absent", value: stats.absent, icon: <FiXCircle size={20} />, cls: "absent" },
+    { key: "unique", label: "Unique Scanned", value: stats.unique, icon: <FiUserCheck size={20} />, cls: "unique" },
+  ];
+
+  const statusMeta = {
+    loading: { text: "Camera Starting...", cls: "att-scanner-status--loading", pulse: true },
+    active: { text: "Camera Ready", cls: "att-scanner-status--active", pulse: true },
+    processing: { text: "Processing...", cls: "att-scanner-status--loading", pulse: true },
+    success: { text: "Attendance Recorded", cls: "att-scanner-status--active", pulse: false },
+    error: { text: "Error", cls: "att-scanner-status--error", pulse: false },
+    idle: { text: "Camera Off", cls: "att-scanner-status--idle", pulse: false },
+  };
+  const currentStatus = statusMeta[scanPhase] || statusMeta.idle;
+
   return (
-    <div className="page attendance-page">
-      <style>{`
-        @media (max-width: 768px) {
-          .attendance-scan-grid { grid-template-columns: 1fr !important; }
-          .attendance-camera-controls { flex-direction: column; align-items: stretch; }
-          .attendance-camera-controls select,
-          .attendance-camera-controls button { width: 100%; }
-        }
-      `}</style>
-
-      <div
-        style={{
-          position: "fixed",
-          right: 18,
-          bottom: 18,
-          zIndex: 1200,
-          pointerEvents: "none",
-        }}
-        aria-live="polite"
-      >
-        {toastVisible ? (
-          <div
-            style={{
-              background: toast.kind === "success" ? "#dcfce7" : "#fee2e2",
-              color: toast.kind === "success" ? "#166534" : "#991b1b",
-              border: toast.kind === "success" ? "1px solid #86efac" : "1px solid #fca5a5",
-              padding: "12px 14px",
-              borderRadius: 12,
-              fontWeight: 800,
-              boxShadow: "0 12px 40px rgba(2,6,23,0.25)",
-              maxWidth: 420,
-            }}
-          >
-            {toast.message}
+    <div className="att-page">
+      {/* Sticky Top Toolbar */}
+      <div className="att-toolbar">
+        <div className="att-toolbar-left">
+          <div className="att-toolbar-badge">
+            <FiCamera size={20} />
           </div>
-        ) : null}
-      </div>
+          <div>
+            <h2 className="att-toolbar-title">Attendance</h2>
+            <p className="att-toolbar-subtitle">
+              {new Date().toLocaleDateString([], { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
+            </p>
+          </div>
+        </div>
 
-      <h2>Attendance</h2>
-
-      <div style={{ marginBottom: 16 }}>
-        <div className="attendance-camera-controls" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 8 }}>
-          <button type="button" onClick={() => (cameraActive ? stopCamera() : startCamera(activeDeviceId || undefined))}>
-            {cameraActive ? "Stop Camera" : "Start Camera"}
+        <div className="att-toolbar-actions">
+          <button
+            type="button"
+            className={`att-btn ${cameraActive ? "att-btn--primary att-btn--primary--stop" : "att-btn--primary"}`}
+            onClick={() => (cameraActive ? stopCamera() : startCamera(activeDeviceId || undefined))}
+            disabled={isStartingCamera}
+          >
+            {isStartingCamera ? (
+              <>
+                <span className="att-spinner" style={{ width: 18, height: 18, borderWidth: 2 }} />
+                Starting...
+              </>
+            ) : cameraActive ? (
+              <>
+                <FiCameraOff size={18} /> Stop Camera
+              </>
+            ) : (
+              <>
+                <FiVideo size={18} /> Start Camera
+              </>
+            )}
           </button>
 
-          {cameras.length > 1 ? (
+          {cameraActive && cameras.length > 1 ? (
             <>
               <select
+                className="att-select"
                 value={activeDeviceId || ""}
                 onChange={handleCameraChange}
                 aria-label="Select camera"
                 title="Select camera"
-                style={{
-                  padding: "6px 8px",
-                  borderRadius: 8,
-                  border: "1px solid #d1d5db",
-                  background: "#fff",
-                  fontSize: 13,
-                  maxWidth: 240,
-                }}
               >
                 {cameras.map((c) => (
                   <option key={c.id} value={c.id}>
@@ -521,131 +662,321 @@ function Attendance() {
                 ))}
               </select>
 
-              <button type="button" onClick={switchCamera} title="Switch camera">
-                🔄 Switch Camera
+              <button
+                type="button"
+                className="att-btn att-btn--outline"
+                onClick={switchCamera}
+                title="Switch camera"
+              >
+                <FiRefreshCw size={16} /> Switch
               </button>
             </>
           ) : null}
 
-          <button type="button" onClick={toggleTorch} title="Toggle flashlight">
-            {torchOn ? "🔦 Torch: On" : "🔦 Torch: Off"}
-          </button>
-        </div>
-
-        <div style={{ fontWeight: 700, marginBottom: 4 }}>{statusMessage}</div>
-        {scanError ? <div style={{ color: "#b91c1c" }}>{scanError}</div> : null}
-      </div>
-
-      <div
-        className="attendance-scan-grid"
-        style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 320px", gap: 16, alignItems: "start" }}
-      >
-        <div style={{ border: "1px solid #e5e7eb", borderRadius: 12, overflow: "hidden", background: "#fff" }}>
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            muted
-            style={{ width: "100%", minHeight: 320, background: "#111827", display: cameraActive ? "block" : "none" }}
-          />
-          {!cameraActive ? (
-            <div style={{ padding: 24, minHeight: 320, display: "flex", alignItems: "center", justifyContent: "center", color: "#6b7280" }}>
-              {scanError ? scanError : "Camera is off. Start the camera to scan a QR code."}
-            </div>
+          {cameraActive && torchSupported ? (
+            <button
+              type="button"
+              className={`att-btn ${torchOn ? "att-btn--primary" : "att-btn--outline"}`}
+              onClick={toggleTorch}
+              title="Toggle flashlight"
+            >
+              {torchOn ? <FiToggleRight size={18} /> : <FiToggleLeft size={18} />}
+              {torchOn ? "Torch: On" : "Torch: Off"}
+            </button>
           ) : null}
         </div>
-
-        {attendanceResult ? (
-          <div style={{
-            background: "linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)",
-            border: "2px solid #86efac",
-            borderRadius: 16,
-            padding: 20,
-            boxShadow: "0 4px 12px rgba(34,197,94,0.15)",
-          }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
-              <div style={{
-                width: 24, height: 24, borderRadius: "50%", background: "#22c55e",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                color: "#fff", fontWeight: 700, fontSize: 14
-              }}>✓</div>
-              <h3 style={{ margin: 0, color: "#166534", fontSize: 15 }}>Attendance Recorded Successfully</h3>
-            </div>
-
-            <div style={{ display: "flex", gap: 16, alignItems: "center", marginBottom: 16 }}>
-<ParticipantAvatar
-                photoPath={attendanceResult.photo}
-                participantName={attendanceResult.fullName}
-                size={64}
-                alt="Participant photo"
-              />
-              <div>
-                <div style={{ fontWeight: 700, fontSize: 16, color: "#0f172a" }}>{attendanceResult.fullName}</div>
-                <div style={{ color: "#475569", fontSize: 13 }}>{attendanceResult.participantIdentifier}</div>
-              </div>
-            </div>
-
-<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 16px", fontSize: 13 }}>
-<div><span style={{ color: "#64748b" }}>{labels.departmentLabel || "Department"}:</span></div>
-              <div style={{ fontWeight: 600, color: "#0f172a" }}>{attendanceResult.department}</div>
-<div><span style={{ color: "#64748b" }}>{labels.roleLabel || "Level"}:</span></div>
-              <div style={{ fontWeight: 600, color: "#0f172a" }}>{attendanceResult.year}</div>
-<div><span style={{ color: "#64748b" }}>{labels.groupLabel || "Group"}:</span></div>
-              <div style={{ fontWeight: 600, color: "#0f172a" }}>{attendanceResult.section}</div>
-              <div><span style={{ color: "#64748b" }}>Attendance Status:</span></div>
-              <div style={{
-                fontWeight: 700,
-                color: attendanceResult.status === "Present" ? "#16a34a" : "#ca8a04",
-              }}>
-                {attendanceResult.status}
-              </div>
-              <div><span style={{ color: "#64748b" }}>Time Recorded:</span></div>
-              <div style={{ fontWeight: 600, color: "#0f172a" }}>{attendanceResult.timeIn}</div>
-            </div>
-          </div>
-        ) : (
-          <div style={{
-            border: "1px solid #e5e7eb", borderRadius: 12, padding: 24, background: "#fff",
-            display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-            minHeight: 200, color: "#94a3b8"
-          }}>
-            <div style={{ fontSize: 40, marginBottom: 8 }}>📷</div>
-            <div style={{ fontSize: 14 }}>Scan a QR code to see attendance details.</div>
-          </div>
-        )}
       </div>
 
-      <h3 style={{ marginTop: 16 }}>Today's Attendance</h3>
-      <table style={{ width: "100%", borderCollapse: "collapse" }}>
-        <thead>
-<tr>
-            <th>#</th>
-<th>{labels.primaryIdLabel || "Participant Number"}</th>
-            <th>{labels.entityName || "Participant"} Name</th>
-            <th>Time In</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {attendanceList.length === 0 ? (
-            <tr>
-              <td colSpan={5}>No records for today.</td>
-            </tr>
-          ) : (
-            attendanceList.map((r, idx) => (
-              <tr key={r.id}>
-                <td>{idx + 1}</td>
-<td>{r.participantIdentifier || r.studentNumber || "-"}</td>
-                <td>{`${r.firstName || ""} ${r.lastName || ""}`.trim()}</td>
-                <td>{r.timeIn ? formatTime(r.timeIn) : "-"}</td>
+      {/* Toast */}
+      {toastVisible ? (
+        <div className={`att-toast att-toast--${toast.kind}`} role="status" aria-live="polite">
+          {toast.kind === "success" ? <FiCheckCircle size={18} /> : <FiAlertTriangle size={18} />}
+          {toast.message}
+        </div>
+      ) : null}
 
-                <td>{r.status}</td>
+      {/* Top Statistics */}
+      <div className="att-stats-grid">
+        {loadingToday
+          ? [...Array(5).keys()].map(statSkeleton)
+          : statCards.map((card, i) => (
+              <div
+                className={`att-stat-card att-stat-card--${card.cls}`}
+                key={card.key}
+                style={{ animationDelay: `${i * 60}ms` }}
+              >
+                <div className={`att-stat-icon att-stat-icon--${card.cls}`}>{card.icon}</div>
+                <div className="att-stat-meta">
+                  <div className="att-stat-label">{card.label}</div>
+                  <div className="att-stat-value">{card.value}</div>
+                </div>
+              </div>
+            ))}
+      </div>
 
+      {/* Scanner + Recent Scans */}
+      <div className="att-scan-layout">
+        {/* Scanner Card */}
+        <div className="att-scanner-card">
+          <div className="att-scanner-card-header">
+            <h3 className="att-scanner-title">
+              <FiZap size={18} style={{ color: "var(--primary-2)" }} />
+              QR Scanner
+            </h3>
+            <span className={`att-scanner-status ${currentStatus.cls}`}>
+              <span className={`att-status-dot ${currentStatus.pulse ? "att-status-dot--pulse" : ""}`} />
+              {currentStatus.text}
+            </span>
+          </div>
+
+          <div className="att-camera-viewport">
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className="att-video"
+              style={{ display: cameraActive ? "block" : "none" }}
+            />
+
+            {/* Camera loading */}
+            {isStartingCamera ? (
+              <div className="att-camera-loading">
+                <div className="att-spinner" />
+                <div>Opening camera...</div>
+              </div>
+            ) : null}
+
+            {/* Camera off state */}
+            {!cameraActive && !isStartingCamera ? (
+              <div className="att-camera-off">
+                <div className="att-camera-off-icon">📷</div>
+                <div className="att-camera-off-title">Camera is off</div>
+                <div className="att-camera-off-hint">
+                  {scanError || "Start the camera to scan a QR code and record attendance."}
+                </div>
+                <button
+                  type="button"
+                  className="att-btn att-btn--primary"
+                  onClick={() => startCamera(activeDeviceId || undefined)}
+                >
+                  <FiVideo size={18} /> Start Camera
+                </button>
+              </div>
+            ) : null}
+
+            {/* Animated scan frame */}
+            {cameraActive && scanPhase !== "processing" ? (
+              <div
+                className={`att-scan-frame
+                  ${scanPhase === "active" ? "att-scan-frame--active" : ""}
+                  ${scanPhase === "success" ? "att-scan-frame--active att-scan-frame--success" : ""}
+                  ${scanPhase === "error" ? "att-scan-frame--active att-scan-frame--error" : ""}`}
+              >
+                {scanPhase === "active" ? <div className="att-scan-line" /> : null}
+                <span className="att-scan-frame__corner att-scan-frame__corner--tl" />
+                <span className="att-scan-frame__corner att-scan-frame__corner--tr" />
+                <span className="att-scan-frame__corner att-scan-frame__corner--bl" />
+                <span className="att-scan-frame__corner att-scan-frame__corner--br" />
+              </div>
+            ) : null}
+
+            {/* Processing overlay */}
+            {scanPhase === "processing" ? (
+              <div className="att-scan-processing">
+                <div className="att-spinner" />
+                <div>Processing...</div>
+              </div>
+            ) : null}
+
+            {/* Success overlay */}
+            {scanPhase === "success" ? (
+              <div className="att-scan-success">
+                <div className="att-scan-success-badge">✓</div>
+              </div>
+            ) : null}
+          </div>
+
+          <div style={{ padding: 14, borderTop: "1px solid var(--border-2)", fontSize: 13, color: "var(--muted-2)", textAlign: "center" }}>
+            {statusMessage}
+          </div>
+        </div>
+
+        {/* Recent Scans Panel */}
+        <div className="att-recent-card">
+          <div className="att-recent-header">
+            <h3 className="att-recent-title">
+              <FiActivity size={18} style={{ color: "var(--primary-2)" }} />
+              Recent Scans
+            </h3>
+            <span className="att-recent-count">{attendanceList.length}</span>
+          </div>
+
+          <div className="att-recent-scroll">
+            {loadingToday ? (
+              <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+                {[...Array(4).keys()].map((i) => (
+                  <div style={{ display: "flex", gap: 12 }} key={i}>
+                    <div className="att-skeleton" style={{ width: 44, height: 44, borderRadius: 12 }} />
+                    <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
+                      <div className="att-skeleton" style={{ height: 14, width: "60%" }} />
+                      <div className="att-skeleton" style={{ height: 12, width: "40%" }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : attendanceList.length === 0 ? (
+              <div className="att-recent-empty">
+                <div className="att-recent-empty-icon">📡</div>
+                <div className="att-recent-empty-title">No scans yet</div>
+                <div className="att-recent-empty-hint">Scanned attendees will appear here instantly.</div>
+              </div>
+            ) : (
+              attendanceList.map((r, idx) => (
+                <div className={`att-recent-item ${idx === 0 ? "att-recent-item--new" : ""}`} key={r.id}>
+                  <div className="att-recent-avatar">
+                    {r.photo ? (
+                      <img src={`${API_BASE_URL}/uploads/${String(r.photo).startsWith("/") ? r.photo : `/${r.photo}`}`} alt="" />
+                    ) : (
+                      getInitials(`${r.firstName || ""} ${r.lastName || ""}`)
+                    )}
+                  </div>
+                  <div className="att-recent-meta">
+                    <div className="att-recent-name">{`${r.firstName || ""} ${r.lastName || ""}`.trim() || "-"}</div>
+                    <div className="att-recent-sub">{r.participantIdentifier || r.studentNumber || "-"}</div>
+                  </div>
+                  <div className="att-recent-right">
+                    <span className={`att-badge ${getStatusClass(r.status)}`}>{r.status || "Present"}</span>
+                    <span className="att-recent-time">{r.timeIn ? formatTime(r.timeIn) : "-"}</span>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Scan Result Details */}
+      {attendanceResult ? (
+        <div className="att-table-card" style={{ padding: 20 }}>
+          <div className="att-scanner-title" style={{ marginBottom: 16 }}>
+            <FiCheckCircle size={18} style={{ color: "#22c55e" }} />
+            Attendance Recorded Successfully
+          </div>
+          <div style={{ display: "flex", gap: 16, alignItems: "center", marginBottom: 16, flexWrap: "wrap" }}>
+            <ParticipantAvatar
+              photoPath={attendanceResult.photo}
+              participantName={attendanceResult.fullName}
+              size={64}
+              alt="Participant photo"
+            />
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontWeight: 800, fontSize: 17, color: "var(--text)" }}>{attendanceResult.fullName}</div>
+              <div style={{ color: "var(--muted-2)", fontSize: 13 }}>{attendanceResult.participantIdentifier}</div>
+            </div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "10px 16px", fontSize: 13 }}>
+            <div>
+              <div style={{ color: "var(--muted-2)" }}>{labels.departmentLabel || "Department"}</div>
+              <div style={{ fontWeight: 650, color: "var(--text)" }}>{attendanceResult.department}</div>
+            </div>
+            <div>
+              <div style={{ color: "var(--muted-2)" }}>{labels.roleLabel || "Level"}</div>
+              <div style={{ fontWeight: 650, color: "var(--text)" }}>{attendanceResult.year}</div>
+            </div>
+            <div>
+              <div style={{ color: "var(--muted-2)" }}>{labels.groupLabel || "Group"}</div>
+              <div style={{ fontWeight: 650, color: "var(--text)" }}>{attendanceResult.section}</div>
+            </div>
+            <div>
+              <div style={{ color: "var(--muted-2)" }}>Attendance Status</div>
+              <span className={`att-badge ${getStatusClass(attendanceResult.status)}`}>{attendanceResult.status}</span>
+            </div>
+            <div>
+              <div style={{ color: "var(--muted-2)" }}>Time Recorded</div>
+              <div style={{ fontWeight: 650, color: "var(--text)" }}>{attendanceResult.timeIn}</div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Today's Attendance Table */}
+      <div className="att-table-card">
+        <div className="att-table-header">
+          <h3 className="att-table-title">
+            <FiUsers size={18} style={{ color: "var(--primary-2)" }} />
+            Today's Attendance
+          </h3>
+          <span className="att-table-count">{attendanceList.length} record{attendanceList.length === 1 ? "" : "s"}</span>
+        </div>
+
+        <div className="att-table-scroll">
+          <table className="att-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>{labels.primaryIdLabel || "Participant Number"}</th>
+                <th>{labels.entityName || "Participant"} Name</th>
+                <th>Time In</th>
+                <th>Status</th>
               </tr>
-            ))
-          )}
-        </tbody>
-      </table>
+            </thead>
+            <tbody>
+              {loadingToday ? (
+                [...Array(4).keys()].map((i) => (
+                  <tr className="att-table-skeleton-row" key={`sk-${i}`}>
+                    <td><div className="att-skeleton att-table-skeleton-cell" style={{ width: 24 }} /></td>
+                    <td><div className="att-skeleton att-table-skeleton-cell" style={{ width: 90 }} /></td>
+                    <td><div className="att-skeleton att-table-skeleton-cell" style={{ width: 150 }} /></td>
+                    <td><div className="att-skeleton att-table-skeleton-cell" style={{ width: 80 }} /></td>
+                    <td><div className="att-skeleton att-table-skeleton-cell" style={{ width: 80 }} /></td>
+                  </tr>
+                ))
+              ) : attendanceList.length === 0 ? (
+                <tr>
+                  <td colSpan={5}>
+                    <div className="att-empty">
+                      <div className="att-empty-illustration">
+                        <FiSearch size={40} />
+                      </div>
+                      <div className="att-empty-title">Waiting for first scan...</div>
+                      <div className="att-empty-hint">
+                        Point the camera at a participant's QR code. Their attendance will appear here automatically.
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                attendanceList.map((r, idx) => (
+                  <tr key={r.id} className={r.id === highlightedId ? "att-row--highlight" : ""}>
+                    <td className="att-cell-strong">{idx + 1}</td>
+                    <td className="att-cell-strong">{r.participantIdentifier || r.studentNumber || "-"}</td>
+                    <td>
+                      <div className="att-cell-name">
+                        <div className="att-cell-avatar">
+                          {r.photo ? (
+                            <img src={`${API_BASE_URL}/uploads/${String(r.photo).startsWith("/") ? r.photo : `/${r.photo}`}`} alt="" />
+                          ) : (
+                            getInitials(`${r.firstName || ""} ${r.lastName || ""}`)
+                          )}
+                        </div>
+                        <div>
+                          <div className="att-cell-main">{`${r.firstName || ""} ${r.lastName || ""}`.trim() || "-"}</div>
+                          {r.department ? <div className="att-cell-sub">{r.department}</div> : null}
+                        </div>
+                      </div>
+                    </td>
+                    <td>{r.timeIn ? formatTime(r.timeIn) : "-"}</td>
+                    <td>
+                      <span className={getStatusClass(r.status)}>{r.status || "Present"}</span>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }
