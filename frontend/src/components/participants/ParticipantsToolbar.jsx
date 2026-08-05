@@ -1,6 +1,6 @@
 import "../../styles/participants/ParticipantsToolbar.css";
 
-function ParticipantsToolbar({ value, onChange, onAddClick, onDeleteAllClick, isDeleteAllDisabled, isDeletingAll = false }) {
+function ParticipantsToolbar({ value, onChange, onAddClick, onImportClick, onDeleteAllClick, isDeleteAllDisabled, isDeletingAll = false }) {
   return (
     <div className="participants-toolbar">
 
@@ -19,12 +19,20 @@ function ParticipantsToolbar({ value, onChange, onAddClick, onDeleteAllClick, is
       </div>
 
       <div className="participants-toolbar-actions">
-        <button
+<button
           className="participants-add-btn"
           type="button"
           onClick={onAddClick}
         >
           + Add Participant
+        </button>
+
+        <button
+          className="participants-import-btn"
+          type="button"
+          onClick={onImportClick}
+        >
+          📤 Import Participants
         </button>
 
         <button

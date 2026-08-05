@@ -1,35 +1,26 @@
-# Enterprise RBAC & Organization Redesign — Task List
-
-## Database
-- [ ] 1. `backend/sql/migrations/20261101_enterprise_rbac.sql` — organizations, organization_invitation_codes, organization_members, user_roles, user_permissions, pending_registrations; extend users.role enum; add account_status + organization_id to users
+# Bulk Import Participants — Task Tracker
 
 ## Backend
-- [ ] 2. `backend/src/auth/authMiddleware.js` — include organization_id, account_status, permissions in JWT + /auth/me; add permission-based authorize helper
-- [ ] 3. `backend/src/routes/auth.js` — rewrite register (invitation flow, pending approval), login (block pending/rejected/deactivated, return org+permissions), user management (role/org assignment, activate/deactivate), pending approvals (approve/reject), roles+permissions listing
-- [ ] 4. `backend/src/routes/organizations.js` — NEW: org CRUD + invitation code management (Super Admin only)
-- [ ] 5. `backend/src/server.js` — mount organizations router
+- [x] 1. `backend/package.json` — add `xlsx` dependency
+- [x] 2. `backend/sql/migrations/20270301_participant_import_history.sql` — NEW tables: `participant_imports`, `participant_import_errors` (additive only)
+- [x] 3. `backend/src/routes/participants.js` — add `POST /participants/bulk-import` (multer file + mapping + duplicateMode; re-parse xlsx, re-validate rows, detect duplicates, transaction + batch insert, audit log, summary)
+- [x] 4. `backend/src/routes/participants.js` — add `GET /participants/imports` (import history listing)
 
-## Frontend — Core Auth
-- [ ] 6. `frontend/src/context/AuthContext.jsx` — new PERMISSIONS for 5+ roles; register handles pending flow (no auto-login); login handles pending errors
-- [ ] 7. `frontend/src/services/authService.js` — new API methods (approve/reject, assign role/org, roles, pending)
-- [ ] 8. `frontend/src/services/organizationService.js` — NEW: org + invitation code API methods
-- [ ] 9. `frontend/src/pages/Register/Register.jsx` — add Invitation Code field + pending approval success screen
-- [ ] 10. `frontend/src/pages/Login/Login.jsx` — handle pending/rejected/deactivated messages
-
-## Frontend — Navigation & Roles
-- [ ] 11. `frontend/src/components/Sidebar.jsx` — new roles + links to User Management & Organizations
-- [ ] 12. `frontend/src/components/ProtectedRoute.jsx` — new role permission map
-- [ ] 13. `frontend/src/components/UserMenu.jsx` — new role labels
-- [ ] 14. `frontend/src/pages/AccountWorkspace.jsx` — new role labels + org display
-
-## Frontend — New Pages
-- [ ] 15. `frontend/src/pages/UserManagement.jsx` — NEW: pending approvals + user list + role/org assignment + activate/deactivate + search/filter
-- [ ] 16. `frontend/src/pages/Organizations.jsx` — NEW: org CRUD + invitation codes + members (Super Admin only)
-- [ ] 17. `frontend/src/App.jsx` — add new routes
-
-## Frontend — Settings
-- [ ] 18. `frontend/src/pages/Settings.jsx` — make "User Roles" section functional (summary + shortcut)
+## Frontend
+- [x] 5. `frontend/src/utils/importColumnMapping.js` — field metadata + synonym auto-detection
+- [x] 6. `frontend/src/services/importService.js` — UI-only parse (preview/mapping), submit import, export error report (xlsx)
+- [x] 7. `frontend/src/components/participants/import/ImportDropzone.jsx` — drag & drop + browse + validation + filename + upload progress
+- [x] 8. `frontend/src/components/participants/import/ColumnMappingTable.jsx` — auto-detected + manual mapping dropdowns
+- [x] 9. `frontend/src/components/participants/import/ImportPreviewTable.jsx` — preview table + validation stats/warnings
+- [x] 10. `frontend/src/components/participants/import/ImportProgress.jsx` — staged progress (Reading → Validating → Checking Duplicates → Importing → Completed)
+- [x] 11. `frontend/src/components/participants/import/ImportSummary.jsx` — summary + "Download Error Report" + recent imports
+- [x] 12. `frontend/src/components/participants/import/ImportParticipantsModal.jsx` — multi-step wizard orchestrator
+- [x] 13. `frontend/src/styles/participants/ImportParticipants.css` — enterprise UI
+- [x] 14. `frontend/src/components/participants/ParticipantsToolbar.jsx` — add "📤 Import Participants" button + `onImportClick` prop
+- [x] 15. `frontend/src/components/participants/Participants.jsx` — wire import modal, pass duplicate-check data, refetch after import
+- [x] 16. `frontend/src/styles/participants/ParticipantsToolbar.css` — import button styles
 
 ## Verification
-- [ ] 19. Verify all existing attendance/QR/participants/reports/analytics intact
-- [ ] 20. Final review & delivery report
+- [x] 17. `npm install` in `backend/` (for xlsx)
+- [x] 18. `npm run build` in `frontend/` — no compile errors
+- [ ] 19. Manual test with sample .xlsx/.csv; verify summary + error report

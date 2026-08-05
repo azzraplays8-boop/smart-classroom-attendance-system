@@ -4,6 +4,7 @@ import ParticipantModal from "./ParticipantModal";
 import ConfirmDialog from "./ConfirmDialog";
 import ParticipantsTable from "./ParticipantsTable";
 import ParticipantsToolbar from "./ParticipantsToolbar";
+import ImportParticipantsModal from "./import/ImportParticipantsModal";
 import { useOrgLabels } from "../../config/labels";
 import { API_BASE_URL } from "../../config/api";
 
@@ -11,8 +12,9 @@ import "../../styles/participants/Participants.css";
 
 export default function Participants() {
   const labels = useOrgLabels();
-  const [query, setQuery] = useState("");
+const [query, setQuery] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isImportOpen, setIsImportOpen] = useState(false);
 
   const [participants, setParticipants] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -294,10 +296,11 @@ export default function Participants() {
 
   return (
     <div className="participants-page">
-      <ParticipantsToolbar
+<ParticipantsToolbar
         value={query}
         onChange={setQuery}
         onAddClick={handleAddClick}
+        onImportClick={() => setIsImportOpen(true)}
         onDeleteAllClick={handleRequestDeleteAllParticipants}
         isDeleteAllDisabled={isDeletingAll}
         isDeletingAll={isDeletingAll}
@@ -404,8 +407,14 @@ export default function Participants() {
         onPrimary={confirmDeleteAllParticipants}
         requireTypedText="DELETE ALL"
         typedText={deleteAllDraft}
-        onTypedTextChange={(val) => setDeleteAllDraft(val)}
+onTypedTextChange={(val) => setDeleteAllDraft(val)}
         typedPlaceholder="DELETE ALL"
+      />
+
+      <ImportParticipantsModal
+        isOpen={isImportOpen}
+        onClose={() => setIsImportOpen(false)}
+        onImported={() => fetchParticipants()}
       />
     </div>
   );
