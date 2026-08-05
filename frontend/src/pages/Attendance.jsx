@@ -1,8 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { BrowserMultiFormatReader } from "@zxing/browser";
 import ParticipantAvatar from "../components/participants/ParticipantAvatar";
 import { useOrgLabels } from "../config/labels";
 import { API_BASE_URL } from "../config/api";
+
+// Key used to remember the user's chosen camera across visits.
+const CAMERA_STORAGE_KEY = "attendance-selected-camera";
 
 function formatTime(value) {
   if (!value) return "-";
@@ -38,14 +41,19 @@ function Attendance() {
   const [scanError, setScanError] = useState("");
   const [attendanceResult, setAttendanceResult] = useState(null);
   const [cameras, setCameras] = useState([]);
+  const [activeDeviceId, setActiveDeviceId] = useState("");
+  const [torchOn, setTorchOn] = useState(false);
 
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const detectorRef = useRef(null);
+  const controlsRef = useRef(null);
   const intervalRef = useRef(null);
   const cameraActiveRef = useRef(false);
   const processedCodeRef = useRef("");
   const pauseScanRef = useRef(false);
+  const torchOnRef = useRef(false);
+  const camerasRef = useRef([]);
 
   const showToast = (kind, message) => {
     setToast({ kind, message });
@@ -68,18 +76,77 @@ function Attendance() {
     }
   };
 
-  const stopCamera = () => {
+  // ------------------------------------------------------------------
+  // Camera helpers
+  // ------------------------------------------------------------------
+
+  // List every available video input device (camera).
+  const loadCameras = useCallback(async () => {
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+        return [];
+      }
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoInputs = devices.filter((d) => d.kind === "videoinput");
+      const list = videoInputs.map((d, i) => ({
+        id: d.deviceId,
+        label: d.label || `Camera ${i + 1}`,
+      }));
+      camerasRef.current = list;
+      setCameras(list);
+      return list;
+    } catch {
+      setCameras([]);
+      return [];
+    }
+  }, []);
+
+  // Decide which camera to use on startup:
+  // 1. A previously saved camera (localStorage) if it still exists.
+  // 2. Otherwise, prefer the rear/environment camera on mobile.
+  // 3. Fall back to letting the browser pick via facingMode: "environment".
+  const selectInitialCamera = useCallback((cameraList = []) => {
+    const savedId = window.localStorage.getItem(CAMERA_STORAGE_KEY);
+    if (savedId && cameraList.some((c) => c.id === savedId)) {
+      return savedId;
+    }
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || "");
+    const rear = cameraList.find((c) => /back|rear|environment/i.test(c.label));
+    if (rear) return rear.id;
+    if (isMobile) return "";
+    return cameraList[0]?.id || "";
+  }, []);
+
+  // Build constraints for getUserMedia.
+  // If a deviceId is give we lock to that exact camera (needed for switching).
+  // Otherwise we request the rear/environment camera.
+  const buildConstraints = useCallback((deviceId) => {
+    if (deviceId) {
+      return { audio: false, video: { deviceId: { exact: deviceId } } };
+    }
+    return { audio: false, video: { facingMode: { ideal: "environment" } } };
+  }, []);
+
+  // Release every media stream track and stop the decoder/scan loop.
+  const stopCamera = useCallback(() => {
     if (intervalRef.current) {
       window.clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
     pauseScanRef.current = false;
+
+    if (controlsRef.current) {
+      try { controlsRef.current.stop?.(); } catch {}
+      controlsRef.current = null;
+    }
     if (detectorRef.current) {
-      detectorRef.current.reset?.();
+      try { detectorRef.current.reset?.(); } catch {}
       detectorRef.current = null;
     }
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
+      try {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+      } catch {}
       streamRef.current = null;
     }
     if (videoRef.current) {
@@ -87,113 +154,161 @@ function Attendance() {
     }
     cameraActiveRef.current = false;
     setCameraActive(false);
+    torchOnRef.current = false;
+    setTorchOn(false);
+  }, []);
+
+  // Shared scan callback. Kept in a ref so the decoder always uses the
+  // latest closure without re-binding the stream.
+  const scanCallbackRef = useRef(null);
+  scanCallbackRef.current = (result, err) => {
+    if (!cameraActiveRef.current || pauseScanRef.current) return;
+    if (err) return;
+
+    const rawValue = result?.getText?.()?.trim?.() || result?.text?.trim?.();
+    if (!rawValue || rawValue === processedCodeRef.current) return;
+
+    processedCodeRef.current = rawValue;
+    handleAttendanceScan(rawValue);
   };
 
-  const scanFrame = async () => {
-    const video = videoRef.current;
-    const detector = detectorRef.current;
+  // Start the camera & decoder. Passing a deviceId selects a specific camera;
+  // passing undefined lets the browser pick a rear/environment camera.
+  const startCamera = useCallback(
+    async (deviceId) => {
+      if (cameraActiveRef.current) return;
 
-    if (!video || !detector || !cameraActiveRef.current || video.readyState < 2 || pauseScanRef.current) {
-      return;
-    }
-
-    try {
-      const result = await detector.decodeOnceFromVideoDevice(undefined, video);
-      const rawValue = result?.getText?.()?.trim?.() || result?.text?.trim?.();
-
-      if (!rawValue) {
-        return;
-      }
-
-      if (rawValue === processedCodeRef.current) {
-        return;
-      }
-
-      processedCodeRef.current = rawValue;
-      await handleAttendanceScan(rawValue);
-    } catch {
-      // Ignore transient scan errors and keep scanning.
-    }
-  };
-
-  const startCamera = async () => {
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      const message = "Camera access is not available in this browser.";
-      setScanError(message);
-      showToast("error", message);
-      return;
-    }
-
-    if (cameraActiveRef.current) return;
-
-    try {
-      // Enumerate devices and pick the first video input (camera)
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const videoInputs = devices.filter((d) => d.kind === "videoinput");
-
-      if (!videoInputs || videoInputs.length === 0) {
-        const message = "No camera detected.";
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        const message = "Camera access is not available in this browser.";
         setScanError(message);
         showToast("error", message);
         return;
       }
 
-      const chosenDeviceId = videoInputs[0].deviceId;
-
-      const constraints = {
-        video: chosenDeviceId
-          ? { deviceId: { exact: chosenDeviceId } }
-          : { facingMode: "environment" },
-      };
-
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { deviceId: chosenDeviceId ? { exact: chosenDeviceId } : undefined } });
-      streamRef.current = stream;
-
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
-
-      detectorRef.current = new BrowserMultiFormatReader();
-      cameraActiveRef.current = true;
-      setCameraActive(true);
+      setStatusMessage("Opening camera...");
       setScanError("");
-      setStatusMessage("Point the camera at a QR code to record attendance.");
 
-      detectorRef.current.decodeFromVideoDevice(chosenDeviceId, videoRef.current, async (result, err) => {
-        if (!cameraActiveRef.current || pauseScanRef.current) {
-          return;
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia(buildConstraints(deviceId));
+        streamRef.current = stream;
+
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          try { await videoRef.current.play(); } catch {}
         }
 
-        if (err) {
-          return;
+        const detector = new BrowserMultiFormatReader();
+        detectorRef.current = detector;
+
+        // decodeFromStream lets us own the MediaStream so we can reliably
+        // stop every track when cleaning up / switching cameras.
+        controlsRef.current = detector.decodeFromStream(
+          stream,
+          videoRef.current || undefined,
+          (result, err) => scanCallbackRef.current?.(result, err)
+        );
+
+        cameraActiveRef.current = true;
+        setCameraActive(true);
+
+        // Record the actual active device so the selector highlights it.
+        const trackSettings = stream.getVideoTracks?.()?.[0]?.getSettings?.();
+        const actualDeviceId = trackSettings?.deviceId || deviceId || "";
+        setActiveDeviceId(actualDeviceId);
+
+        setStatusMessage("Point the camera at a QR code to record attendance.");
+      } catch (err) {
+        if (streamRef.current) {
+          try { streamRef.current.getTracks().forEach((t) => t.stop()); } catch {}
+          streamRef.current = null;
         }
 
-        const rawValue = result?.getText?.()?.trim?.() || result?.text?.trim?.();
-        if (!rawValue || rawValue === processedCodeRef.current) {
-          return;
+        const name = err?.name || "";
+        if (name === "NotAllowedError" || name === "PermissionDeniedError") {
+          const message = "Camera permission denied. Please allow camera access and try again.";
+          setScanError(message);
+          showToast("error", message);
+        } else if (name === "NotFoundError" || name === "OverconstrainedError") {
+          const message = "No camera detected.";
+          setScanError(message);
+          showToast("error", message);
+        } else {
+          const message = "Unable to access the camera. Please allow camera permissions and try again.";
+          setScanError(message);
+          showToast("error", message);
         }
-
-        processedCodeRef.current = rawValue;
-        await handleAttendanceScan(rawValue);
-      });
-    } catch (err) {
-      // Handle permission denied vs other errors
-      const name = err?.name || "";
-      if (name === "NotAllowedError" || name === "PermissionDeniedError") {
-        const message = "Camera permission denied. Please allow camera access and try again.";
-        setScanError(message);
-        showToast("error", message);
-      } else if (name === "NotFoundError" || name === "OverconstrainedError") {
-        const message = "No camera detected.";
-        setScanError(message);
-        showToast("error", message);
-      } else {
-        const message = "Unable to access the camera. Please allow camera permissions and try again.";
-        setScanError(message);
-        showToast("error", message);
       }
+    },
+    [buildConstraints]
+  );
+
+  // Restart the decode loop on the already-open stream (used after a pause).
+  const restartDecoder = useCallback(() => {
+    if (!detectorRef.current || !videoRef.current || !cameraActiveRef.current) return;
+    if (!streamRef.current) return;
+    try {
+      detectorRef.current.reset();
+      controlsRef.current = detectorRef.current.decodeFromStream(
+        streamRef.current,
+        videoRef.current,
+        (result, err) => scanCallbackRef.current?.(result, err)
+      );
+    } catch {
+      // ignore restart errors
     }
-  };
+  }, []);
+
+  // Switch to a specific camera from the dropdown.
+  const handleCameraChange = useCallback(
+    (e) => {
+      const deviceId = e.target.value;
+      if (!deviceId) return;
+      stopCamera();
+      window.setTimeout(() => startCamera(deviceId), 150);
+    },
+    [stopCamera, startCamera]
+  );
+
+  // Cycle through available cameras.
+  const switchCamera = useCallback(() => {
+    const list = camerasRef.current;
+    if (!list || list.length < 2) {
+      showToast("error", "No other camera available to switch to.");
+      return;
+    }
+    const currentIndex = list.findIndex((c) => c.id === activeDeviceId);
+    const nextIndex = (currentIndex + 1 + list.length) % list.length;
+    const next = list[nextIndex];
+    stopCamera();
+    window.setTimeout(() => startCamera(next.id), 150);
+  }, [activeDeviceId, stopCamera, startCamera]);
+
+  // Toggle flashlight / torch when supported by the device.
+  const toggleTorch = useCallback(async () => {
+    const controls = controlsRef.current;
+    if (!controls || typeof controls.switchTorch !== "function") {
+      showToast("error", "Flashlight is not supported on this device.");
+      return;
+    }
+    try {
+      const stream = videoRef.current?.srcObject;
+      const track = stream?.getVideoTracks?.()?.[0];
+      if (!track) {
+        showToast("error", "Camera is not active.");
+        return;
+      }
+      const next = !torchOnRef.current;
+      await controls.switchTorch(next);
+      torchOnRef.current = next;
+      setTorchOn(next);
+    } catch {
+      showToast("error", "Unable to toggle the flashlight.");
+    }
+  }, []);
+
+  // ------------------------------------------------------------------
+  // Attendance / QR business logic (unchanged)
+  // ------------------------------------------------------------------
 
   const handleAttendanceScan = async (qrValue) => {
     const rawValue = String(qrValue || "").trim();
@@ -205,6 +320,9 @@ function Attendance() {
       pauseAndResume();
       return;
     }
+
+    // Haptic feedback on successful decode (mobile only).
+    try { navigator.vibrate?.(100); } catch {}
 
     // Try to parse the QR payload as JSON (for JSON-encoded QRs)
     let qrPayload;
@@ -280,32 +398,13 @@ function Attendance() {
     }
   };
 
-  const restartDecoder = () => {
-    if (!detectorRef.current || !videoRef.current || !cameraActiveRef.current) return;
-    try {
-      detectorRef.current.reset();
-      const trackSettings = videoRef.current.srcObject?.getVideoTracks?.()?.[0]?.getSettings?.();
-      const deviceId = trackSettings?.deviceId || undefined;
-      detectorRef.current.decodeFromVideoDevice(
-        deviceId,
-        videoRef.current,
-        async (result, err) => {
-          if (!cameraActiveRef.current || pauseScanRef.current) return;
-          if (err) return;
-          const rawValue = result?.getText?.()?.trim?.() || result?.text?.trim?.();
-          if (!rawValue || rawValue === processedCodeRef.current) return;
-          processedCodeRef.current = rawValue;
-          await handleAttendanceScan(rawValue);
-        }
-      );
-    } catch {
-      // ignore restart errors
-    }
-  };
-
   const pauseAndResume = () => {
     pauseScanRef.current = true;
     // Stop the decoder loop to eliminate unnecessary frame processing during pause
+    if (controlsRef.current) {
+      try { controlsRef.current.stop?.(); } catch {}
+      controlsRef.current = null;
+    }
     if (detectorRef.current) {
       try { detectorRef.current.reset(); } catch {}
     }
@@ -317,31 +416,52 @@ function Attendance() {
     }, 2000);
   };
 
+  // Remember the selected camera so it's reused next time.
   useEffect(() => {
-    fetchToday();
-    startCamera();
-    // Enumerate available cameras for display
-    (async () => {
+    if (activeDeviceId) {
       try {
-        if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
-          const devices = await navigator.mediaDevices.enumerateDevices();
-          const videoInputs = devices.filter((d) => d.kind === "videoinput");
-          setCameras(
-            videoInputs.map((d, i) => ({ id: d.deviceId, label: d.label || `Camera ${i + 1}` }))
-          );
-        }
-      } catch {
-        // ignore
+        window.localStorage.setItem(CAMERA_STORAGE_KEY, activeDeviceId);
+      } catch {}
+    }
+  }, [activeDeviceId]);
+
+  // Initialisation + cleanup.
+  useEffect(() => {
+    let cancelled = false;
+    fetchToday();
+
+    const init = async () => {
+      const list = await loadCameras();
+      if (cancelled) return;
+      const deviceId = selectInitialCamera(list);
+      await startCamera(deviceId);
+      // Refresh the list now that permission is granted so labels populate.
+      const refreshed = await loadCameras();
+      if (!cancelled) {
+        camerasRef.current = refreshed;
+        setCameras(refreshed);
       }
-    })();
+    };
+
+    init();
 
     return () => {
+      cancelled = true;
       stopCamera();
     };
-  }, []);
+  }, [loadCameras, selectInitialCamera, startCamera, stopCamera]);
 
   return (
     <div className="page attendance-page">
+      <style>{`
+        @media (max-width: 768px) {
+          .attendance-scan-grid { grid-template-columns: 1fr !important; }
+          .attendance-camera-controls { flex-direction: column; align-items: stretch; }
+          .attendance-camera-controls select,
+          .attendance-camera-controls button { width: 100%; }
+        }
+      `}</style>
+
       <div
         style={{
           position: "fixed",
@@ -373,26 +493,53 @@ function Attendance() {
       <h2>Attendance</h2>
 
       <div style={{ marginBottom: 16 }}>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 8 }}>
-          <button type="button" onClick={() => (cameraActive ? stopCamera() : startCamera())}>
+        <div className="attendance-camera-controls" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 8 }}>
+          <button type="button" onClick={() => (cameraActive ? stopCamera() : startCamera(activeDeviceId || undefined))}>
             {cameraActive ? "Stop Camera" : "Start Camera"}
           </button>
-          {cameras && cameras.length > 0 ? (
-            <div style={{ color: "#6b7280", fontSize: 13 }}>
-              📷 Available Camera{cameras.length > 1 ? "s" : ""}: {cameras
-                .map((c) => {
-                  const cleaned = c.label.replace(/\s*\([^)]*\)/g, "").trim();
-                  return cleaned || "Camera";
-                })
-                .join(", ")}
-            </div>
+
+          {cameras.length > 1 ? (
+            <>
+              <select
+                value={activeDeviceId || ""}
+                onChange={handleCameraChange}
+                aria-label="Select camera"
+                title="Select camera"
+                style={{
+                  padding: "6px 8px",
+                  borderRadius: 8,
+                  border: "1px solid #d1d5db",
+                  background: "#fff",
+                  fontSize: 13,
+                  maxWidth: 240,
+                }}
+              >
+                {cameras.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+
+              <button type="button" onClick={switchCamera} title="Switch camera">
+                🔄 Switch Camera
+              </button>
+            </>
           ) : null}
+
+          <button type="button" onClick={toggleTorch} title="Toggle flashlight">
+            {torchOn ? "🔦 Torch: On" : "🔦 Torch: Off"}
+          </button>
         </div>
+
         <div style={{ fontWeight: 700, marginBottom: 4 }}>{statusMessage}</div>
         {scanError ? <div style={{ color: "#b91c1c" }}>{scanError}</div> : null}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 320px", gap: 16, alignItems: "start" }}>
+      <div
+        className="attendance-scan-grid"
+        style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 320px", gap: 16, alignItems: "start" }}
+      >
         <div style={{ border: "1px solid #e5e7eb", borderRadius: 12, overflow: "hidden", background: "#fff" }}>
           <video
             ref={videoRef}
@@ -403,7 +550,7 @@ function Attendance() {
           />
           {!cameraActive ? (
             <div style={{ padding: 24, minHeight: 320, display: "flex", alignItems: "center", justifyContent: "center", color: "#6b7280" }}>
-              Camera is off. Start the camera to scan a QR code.
+              {scanError ? scanError : "Camera is off. Start the camera to scan a QR code."}
             </div>
           ) : null}
         </div>
@@ -504,5 +651,3 @@ function Attendance() {
 }
 
 export default Attendance;
-
-

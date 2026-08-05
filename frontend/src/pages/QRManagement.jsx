@@ -1,4 +1,4 @@
- import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+  import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import QRCodeLib from "qrcode";
 import QRCard from "../components/qr/QRCard";
 import QRFilters from "../components/qr/QRFilters";
