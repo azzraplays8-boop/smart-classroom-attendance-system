@@ -84,10 +84,10 @@ async function seed() {
         continue;
       }
 
-      const hashedPassword = await bcrypt.hash(user.password, 12);
+const hashedPassword = await bcrypt.hash(user.password, 12);
       await pool.query(
-        `INSERT INTO users (email, username, password, full_name, role, is_active)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO users (email, username, password, full_name, role, is_active, account_status)
+         VALUES (?, ?, ?, ?, ?, ?, 'approved')`,
         [user.email, user.username, hashedPassword, user.full_name, user.role, user.is_active]
       );
 

@@ -1,32 +1,80 @@
- /**
- * Authentication & User Management Routes
+/**
+ * Authentication & User Management Routes — Enterprise RBAC
  *
- * POST   /auth/register       - Register a new account (first user becomes super_admin)
- * POST   /auth/login          - Login with email/username and password
- * POST   /auth/logout         - Logout (placeholder for future token blacklist)
- * GET    /auth/me             - Get current authenticated user
- * GET    /auth/users          - List all users (Admin+ only)
- * POST   /auth/users          - Create a new user (Admin+ only)
- * PUT    /auth/users/:id      - Update a user (Admin+ only)
- * DELETE /auth/users/:id      - Delete a user (Admin+ only)
- * PUT    /auth/users/:id/reset-password - Reset user password (Admin+ only)
- * PUT    /auth/users/:id/status - Activate/Deactivate user (Admin+ only)
+ * POST   /auth/register        - Register (first user = approved Super Admin;
+ *                                 others require invitation code -> pending approval)
+ * POST   /auth/login           - Login with email/username + password (return org + permissions)
+ * POST   /auth/logout          - Logout
+ * GET    /auth/me              - Get current authenticated user (with org + permissions)
+ * GET    /auth/users           - List all users (Admin+)
+ * POST   /auth/users           - Create a new user (Admin+)
+ * PUT    /auth/users/:id       - Update a user (Admin+) incl. role & organization
+ * DELETE /auth/users/:id       - Delete a user (Admin+)
+ * PUT    /auth/users/:id/reset-password - Reset password (Admin+)
+ * PUT    /auth/users/:id/status - Activate/Deactivate (Admin+)
+ * PUT    /auth/users/:id/role  - Assign/change role (Admin+)
+ * PUT    /auth/users/:id/organization - Assign organization (Admin+)
+ * GET    /auth/pending         - List pending registrations (Admin+)
+ * POST   /auth/pending/:id/approve - Approve pending registration (Admin+)
+ * POST   /auth/pending/:id/reject  - Reject pending registration (Admin+)
+ * GET    /auth/roles           - List roles + permissions
  */
 import express from "express";
 import bcrypt from "bcryptjs";
-import { authenticate, authorize, generateToken } from "../auth/authMiddleware.js";
+import { authenticate, authorize, generateToken, authorizePermission, PERMISSION_KEYS } from "../auth/authMiddleware.js";
+import { findUserForAuth, findUserByIdForAuth, getRolePermissions } from "../auth/permissions.js";
 
 const SALT_ROUNDS = 12;
 
+// Roles that can be assigned by an administrator (NOT super_admin).
+const ASSIGNABLE_ROLES = ["administrator", "teacher", "moderator", "encoder", "viewer"];
+
 export default function authRouter({ pool }) {
   const router = express.Router();
+
+  // ─────────────────────────────────────────────
+  // Helper: validate invitation code and resolve organization
+  // ─────────────────────────────────────────────
+  async function resolveInvitationCode(code) {
+    const normalizedCode = String(code || "").trim();
+    if (!normalizedCode) {
+      return { error: "Invitation code is required." };
+    }
+
+    const [rows] = await pool.query(
+      `SELECT id, organization_id, code, expires_at, max_uses, used_count, status
+         FROM organization_invitation_codes
+        WHERE code = ?`,
+      [normalizedCode]
+    );
+
+    if (!rows || rows.length === 0) {
+      return { error: "Invalid invitation code." };
+    }
+
+    const invite = rows[0];
+
+    if (invite.status !== "active") {
+      return { error: "This invitation code is disabled." };
+    }
+
+    if (invite.expires_at && new Date(invite.expires_at) < new Date()) {
+      return { error: "This invitation code has expired." };
+    }
+
+    if (invite.max_uses > 0 && invite.used_count >= invite.max_uses) {
+      return { error: "This invitation code has reached its maximum number of uses." };
+    }
+
+    return { invite };
+  }
 
   // ─────────────────────────────────────────────
   // POST /auth/register
   // ─────────────────────────────────────────────
   router.post("/register", async (req, res) => {
     try {
-      const { full_name, username, email, password, confirm_password } = req.body;
+      const { full_name, username, email, password, confirm_password, invitation_code } = req.body;
 
       // --- Validate required fields ---
       if (!full_name || !full_name.trim()) {
@@ -81,36 +129,74 @@ export default function authRouter({ pool }) {
         return res.status(409).json({ message: "This username is already taken." });
       }
 
-      // --- Determine role: first user = super_admin, subsequent = administrator ---
+      // --- Determine if this is the first user (Super Admin) ---
       const [userCount] = await pool.query("SELECT COUNT(*) AS count FROM users");
-      const role = userCount[0].count === 0 ? "super_admin" : "administrator";
+      const isFirstUser = Number(userCount[0].count) === 0;
+
+      let role;
+      let accountStatus;
+      let organizationId = null;
+      let resolvedInvite = null;
+
+      if (isFirstUser) {
+        // First user becomes the sole Super Admin, auto-approved, no org required.
+        role = "super_admin";
+        accountStatus = "approved";
+      } else {
+        // Subsequent registrations require a valid invitation code and become pending.
+        const result = await resolveInvitationCode(invitation_code);
+        if (result.error) {
+          return res.status(400).json({ message: result.error });
+        }
+        resolvedInvite = result.invite;
+        organizationId = resolvedInvite.organization_id;
+        role = "viewer"; // placeholder role until admin assigns one on approval
+        accountStatus = "pending";
+      }
 
       // --- Hash password and create user ---
       const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
       const [result] = await pool.query(
-        `INSERT INTO users (email, username, password, full_name, role, is_active)
-         VALUES (?, ?, ?, ?, ?, 1)`,
-        [normalizedEmail, normalizedUsername, hashedPassword, full_name.trim(), role]
+        `INSERT INTO users (email, username, password, full_name, role, is_active, account_status, organization_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [normalizedEmail, normalizedUsername, hashedPassword, full_name.trim(), role,
+         isFirstUser ? 1 : 0, accountStatus, organizationId]
       );
 
-      // --- Generate JWT and return ---
-      const newUser = {
-        id: result.insertId,
-        email: normalizedEmail,
-        username: normalizedUsername,
-        full_name: full_name.trim(),
-        role,
-        is_active: 1,
-      };
+      const newUserId = result.insertId;
 
-      const token = generateToken(newUser);
+      // --- If used an invitation code, increment its use count ---
+      if (resolvedInvite) {
+        await pool.query(
+          `UPDATE organization_invitation_codes SET used_count = used_count + 1 WHERE id = ?`,
+          [resolvedInvite.id]
+        );
 
+        // Create a pending registration record
+        await pool.query(
+          `INSERT INTO pending_registrations (user_id, organization_id, claimed_invitation_code, status, requested_role)
+           VALUES (?, ?, ?, 'pending', 'viewer')`,
+          [newUserId, resolvedInvite.organization_id, resolvedInvite.code]
+        );
+      }
+
+      // --- Load the created user (with permissions) ---
+      const createdUser = await findUserByIdForAuth(pool, newUserId);
+
+      if (isFirstUser) {
+        const token = generateToken(createdUser);
+        return res.status(201).json({
+          message: "Super Administrator account created successfully. You are now the system Super Admin.",
+          token,
+          user: createdUser,
+        });
+      }
+
+      // Pending users do NOT get a token (cannot log in until approved).
       return res.status(201).json({
-        message: role === "super_admin"
-          ? "Super Administrator account created successfully."
-          : "Administrator account created successfully.",
-        token,
-        user: newUser,
+        message: "Registration submitted. Your account is pending approval. You will be able to log in once an administrator approves your account.",
+        user: null,
+        pending: true,
       });
     } catch (err) {
       console.error("=== POST /auth/register ERROR ===");
@@ -130,20 +216,20 @@ export default function authRouter({ pool }) {
         return res.status(400).json({ message: "Email/username and password are required." });
       }
 
-      // Find user by email or username
-      const [users] = await pool.query(
-        "SELECT id, email, username, password, full_name, role, is_active FROM users WHERE email = ? OR username = ?",
-        [email, email]
-      );
+      const user = await findUserForAuth(pool, email);
 
-      if (users.length === 0) {
+      if (!user) {
         return res.status(401).json({ message: "Invalid username or password." });
       }
 
-      const user = users[0];
-
-      // Check if account is active
-      if (!user.is_active) {
+      // Check account status
+      if (user.account_status === "pending") {
+        return res.status(403).json({ message: "Your account is pending approval. Please wait for an administrator to approve your account." });
+      }
+      if (user.account_status === "rejected") {
+        return res.status(403).json({ message: "Your registration was rejected. Contact an administrator for assistance." });
+      }
+      if (!user.is_active || user.account_status === "deactivated") {
         return res.status(403).json({ message: "Account is deactivated. Contact an administrator." });
       }
 
@@ -157,12 +243,12 @@ export default function authRouter({ pool }) {
       const token = generateToken(user);
 
       // Return user data (without password)
-      const { password: _, ...userData } = user;
+      const { password: _, permissions, ...userData } = user;
 
       return res.json({
         message: "Login successful.",
         token,
-        user: userData,
+        user: { ...userData, permissions },
       });
     } catch (err) {
       console.error("=== POST /auth/login ERROR ===");
@@ -175,8 +261,6 @@ export default function authRouter({ pool }) {
   // POST /auth/logout
   // ─────────────────────────────────────────────
   router.post("/logout", authenticate, async (req, res) => {
-    // In V1, we simply acknowledge the logout.
-    // Future versions can implement a token blacklist.
     return res.json({ message: "Logged out successfully." });
   });
 
@@ -185,16 +269,13 @@ export default function authRouter({ pool }) {
   // ─────────────────────────────────────────────
   router.get("/me", authenticate, async (req, res) => {
     try {
-      const [users] = await pool.query(
-        "SELECT id, email, username, full_name, role, is_active, created_at, updated_at FROM users WHERE id = ?",
-        [req.user.id]
-      );
+      const user = await findUserByIdForAuth(pool, req.user.id);
 
-      if (users.length === 0) {
+      if (!user) {
         return res.status(404).json({ message: "User not found." });
       }
 
-      return res.json({ user: users[0] });
+      return res.json({ user });
     } catch (err) {
       console.error("=== GET /auth/me ERROR ===");
       console.error(err.message);
@@ -203,14 +284,52 @@ export default function authRouter({ pool }) {
   });
 
   // ─────────────────────────────────────────────
-  // User Management Routes (Admin+ only)
+  // GET /auth/roles — list roles + permissions
   // ─────────────────────────────────────────────
+  router.get("/roles", authenticate, authorize("super_admin", "administrator"), async (req, res) => {
+    try {
+      const [roles] = await pool.query(
+        `SELECT r.id, r.role_key AS roleKey, r.role_name AS roleName, r.description
+           FROM user_roles r
+          ORDER BY r.id ASC`
+      );
 
+      const [perms] = await pool.query(
+        `SELECT p.role_id AS roleId, p.permission_key AS permissionKey
+           FROM user_permissions p`
+      );
+
+      const permMap = {};
+      for (const p of perms) {
+        if (!permMap[p.roleId]) permMap[p.roleId] = [];
+        permMap[p.roleId].push(p.permissionKey);
+      }
+
+      const result = roles.map((r) => ({
+        ...r,
+        permissions: permMap[r.id] || [],
+      }));
+
+      return res.json({ roles: result });
+    } catch (err) {
+      console.error("=== GET /auth/roles ERROR ===");
+      console.error(err.message);
+      return res.status(500).json({ message: "Failed to fetch roles." });
+    }
+  });
+
+  // ─────────────────────────────────────────────
   // GET /auth/users - List all users
+  // ─────────────────────────────────────────────
   router.get("/users", authenticate, authorize("super_admin", "administrator"), async (req, res) => {
     try {
       const [users] = await pool.query(
-        "SELECT id, email, username, full_name, role, is_active, created_at, updated_at FROM users ORDER BY created_at DESC"
+        `SELECT u.id, u.email, u.username, u.full_name, u.role, u.is_active,
+                u.account_status, u.organization_id, o.name AS organization_name,
+                u.created_at, u.updated_at
+           FROM users u
+           LEFT JOIN organizations o ON o.id = u.organization_id
+          ORDER BY u.created_at DESC`
       );
       return res.json({ users });
     } catch (err) {
@@ -220,44 +339,54 @@ export default function authRouter({ pool }) {
     }
   });
 
-  // POST /auth/users - Create a new user
+  // ─────────────────────────────────────────────
+  // POST /auth/users - Create a new user (Admin+)
+  // ─────────────────────────────────────────────
   router.post("/users", authenticate, authorize("super_admin", "administrator"), async (req, res) => {
     try {
-      const { email, username, password, full_name, role } = req.body;
+      const { email, username, password, full_name, role, organization_id } = req.body;
 
-      // Validate required fields
       if (!email || !username || !password || !full_name || !role) {
         return res.status(400).json({ message: "All fields are required: email, username, password, full_name, role." });
       }
 
-      // Validate role
-      const validRoles = ["super_admin", "administrator", "teacher"];
+      const validRoles = ["super_admin", ...ASSIGNABLE_ROLES];
       if (!validRoles.includes(role)) {
         return res.status(400).json({ message: `Invalid role. Must be one of: ${validRoles.join(", ")}.` });
       }
 
-      // Validate password strength
+      // Only Super Admin can create another Super Admin
+      if (role === "super_admin" && req.user.role !== "super_admin") {
+        return res.status(403).json({ message: "Only the Super Admin can create a Super Admin account." });
+      }
+
       if (password.length < 6) {
         return res.status(400).json({ message: "Password must be at least 6 characters long." });
       }
 
-      // Check for existing email or username
       const [existing] = await pool.query(
         "SELECT id FROM users WHERE email = ? OR username = ?",
         [email, username]
       );
-
       if (existing.length > 0) {
         return res.status(409).json({ message: "A user with this email or username already exists." });
       }
 
-      // Hash password and create user
       const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
       const [result] = await pool.query(
-        `INSERT INTO users (email, username, password, full_name, role, is_active)
-         VALUES (?, ?, ?, ?, ?, 1)`,
-        [email, username, hashedPassword, full_name, role]
+        `INSERT INTO users (email, username, password, full_name, role, is_active, account_status, organization_id)
+         VALUES (?, ?, ?, ?, ?, 1, 'approved', ?)`,
+        [email, username, hashedPassword, full_name, role, organization_id || null]
       );
+
+      // If an organization was provided, add membership
+      if (organization_id) {
+        await pool.query(
+          `INSERT IGNORE INTO organization_members (organization_id, user_id, role, status)
+           VALUES (?, ?, ?, 'active')`,
+          [organization_id, result.insertId, role]
+        );
+      }
 
       const newUser = {
         id: result.insertId,
@@ -266,6 +395,8 @@ export default function authRouter({ pool }) {
         full_name,
         role,
         is_active: 1,
+        account_status: "approved",
+        organization_id: organization_id || null,
       };
 
       return res.status(201).json({ message: "User created successfully.", user: newUser });
@@ -276,19 +407,24 @@ export default function authRouter({ pool }) {
     }
   });
 
-  // PUT /auth/users/:id - Update a user
+  // ─────────────────────────────────────────────
+  // PUT /auth/users/:id - Update user (Admin+)
+  // ─────────────────────────────────────────────
   router.put("/users/:id", authenticate, authorize("super_admin", "administrator"), async (req, res) => {
     try {
       const userId = req.params.id;
-      const { email, username, full_name, role } = req.body;
+      const { email, username, full_name, role, organization_id } = req.body;
 
-      // Check user exists
-      const [existing] = await pool.query("SELECT id FROM users WHERE id = ?", [userId]);
+      const [existing] = await pool.query("SELECT id, role FROM users WHERE id = ?", [userId]);
       if (existing.length === 0) {
         return res.status(404).json({ message: "User not found." });
       }
 
-      // Check for duplicate email/username (excluding current user)
+      // Prevent non-super-admin from editing the super_admin
+      if (existing[0].role === "super_admin" && req.user.role !== "super_admin") {
+        return res.status(403).json({ message: "You cannot modify the Super Admin account." });
+      }
+
       if (email || username) {
         const [duplicates] = await pool.query(
           "SELECT id FROM users WHERE (email = ? OR username = ?) AND id != ?",
@@ -306,12 +442,19 @@ export default function authRouter({ pool }) {
       if (username !== undefined) { updates.push("username = ?"); params.push(username); }
       if (full_name !== undefined) { updates.push("full_name = ?"); params.push(full_name); }
       if (role !== undefined) {
-        const validRoles = ["super_admin", "administrator", "teacher"];
+        const validRoles = ["super_admin", ...ASSIGNABLE_ROLES];
         if (!validRoles.includes(role)) {
           return res.status(400).json({ message: `Invalid role. Must be one of: ${validRoles.join(", ")}.` });
         }
+        if (role === "super_admin" && req.user.role !== "super_admin") {
+          return res.status(403).json({ message: "Only the Super Admin can assign the Super Admin role." });
+        }
         updates.push("role = ?");
         params.push(role);
+      }
+      if (organization_id !== undefined) {
+        updates.push("organization_id = ?");
+        params.push(organization_id || null);
       }
 
       if (updates.length === 0) {
@@ -321,6 +464,15 @@ export default function authRouter({ pool }) {
       params.push(userId);
       await pool.query(`UPDATE users SET ${updates.join(", ")} WHERE id = ?`, params);
 
+      // If organization changed, sync membership
+      if (organization_id !== undefined) {
+        await pool.query(
+          `INSERT IGNORE INTO organization_members (organization_id, user_id, role, status)
+           VALUES (?, ?, ?, 'active')`,
+          [organization_id || null, userId, role || existing[0].role]
+        );
+      }
+
       return res.json({ message: "User updated successfully." });
     } catch (err) {
       console.error("=== PUT /auth/users/:id ERROR ===");
@@ -329,14 +481,107 @@ export default function authRouter({ pool }) {
     }
   });
 
-  // DELETE /auth/users/:id - Delete a user
+  // ─────────────────────────────────────────────
+  // PUT /auth/users/:id/role - Assign/change role
+  // ─────────────────────────────────────────────
+  router.put("/users/:id/role", authenticate, authorize("super_admin", "administrator"), async (req, res) => {
+    try {
+      const userId = req.params.id;
+      const { role } = req.body;
+
+      if (!role) {
+        return res.status(400).json({ message: "Role is required." });
+      }
+
+      const validRoles = ["super_admin", ...ASSIGNABLE_ROLES];
+      if (!validRoles.includes(role)) {
+        return res.status(400).json({ message: `Invalid role. Must be one of: ${validRoles.join(", ")}.` });
+      }
+
+      const [existing] = await pool.query("SELECT id, role FROM users WHERE id = ?", [userId]);
+      if (existing.length === 0) {
+        return res.status(404).json({ message: "User not found." });
+      }
+
+      if (existing[0].role === "super_admin" && req.user.role !== "super_admin") {
+        return res.status(403).json({ message: "You cannot change the Super Admin's role." });
+      }
+      if (role === "super_admin" && req.user.role !== "super_admin") {
+        return res.status(403).json({ message: "Only the Super Admin can assign the Super Admin role." });
+      }
+
+      await pool.query("UPDATE users SET role = ? WHERE id = ?", [role, userId]);
+
+      // Sync membership role
+      const [memberRows] = await pool.query(
+        "SELECT id FROM organization_members WHERE user_id = ? LIMIT 1",
+        [userId]
+      );
+      if (memberRows.length > 0) {
+        await pool.query(
+          "UPDATE organization_members SET role = ? WHERE user_id = ?",
+          [role, userId]
+        );
+      }
+
+      return res.json({ message: "Role updated successfully." });
+    } catch (err) {
+      console.error("=== PUT /auth/users/:id/role ERROR ===");
+      console.error(err.message);
+      return res.status(500).json({ message: "Failed to update role." });
+    }
+  });
+
+  // ─────────────────────────────────────────────
+  // PUT /auth/users/:id/organization - Assign organization
+  // ─────────────────────────────────────────────
+  router.put("/users/:id/organization", authenticate, authorize("super_admin", "administrator"), async (req, res) => {
+    try {
+      const userId = req.params.id;
+      const { organization_id } = req.body;
+
+      const [existing] = await pool.query("SELECT id, role FROM users WHERE id = ?", [userId]);
+      if (existing.length === 0) {
+        return res.status(404).json({ message: "User not found." });
+      }
+
+      if (existing[0].role === "super_admin" && req.user.role !== "super_admin") {
+        return res.status(403).json({ message: "You cannot change the Super Admin's organization." });
+      }
+
+      const orgId = organization_id || null;
+      await pool.query("UPDATE users SET organization_id = ? WHERE id = ?", [orgId, userId]);
+
+      if (orgId) {
+        await pool.query(
+          `INSERT IGNORE INTO organization_members (organization_id, user_id, role, status)
+           VALUES (?, ?, ?, 'active')`,
+          [orgId, userId, existing[0].role]
+        );
+      }
+
+      return res.json({ message: "Organization updated successfully." });
+    } catch (err) {
+      console.error("=== PUT /auth/users/:id/organization ERROR ===");
+      console.error(err.message);
+      return res.status(500).json({ message: "Failed to update organization." });
+    }
+  });
+
+  // ─────────────────────────────────────────────
+  // DELETE /auth/users/:id - Delete a user (Admin+)
+  // ─────────────────────────────────────────────
   router.delete("/users/:id", authenticate, authorize("super_admin", "administrator"), async (req, res) => {
     try {
       const userId = req.params.id;
 
-      // Prevent self-deletion
       if (Number(userId) === req.user.id) {
         return res.status(400).json({ message: "You cannot delete your own account." });
+      }
+
+      const [existing] = await pool.query("SELECT role FROM users WHERE id = ?", [userId]);
+      if (existing.length > 0 && existing[0].role === "super_admin" && req.user.role !== "super_admin") {
+        return res.status(403).json({ message: "You cannot delete the Super Admin account." });
       }
 
       const [result] = await pool.query("DELETE FROM users WHERE id = ?", [userId]);
@@ -352,7 +597,9 @@ export default function authRouter({ pool }) {
     }
   });
 
-  // PUT /auth/users/:id/reset-password - Reset user password
+  // ─────────────────────────────────────────────
+  // PUT /auth/users/:id/reset-password - Reset password (Admin+)
+  // ─────────────────────────────────────────────
   router.put("/users/:id/reset-password", authenticate, authorize("super_admin", "administrator"), async (req, res) => {
     try {
       const userId = req.params.id;
@@ -378,15 +625,24 @@ export default function authRouter({ pool }) {
     }
   });
 
-  // PUT /auth/users/:id/status - Activate/Deactivate user
+  // ─────────────────────────────────────────────
+  // PUT /auth/users/:id/status - Activate/Deactivate (Admin+)
+  // ─────────────────────────────────────────────
   router.put("/users/:id/status", authenticate, authorize("super_admin", "administrator"), async (req, res) => {
     try {
       const userId = req.params.id;
       const { is_active } = req.body;
 
-      // Prevent self-deactivation
       if (Number(userId) === req.user.id) {
         return res.status(400).json({ message: "You cannot change your own account status." });
+      }
+
+      const [existing] = await pool.query("SELECT role FROM users WHERE id = ?", [userId]);
+      if (existing.length === 0) {
+        return res.status(404).json({ message: "User not found." });
+      }
+      if (existing[0].role === "super_admin" && req.user.role !== "super_admin") {
+        return res.status(403).json({ message: "You cannot change the Super Admin's status." });
       }
 
       if (is_active === undefined || is_active === null) {
@@ -394,11 +650,10 @@ export default function authRouter({ pool }) {
       }
 
       const activeValue = Number(is_active) ? 1 : 0;
+      const accountStatus = activeValue ? "approved" : "deactivated";
 
-      const [result] = await pool.query("UPDATE users SET is_active = ? WHERE id = ?", [activeValue, userId]);
-      if (result.affectedRows === 0) {
-        return res.status(404).json({ message: "User not found." });
-      }
+      await pool.query("UPDATE users SET is_active = ?, account_status = ? WHERE id = ?",
+        [activeValue, accountStatus, userId]);
 
       return res.json({
         message: activeValue ? "User activated successfully." : "User deactivated successfully.",
@@ -407,6 +662,119 @@ export default function authRouter({ pool }) {
       console.error("=== PUT /auth/users/:id/status ERROR ===");
       console.error(err.message);
       return res.status(500).json({ message: "Failed to update user status." });
+    }
+  });
+
+  // ─────────────────────────────────────────────
+  // GET /auth/pending - List pending registrations
+  // ─────────────────────────────────────────────
+  router.get("/pending", authenticate, authorize("super_admin", "administrator"), async (req, res) => {
+    try {
+      const [rows] = await pool.query(
+        `SELECT p.id, p.user_id AS userId, u.full_name, u.email, u.username,
+                p.organization_id AS organizationId, o.name AS organization_name,
+                p.claimed_invitation_code AS invitationCode, p.status,
+                p.requested_role AS requestedRole, p.created_at AS createdAt
+           FROM pending_registrations p
+           INNER JOIN users u ON u.id = p.user_id
+           LEFT JOIN organizations o ON o.id = p.organization_id
+          WHERE p.status = 'pending'
+          ORDER BY p.created_at ASC`
+      );
+      return res.json({ pending: rows });
+    } catch (err) {
+      console.error("=== GET /auth/pending ERROR ===");
+      console.error(err.message);
+      return res.status(500).json({ message: "Failed to fetch pending registrations." });
+    }
+  });
+
+  // ─────────────────────────────────────────────
+  // POST /auth/pending/:id/approve - Approve a pending registration
+  // ─────────────────────────────────────────────
+  router.post("/pending/:id/approve", authenticate, authorize("super_admin", "administrator"), async (req, res) => {
+    try {
+      const pendingId = req.params.id;
+      const { role, organization_id } = req.body;
+
+      const [pendingRows] = await pool.query(
+        `SELECT p.* FROM pending_registrations p WHERE p.id = ? AND p.status = 'pending'`,
+        [pendingId]
+      );
+      if (!pendingRows || pendingRows.length === 0) {
+        return res.status(404).json({ message: "Pending registration not found or already processed." });
+      }
+
+      const pending = pendingRows[0];
+      const assignRole = role && ASSIGNABLE_ROLES.includes(role) ? role : "viewer";
+      const assignOrg = organization_id || pending.organization_id;
+
+      // Approve the user
+      await pool.query(
+        `UPDATE users SET account_status = 'approved', is_active = 1, role = ?, organization_id = ?
+         WHERE id = ?`,
+        [assignRole, assignOrg || null, pending.user_id]
+      );
+
+      // Add organization membership
+      if (assignOrg) {
+        await pool.query(
+          `INSERT IGNORE INTO organization_members (organization_id, user_id, role, status)
+           VALUES (?, ?, 'active')`,
+          [assignOrg, pending.user_id, assignRole]
+        );
+      }
+
+      // Update pending registration
+      await pool.query(
+        `UPDATE pending_registrations SET status = 'approved', reviewed_by = ?, reviewed_at = NOW()
+         WHERE id = ?`,
+        [req.user.id, pendingId]
+      );
+
+      return res.json({ message: "User approved and activated successfully." });
+    } catch (err) {
+      console.error("=== POST /auth/pending/:id/approve ERROR ===");
+      console.error(err.message);
+      return res.status(500).json({ message: "Failed to approve registration." });
+    }
+  });
+
+  // ─────────────────────────────────────────────
+  // POST /auth/pending/:id/reject - Reject a pending registration
+  // ─────────────────────────────────────────────
+  router.post("/pending/:id/reject", authenticate, authorize("super_admin", "administrator"), async (req, res) => {
+    try {
+      const pendingId = req.params.id;
+
+      const [pendingRows] = await pool.query(
+        `SELECT p.* FROM pending_registrations p WHERE p.id = ? AND p.status = 'pending'`,
+        [pendingId]
+      );
+      if (!pendingRows || pendingRows.length === 0) {
+        return res.status(404).json({ message: "Pending registration not found or already processed." });
+      }
+
+      const pending = pendingRows[0];
+
+      // Reject the user
+      await pool.query(
+        `UPDATE users SET account_status = 'rejected', is_active = 0 WHERE id = ?`,
+        [pending.user_id]
+      );
+
+      // Update pending registration
+      await pool.query(
+        `UPDATE pending_registrations SET status = 'rejected', reviewed_by = ?, reviewed_at = NOW()
+         WHERE id = ?`,
+        [req.user.id, pendingId]
+      );
+
+      return res.json({ message: "Registration rejected." });
+    } catch (err) {
+      console.error("=== POST /auth/pending/:id/reject ERROR ===");
+      console.error(err.message);
+      return res.status(500).json({ message: "Failed to reject registration." });
     }
   });
 

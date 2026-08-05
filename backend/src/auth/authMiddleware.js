@@ -16,9 +16,28 @@ if (!JWT_SECRET) {
 }
 
 /**
+ * Permission keys that map to the RBAC user_permissions table.
+ * These are used by the `authorizePermission` middleware.
+ */
+export const PERMISSION_KEYS = {
+  VIEW_DASHBOARD: "view_dashboard",
+  MANAGE_USERS: "manage_users",
+  MANAGE_ATTENDANCE: "manage_attendance",
+  MANAGE_REPORTS: "manage_reports",
+  MANAGE_PARTICIPANTS: "manage_participants",
+  ENCODE_ATTENDANCE: "encode_attendance",
+  VIEW_REPORTS: "view_reports",
+  MANAGE_QR: "manage_qr",
+  MANAGE_SETTINGS: "manage_settings",
+};
+
+/**
  * Verify that a valid JWT is present in the Authorization header.
  * If valid, attaches the decoded payload to req.user.
  * If invalid, returns 401.
+ *
+ * req.user = { id, email, username, role, full_name, organization_id,
+ *              account_status, permissions }
  */
 export function authenticate(req, res, next) {
   const authHeader = req.headers.authorization;
@@ -31,7 +50,8 @@ export function authenticate(req, res, next) {
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
-    req.user = decoded; // { id, email, role, full_name }
+    req.user = decoded; // { id, email, role, full_name, organization_id, account_status, permissions }
+    if (!req.user.permissions) req.user.permissions = [];
     next();
   } catch (err) {
     if (err.name === "TokenExpiredError") {
@@ -65,6 +85,37 @@ export function authorize(...allowedRoles) {
 }
 
 /**
+ * Middleware factory that checks if the authenticated user has a specific
+ * permission key. Super Admin bypasses all permission checks.
+ * Must be used AFTER the `authenticate` middleware.
+ *
+ * @param {string|string[]} required - Permission key(s), e.g. PERMISSION_KEYS.MANAGE_USERS
+ * @returns {Function} Express middleware
+ */
+export function authorizePermission(...required) {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ message: "Authentication required." });
+    }
+
+    // Super Admin has full access
+    if (req.user.role === "super_admin") {
+      return next();
+    }
+
+    const perms = req.user.permissions || [];
+    const hasAll = required.every((perm) => perms.includes(perm));
+    if (!hasAll) {
+      return res.status(403).json({
+        message: "Access denied. You do not have the required permissions.",
+      });
+    }
+
+    next();
+  };
+}
+
+/**
  * Generate a JWT token for a user.
  *
  * @param {Object} user - User object from database
@@ -77,6 +128,9 @@ export function generateToken(user) {
     username: user.username,
     role: user.role,
     full_name: user.full_name,
+    organization_id: user.organization_id ?? null,
+    account_status: user.account_status ?? "approved",
+    permissions: user.permissions || [],
   };
 
   return jwt.sign(payload, JWT_SECRET, {

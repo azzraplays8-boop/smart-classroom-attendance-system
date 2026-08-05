@@ -12,6 +12,7 @@ import attendanceRouter from "./routes/attendance.js";
 import settingsRouter from "./routes/settings.js";
 import qrRouter from "./routes/qr.js";
 import authRouter from "./routes/auth.js";
+import organizationsRouter from "./routes/organizations.js";
 
 dotenv.config();
 
@@ -144,11 +145,12 @@ async function start() {
   app.get("/health", (req, res) => res.json({ ok: true }));
 
   // Routes
-  app.use("/auth", authRouter({ pool }));
+app.use("/auth", authRouter({ pool }));
   app.use("/participants", participantsRouter({ pool, upload }));
   app.use("/attendance", attendanceRouter({ pool }));
   app.use("/settings", settingsRouter({ pool }));
   app.use("/qr", qrRouter({ pool }));
+  app.use("/organizations", organizationsRouter({ pool }));
 
   app.use((req, res) => {
     res.status(404).json({ message: "Not found" });
