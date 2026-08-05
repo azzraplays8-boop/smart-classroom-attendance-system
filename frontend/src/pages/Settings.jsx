@@ -28,12 +28,8 @@ import {
   FaGlobeAsia,
   FaStamp,
   FaCalendarAlt,
-  FaFileImport,
+FaFileImport,
   FaFileExport,
-  FaCrown,
-  FaUserCog,
-  FaPen,
-  FaEye,
   FaExclamationTriangle,
   FaSyncAlt,
   FaMapMarkerAlt,
@@ -71,6 +67,7 @@ import translations from "../data/translations.js";
 import { useOrgLabels } from "../config/labels";
 import { API_BASE_URL } from "../config/api";
 import { APP_VERSION } from "../constants";
+import UserManagement from "./UserManagement";
 
 const DEFAULT_PRIMARY_COLOR = "#4f46e5";
 const LOCAL_PREFS_KEY = "app_system_prefs";
@@ -170,13 +167,6 @@ const NOTIF_OPTIONS = [
   { key: "notifEmailNotifications", icon: FaEnvelope, title: "Email Notifications", desc: "Send summaries and alerts via email" },
   { key: "notifSystemUpdates", icon: FaSyncAlt, title: "System Updates", desc: "Announce maintenance and new features" },
   { key: "notifPushNotifications", icon: FaBell, title: "Push Notifications", desc: "Deliver real-time alerts to connected devices" },
-];
-
-const ROLES = [
-  { icon: FaCrown, name: "Administrator", desc: "Full access to all system modules and configuration", perms: ["Manage settings", "Manage users", "View reports", "Export data"] },
-  { icon: FaUserCog, name: "Moderator", desc: "Manage attendance records and participant data", perms: ["Manage attendance", "Manage participants", "View reports"] },
-  { icon: FaPen, name: "Encoder", desc: "Encode and maintain participant information", perms: ["Add participants", "Edit profiles"] },
-  { icon: FaEye, name: "Viewer", desc: "Read-only access to dashboards and reports", perms: ["View dashboard", "View reports"] },
 ];
 
 function Settings() {
@@ -1109,34 +1099,18 @@ function Settings() {
     </div>
   );
 
-  const renderRoles = () => (
+const renderRoles = () => (
     <div className="sc-stack">
       <div className="sc-card">
         <div className="sc-card-header">
           <div className="sc-card-icon sc-card-icon--indigo"><FaUserShield /></div>
           <div className="sc-card-heading">
             <h3 className="sc-card-title">User Roles</h3>
-            <p className="sc-card-subtitle">Role definitions and permissions (frontend placeholder)</p>
+            <p className="sc-card-subtitle">Assign roles, manage users, and approve pending registrations</p>
           </div>
         </div>
-        <div className="sc-card-body">
-          <div className="sc-roles-grid">
-            {ROLES.map((role, i) => (
-              <div key={i} className="sc-role-card">
-                <div className="sc-role-icon"><role.icon /></div>
-                <h4 className="sc-role-name">{role.name}</h4>
-                <p className="sc-role-desc">{role.desc}</p>
-                <ul className="sc-role-perms">
-                  {role.perms.map((perm, j) => (
-                    <li key={j}><FaCheck className="sc-role-perm-icon" />{perm}</li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-          <div className="sc-placeholder-banner" style={{ marginTop: 16 }}>
-            <FaInfoCircle /> Role management is a frontend preview. CRUD operations will be available in a future update.
-          </div>
+        <div className="sc-card-body sc-card-body--flush">
+          <UserManagement />
         </div>
       </div>
     </div>

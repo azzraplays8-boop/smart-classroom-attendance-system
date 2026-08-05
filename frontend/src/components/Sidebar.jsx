@@ -7,6 +7,8 @@ import {
   FaChartBar,
   FaCog,
   FaQrcode,
+  FaUsersCog,
+  FaBuilding,
 } from "react-icons/fa";
 
 import "../styles/Sidebar.css";
@@ -19,19 +21,21 @@ function Sidebar() {
   const labels = useOrgLabels();
   const role = user?.role;
 
-  const hasAccess = (route) => {
+  const hasRoute = (route) => {
     if (!role) return false;
     if (role === "super_admin") return true;
-    if (role === "administrator") return true;
+    if (role === "administrator") return !["organizations"].includes(route);
     if (role === "teacher") {
       return ["dashboard", "attendance", "attendance-history"].includes(route);
     }
-    // Future roles
-    if (role === "manager" || role === "officer") {
-      return ["dashboard", "attendance", "attendance-history", "reports"].includes(route);
+    if (role === "moderator") {
+      return ["dashboard", "participants", "attendance", "attendance-history", "reports"].includes(route);
     }
-    if (role === "staff" || role === "viewer") {
-      return ["dashboard"].includes(route);
+    if (role === "encoder") {
+      return ["dashboard", "participants", "attendance", "attendance-history"].includes(route);
+    }
+    if (role === "viewer") {
+      return ["dashboard", "reports"].includes(route);
     }
     return false;
   };
@@ -49,36 +53,54 @@ function Sidebar() {
           <span>Dashboard</span>
         </NavLink>
 
-        {hasAccess("participants") && (
+        {hasRoute("participants") && (
           <NavLink to="/participants" className="nav-item">
             <FaUserGraduate />
             <span>{labels.entityLabel}</span>
           </NavLink>
         )}
 
+        {hasRoute("attendance") && (
         <NavLink to="/attendance" className="nav-item">
           <FaCamera />
           <span>Attendance</span>
         </NavLink>
+        )}
 
         <NavLink to="/attendance-history" className="nav-item">
           <FaHistory />
           <span>Attendance History</span>
         </NavLink>
 
-        {hasAccess("qr-management") && (
+        {hasRoute("qr-management") && (
         <NavLink to="/qr-management" className="nav-item">
             <FaQrcode />
             <span>QR Check-in</span>
           </NavLink>
         )}
 
+        {hasRoute("reports") && (
         <NavLink to="/reports" className="nav-item">
           <FaChartBar />
           <span>Analytics & Reports</span>
         </NavLink>
+        )}
 
-        {hasAccess("settings") && (
+        {hasRoute("user-management") && (
+          <NavLink to="/user-management" className="nav-item">
+            <FaUsersCog />
+            <span>User Management</span>
+          </NavLink>
+        )}
+
+        {hasRoute("organizations") && (
+          <NavLink to="/organizations" className="nav-item">
+            <FaBuilding />
+            <span>Organizations</span>
+          </NavLink>
+        )}
+
+        {hasRoute("settings") && (
           <NavLink to="/settings" className="nav-item">
             <FaCog />
             <span>Settings</span>

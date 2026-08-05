@@ -6,6 +6,7 @@
  */
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
+import { canAccessRoute } from "../context/AuthContext";
 
 /**
  * Map of route paths to permission keys.
@@ -19,6 +20,7 @@ const ROUTE_PERMISSION_MAP = {
   "/reports": "reports",
   "/settings": "settings",
   "/user-management": "user-management",
+  "/organizations": "organizations",
 };
 
 function ProtectedRoute({ children }) {
@@ -53,24 +55,7 @@ function ProtectedRoute({ children }) {
   // Check role-based access
   const permissionKey = ROUTE_PERMISSION_MAP[location.pathname];
   if (permissionKey) {
-    const hasAccess = (() => {
-      if (!user || !user.role) return false;
-
-      // Super admin has full access
-      if (user.role === "super_admin") return true;
-
-      // Administrator access
-      if (user.role === "administrator") {
-        return !["super_admin"].includes(permissionKey);
-      }
-
-      // Teacher access
-      if (user.role === "teacher") {
-        return ["dashboard", "attendance", "attendance-history"].includes(permissionKey);
-      }
-
-      return false;
-    })();
+    const hasAccess = canAccessRoute(user, permissionKey);
 
     if (!hasAccess) {
       return (

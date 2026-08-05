@@ -354,6 +354,59 @@
   text-decoration: underline;
 }
 
+/* ── Pending Approval Screen ── */
+.register-pending-wrapper {
+  text-align: center;
+  padding: 24px 8px;
+}
+
+.register-pending-icon {
+  width: 84px;
+  height: 84px;
+  background: #eef2ff;
+  border-radius: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #6366f1;
+  margin: 0 auto 20px;
+}
+
+.register-pending-title {
+  font-size: 24px;
+  font-weight: 900;
+  color: #0f172a;
+  margin: 0 0 12px;
+  letter-spacing: -0.02em;
+}
+
+.register-pending-desc {
+  font-size: 14px;
+  color: #64748b;
+  line-height: 1.7;
+  margin: 0 0 20px;
+}
+
+.register-pending-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 13px;
+  color: #15803d;
+  font-weight: 600;
+  margin-bottom: 24px;
+  text-align: left;
+}
+
+.register-pending-btn {
+  text-decoration: none;
+  width: 100%;
+}
+
 /* ── Responsive ── */
 @media (max-width: 768px) {
   .register-container {

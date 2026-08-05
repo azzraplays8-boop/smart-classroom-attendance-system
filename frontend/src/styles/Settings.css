@@ -293,6 +293,13 @@
   gap: 16px;
 }
 
+/* Flush variant for embedding full-width components (e.g. UserManagement) */
+.sc-card-body--flush {
+  padding: 0;
+  margin: 0 -26px -24px;
+  gap: 0;
+}
+
 /* ── Fields ───────────────────────────────────────── */
 .sc-field {
   display: flex;

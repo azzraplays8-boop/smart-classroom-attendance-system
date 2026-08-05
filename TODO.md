@@ -1,25 +1,35 @@
-# Production Deployment Task List
+# Enterprise RBAC & Organization Redesign — Task List
+
+## Database
+- [ ] 1. `backend/sql/migrations/20261101_enterprise_rbac.sql` — organizations, organization_invitation_codes, organization_members, user_roles, user_permissions, pending_registrations; extend users.role enum; add account_status + organization_id to users
 
 ## Backend
-- [x] 1. `backend/src/db.js` — Added SSL support (`DB_SSL`, `DB_SSL_CA_PATH`) + `DATABASE_URL` support; `getEnvDb()` now returns `ssl`
-- [x] 2. `backend/src/server.js` — Passes `ssl` to `ensureDatabaseExists` + `createAppPool`; already binds `0.0.0.0`, supports multi-origin CORS, gates auto-migrate behind `DB_AUTO_MIGRATE`
-- [x] 3. `backend/src/auth/authMiddleware.js` — Removed hardcoded JWT secret fallback; requires `JWT_SECRET` from env
-- [x] 4. `backend/.env.example` — Rewrote as production-ready template
-- [x] 5. `backend/.gitignore` — Already correct (ignores `.env`, `.env.*`, includes `.env.example`)
+- [ ] 2. `backend/src/auth/authMiddleware.js` — include organization_id, account_status, permissions in JWT + /auth/me; add permission-based authorize helper
+- [ ] 3. `backend/src/routes/auth.js` — rewrite register (invitation flow, pending approval), login (block pending/rejected/deactivated, return org+permissions), user management (role/org assignment, activate/deactivate), pending approvals (approve/reject), roles+permissions listing
+- [ ] 4. `backend/src/routes/organizations.js` — NEW: org CRUD + invitation code management (Super Admin only)
+- [ ] 5. `backend/src/server.js` — mount organizations router
 
-## Frontend (remove localhost fallbacks; require VITE_API_BASE_URL)
-- [x] 6. `frontend/src/config/api.js` — Already production-ready (already requires `VITE_API_BASE_URL`, no localhost fallback)
-- [x] 7. `frontend/src/services/authService.js` — Already uses `config/api.js`
-- [x] 8. `frontend/src/services/qrService.js` — Already uses `config/api.js`
-- [x] 9. `frontend/src/components/participants/ParticipantAvatar.jsx` — Already uses `config/api.js`
-- [x] 10. `frontend/src/pages/Attendance.jsx` — Already uses `config/api.js`
-- [x] 11. `frontend/src/pages/Dashboard.jsx` — Already uses `config/api.js`
-- [x] 12. `frontend/src/pages/Reports.jsx` — Updated to import `API_BASE_URL` from `config/api.js`
-- [x] 13. `frontend/src/pages/Settings.jsx` — Updated to import `API_BASE_URL` from `config/api.js`
+## Frontend — Core Auth
+- [ ] 6. `frontend/src/context/AuthContext.jsx` — new PERMISSIONS for 5+ roles; register handles pending flow (no auto-login); login handles pending errors
+- [ ] 7. `frontend/src/services/authService.js` — new API methods (approve/reject, assign role/org, roles, pending)
+- [ ] 8. `frontend/src/services/organizationService.js` — NEW: org + invitation code API methods
+- [ ] 9. `frontend/src/pages/Register/Register.jsx` — add Invitation Code field + pending approval success screen
+- [ ] 10. `frontend/src/pages/Login/Login.jsx` — handle pending/rejected/deactivated messages
+
+## Frontend — Navigation & Roles
+- [ ] 11. `frontend/src/components/Sidebar.jsx` — new roles + links to User Management & Organizations
+- [ ] 12. `frontend/src/components/ProtectedRoute.jsx` — new role permission map
+- [ ] 13. `frontend/src/components/UserMenu.jsx` — new role labels
+- [ ] 14. `frontend/src/pages/AccountWorkspace.jsx` — new role labels + org display
+
+## Frontend — New Pages
+- [ ] 15. `frontend/src/pages/UserManagement.jsx` — NEW: pending approvals + user list + role/org assignment + activate/deactivate + search/filter
+- [ ] 16. `frontend/src/pages/Organizations.jsx` — NEW: org CRUD + invitation codes + members (Super Admin only)
+- [ ] 17. `frontend/src/App.jsx` — add new routes
+
+## Frontend — Settings
+- [ ] 18. `frontend/src/pages/Settings.jsx` — make "User Roles" section functional (summary + shortcut)
 
 ## Verification
-- [x] 14. Confirm all API routes unchanged
-- [x] 15. Deliver final deployment report (env vars, order, manual steps)
-
-## Result
-All backend changes complete. Frontend already production-ready (only Reports.jsx & Settings.jsx were patched to use the shared config; no localhost fallbacks remain).
+- [ ] 19. Verify all existing attendance/QR/participants/reports/analytics intact
+- [ ] 20. Final review & delivery report

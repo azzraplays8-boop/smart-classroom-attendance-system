@@ -1,6 +1,6 @@
 /**
  * Authentication API service.
- * Handles login, logout, user profile, and user management API calls.
+ * Handles login, logout, user profile, user management, roles, and pending approvals.
  */
 import axios from "axios";
 import { API_BASE_URL } from "../config/api";
@@ -44,9 +44,10 @@ api.interceptors.response.use(
 const authService = {
   /**
    * Register a new account.
-   * First user becomes super_admin, subsequent become administrator.
-   * @param {Object} data - { full_name, username, email, password, confirm_password }
-   * @returns {Promise<Object>} { token, user, message }
+   * First user becomes approved Super Admin. Others require an invitation code
+   * and become pending approval (no token returned).
+   * @param {Object} data - { full_name, username, email, password, confirm_password, invitation_code }
+   * @returns {Promise<Object>} { message, token?, user?, pending? }
    */
   async register(data) {
     const response = await api.post("/auth/register", data);
@@ -93,7 +94,7 @@ const authService = {
 
   /**
    * Create a new user (Admin+ only).
-   * @param {Object} userData - { email, username, password, full_name, role }
+   * @param {Object} userData - { email, username, password, full_name, role, organization_id }
    * @returns {Promise<Object>} { message, user }
    */
   async createUser(userData) {
@@ -104,7 +105,7 @@ const authService = {
   /**
    * Update an existing user (Admin+ only).
    * @param {number} id - User ID
-   * @param {Object} userData - Fields to update
+   * @param {Object} userData - Fields to update incl. role & organization_id
    * @returns {Promise<Object>} { message }
    */
   async updateUser(id, userData) {
@@ -141,6 +142,67 @@ const authService = {
    */
   async setUserStatus(id, isActive) {
     const response = await api.put(`/auth/users/${id}/status`, { is_active: isActive });
+    return response.data;
+  },
+
+  /**
+   * Assign/change a user's role (Admin+ only).
+   * @param {number} id - User ID
+   * @param {string} role - Role key
+   * @returns {Promise<Object>} { message }
+   */
+  async assignRole(id, role) {
+    const response = await api.put(`/auth/users/${id}/role`, { role });
+    return response.data;
+  },
+
+  /**
+   * Assign a user to an organization (Admin+ only).
+   * @param {number} id - User ID
+   * @param {number|null} organizationId - Organization ID
+   * @returns {Promise<Object>} { message }
+   */
+  async assignOrganization(id, organizationId) {
+    const response = await api.put(`/auth/users/${id}/organization`, { organization_id: organizationId });
+    return response.data;
+  },
+
+  /**
+   * Get the list of roles + permissions (Admin+ only).
+   * @returns {Promise<Object>} { roles }
+   */
+  async getRoles() {
+    const response = await api.get("/auth/roles");
+    return response.data;
+  },
+
+  /**
+   * Get pending registrations (Admin+ only).
+   * @returns {Promise<Object>} { pending }
+   */
+  async getPending() {
+    const response = await api.get("/auth/pending");
+    return response.data;
+  },
+
+  /**
+   * Approve a pending registration (Admin+ only).
+   * @param {number} id - Pending registration ID
+   * @param {Object} opts - { role, organization_id }
+   * @returns {Promise<Object>} { message }
+   */
+  async approvePending(id, opts = {}) {
+    const response = await api.post(`/auth/pending/${id}/approve`, opts);
+    return response.data;
+  },
+
+  /**
+   * Reject a pending registration (Admin+ only).
+   * @param {number} id - Pending registration ID
+   * @returns {Promise<Object>} { message }
+   */
+  async rejectPending(id) {
+    const response = await api.post(`/auth/pending/${id}/reject`);
     return response.data;
   },
 };

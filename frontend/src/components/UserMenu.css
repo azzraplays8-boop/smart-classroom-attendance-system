@@ -172,6 +172,16 @@
   text-overflow: ellipsis;
 }
 
+.user-menu-dropdown-org {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--primary-2, #4f46e5);
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* ---- Role Badge ---- */
 .user-menu-role-badge {
   display: inline-flex;
@@ -201,6 +211,21 @@
   color: #16a34a;
 }
 
+.user-menu-role-badge--moderator {
+  background: rgba(245, 158, 11, 0.12);
+  color: #d97706;
+}
+
+.user-menu-role-badge--encoder {
+  background: rgba(6, 182, 212, 0.12);
+  color: #0891b2;
+}
+
+.user-menu-role-badge--viewer {
+  background: rgba(100, 116, 139, 0.12);
+  color: #475569;
+}
+
 .role-badge-dot {
   width: 7px;
   height: 7px;
@@ -212,6 +237,9 @@
 .user-menu-role-badge--super_admin .role-badge-dot { background: #8b5cf6; }
 .user-menu-role-badge--administrator .role-badge-dot { background: #3b82f6; }
 .user-menu-role-badge--teacher .role-badge-dot { background: #22c55e; }
+.user-menu-role-badge--moderator .role-badge-dot { background: #f59e0b; }
+.user-menu-role-badge--encoder .role-badge-dot { background: #06b6d4; }
+.user-menu-role-badge--viewer .role-badge-dot { background: #64748b; }
 
 /* ============================================
    DIVIDER

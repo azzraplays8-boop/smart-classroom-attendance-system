@@ -1,8 +1,8 @@
 /**
  * Register Page - Universal Attendance Management Platform
  *
- * First registered user becomes Super Administrator.
- * Subsequent registrations become Administrator.
+ * First registered user becomes Super Administrator (auto-approved, no org required).
+ * Subsequent registrations require a valid invitation code and become Pending Approval.
  */
 import { useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
@@ -13,6 +13,8 @@ import {
   FiLoader,
   FiUserPlus,
   FiArrowLeft,
+  FiCheckCircle,
+  FiClock,
 } from "react-icons/fi";
 import "./Register.css";
 
@@ -26,12 +28,14 @@ export default function Register() {
     email: "",
     password: "",
     confirm_password: "",
+    invitation_code: "",
   });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState({});
+  const [pending, setPending] = useState(false); // true after pending registration submitted
 
   if (!authLoading && isAuthenticated) {
     return <Navigate to="/" replace />;
@@ -73,11 +77,16 @@ export default function Register() {
       errors.password = "Password must be at least 8 characters.";
     }
 
-    if (!formData.confirm_password) {
+if (!formData.confirm_password) {
       errors.confirm_password = "Please confirm your password.";
     } else if (formData.password !== formData.confirm_password) {
       errors.confirm_password = "Passwords do not match.";
     }
+
+    // NOTE: The invitation code is OPTIONAL for the first registered account
+    // (which becomes the sole Super Admin). The backend decides whether a code
+    // is required based on whether a user already exists. If this is not the
+    // first user and no code was provided, the backend returns a clear error.
 
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
@@ -92,13 +101,22 @@ export default function Register() {
     setIsSubmitting(true);
 
     try {
-      const user = await register({
+      const result = await register({
         full_name: formData.full_name.trim(),
         username: formData.username.trim(),
         email: formData.email.trim(),
         password: formData.password,
         confirm_password: formData.confirm_password,
+        invitation_code: formData.invitation_code.trim(),
       });
+
+      // If the registration is pending approval, show the pending screen
+      if (result.pending) {
+        setPending(true);
+        return;
+      }
+
+      // Otherwise (first user / Super Admin), navigate to dashboard
       navigate("/", { replace: true });
     } catch (err) {
       const message =
@@ -159,6 +177,55 @@ export default function Register() {
     );
   };
 
+  // ── Pending approval success screen ─────────────────────
+  if (pending) {
+    return (
+      <div className="register-page">
+        <div className="register-bg-decoration" />
+        <div className="register-container">
+          <div className="register-branding">
+            <div className="register-logo-area">
+              <div className="register-logo-icon">
+                <span className="register-logo-text">SA</span>
+              </div>
+              <h1 className="register-school-name">Attendance Management</h1>
+              <p className="register-school-subtitle">Platform</p>
+            </div>
+            <div className="register-branding-info">
+              <h3 className="register-branding-title">Registration Submitted</h3>
+              <p className="register-branding-desc">
+                Your account is now in the approval queue.
+              </p>
+            </div>
+          </div>
+          <div className="register-form-panel">
+            <div className="register-form-wrapper register-pending-wrapper">
+              <div className="register-pending-icon">
+                <FiClock size={40} />
+              </div>
+              <h2 className="register-pending-title">Account Pending Approval</h2>
+              <p className="register-pending-desc">
+                Your registration has been submitted successfully. An administrator
+                will review your account and assign your role before you can access
+                the platform.
+              </p>
+              <div className="register-pending-note">
+                <FiCheckCircle size={16} />
+                <span>
+                  You will be able to log in once your account is approved.
+                </span>
+              </div>
+              <Link to="/login" className="register-submit-btn register-pending-btn">
+                <FiArrowLeft size={18} />
+                Back to Login
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="register-page">
       <div className="register-bg-decoration" />
@@ -172,14 +239,15 @@ export default function Register() {
             <p className="register-school-subtitle">Platform</p>
           </div>
           <div className="register-branding-info">
-            <h3 className="register-branding-title">First Account?</h3>
+            <h3 className="register-branding-title">Join an Organization</h3>
             <p className="register-branding-desc">
-              The first registered account automatically becomes{" "}
-              <strong>Super Administrator</strong> with full system access.
+              The first registered account becomes the{" "}
+              <strong>Super Administrator</strong> with full access.
             </p>
             <p className="register-branding-desc">
-              Subsequent accounts are created as{" "}
-              <strong>Administrator</strong> by default.
+              All subsequent accounts require a valid{" "}
+              <strong>invitation code</strong> and are subject to{" "}
+              <strong>administrator approval</strong>.
             </p>
           </div>
         </div>
@@ -241,6 +309,12 @@ export default function Register() {
                 "password",
                 "Re-enter your password"
               )}
+{renderField(
+                "Invitation Code",
+                "invitation_code",
+                "text",
+                "Required for non-first accounts (optional for first Super Admin)"
+              )}
 
               <button
                 type="submit"
@@ -250,12 +324,12 @@ export default function Register() {
                 {isSubmitting ? (
                   <>
                     <FiLoader className="register-spinner" size={18} />
-                    Creating Account...
+                    Submitting...
                   </>
                 ) : (
                   <>
                     <FiUserPlus size={18} />
-                    Create Account
+                    Submit Registration
                   </>
                 )}
               </button>

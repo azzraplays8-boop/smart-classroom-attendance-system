@@ -13,6 +13,8 @@ import QRManagement from "./pages/QRManagement";
 import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
 import AccountWorkspace from "./pages/AccountWorkspace";
+import UserManagement from "./pages/UserManagement";
+import Organizations from "./pages/Organizations";
 
 function App() {
   return (
@@ -29,9 +31,11 @@ function App() {
           <Route path="/attendance" element={<Attendance />} />
           <Route path="/attendance-history" element={<AttendanceHistory />} />
           <Route path="/qr-management" element={<QRManagement />} />
-          <Route path="/reports" element={<Reports />} />
+<Route path="/reports" element={<Reports />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/account" element={<AccountWorkspace />} />
+          <Route path="/user-management" element={<UserManagement />} />
+          <Route path="/organizations" element={<Organizations />} />
         </Route>
       </Routes>
     </BrowserRouter>

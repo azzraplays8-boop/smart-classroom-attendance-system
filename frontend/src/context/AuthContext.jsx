@@ -1,4 +1,4 @@
- /**
+/**
  * AuthContext provides authentication state and actions to the entire app.
  *
  * Features:
@@ -7,6 +7,7 @@
  * - Auto-restore auth on mount & validate token with backend
  * - Provide login/logout actions
  * - Track loading state while restoring
+ * - Enterprise RBAC: role-based route access + permission-based checks
  */
 import { createContext, useCallback, useEffect, useState } from "react";
 import authService from "../services/authService";
@@ -14,9 +15,18 @@ import authService from "../services/authService";
 export const AuthContext = createContext(null);
 
 /**
- * Role-based permission definitions.
- * Maps each role to the routes/pages they can access.
+ * Role-based permission & route definitions.
+ * Maps each role to the routes/pages they can access and the permission keys.
  */
+export const ROLE_LABELS = {
+  super_admin: "Super Admin",
+  administrator: "Administrator",
+  teacher: "Teacher",
+  moderator: "Moderator",
+  encoder: "Encoder",
+  viewer: "Viewer",
+};
+
 export const PERMISSIONS = {
   super_admin: {
     label: "Super Admin",
@@ -29,6 +39,7 @@ export const PERMISSIONS = {
       "reports",
       "settings",
       "user-management",
+      "organizations",
     ],
     canAccess: (route) => true, // Full access
   },
@@ -44,13 +55,30 @@ export const PERMISSIONS = {
       "settings",
       "user-management",
     ],
-    canAccess: (route) => !["super_admin"].includes(route),
+    canAccess: (route) => !["super_admin", "organizations"].includes(route),
   },
   teacher: {
     label: "Teacher",
     routes: ["dashboard", "attendance", "attendance-history"],
     canAccess: (route) =>
       ["dashboard", "attendance", "attendance-history"].includes(route),
+  },
+  moderator: {
+    label: "Moderator",
+    routes: ["dashboard", "participants", "attendance", "attendance-history", "reports"],
+    canAccess: (route) =>
+      ["dashboard", "participants", "attendance", "attendance-history", "reports"].includes(route),
+  },
+  encoder: {
+    label: "Encoder",
+    routes: ["dashboard", "participants", "attendance", "attendance-history"],
+    canAccess: (route) =>
+      ["dashboard", "participants", "attendance", "attendance-history"].includes(route),
+  },
+  viewer: {
+    label: "Viewer",
+    routes: ["dashboard", "reports"],
+    canAccess: (route) => ["dashboard", "reports"].includes(route),
   },
 };
 
@@ -65,6 +93,20 @@ export function canAccessRoute(user, route) {
   const rolePermissions = PERMISSIONS[user.role];
   if (!rolePermissions) return false;
   return rolePermissions.canAccess(route);
+}
+
+/**
+ * Check if a user has a given permission key.
+ * Super Admin bypasses all permission checks.
+ * @param {Object} user - User object with role + permissions
+ * @param {string} permission - e.g. "manage_users"
+ * @returns {boolean}
+ */
+export function hasPermission(user, permission) {
+  if (!user) return false;
+  if (user.role === "super_admin") return true;
+  if (!user.permissions) return false;
+  return user.permissions.includes(permission);
 }
 
 export function AuthProvider({ children }) {
@@ -136,23 +178,24 @@ export function AuthProvider({ children }) {
 
   /**
    * Register a new account.
-   * Auto-logs in after successful registration.
+   * First user becomes Super Admin (auto-login). Others become pending approval (no login).
    *
-   * @param {Object} data - { full_name, username, email, password, confirm_password }
-   * @returns {Promise<Object>} User data
+   * @param {Object} data - { full_name, username, email, password, confirm_password, invitation_code }
+   * @returns {Promise<Object>} { user, pending }
    */
   const register = useCallback(async (data) => {
     const result = await authService.register(data);
 
-    // Auto-login after registration
-    const storage = localStorage;
-    storage.setItem("auth_token", result.token);
-    storage.setItem("auth_user", JSON.stringify(result.user));
+    // Only auto-login if a token is returned (first user / Super Admin)
+    if (result.token && result.user) {
+      const storage = localStorage;
+      storage.setItem("auth_token", result.token);
+      storage.setItem("auth_user", JSON.stringify(result.user));
+      setToken(result.token);
+      setUser(result.user);
+    }
 
-    setToken(result.token);
-    setUser(result.user);
-
-    return result.user;
+    return result;
   }, []);
 
   /**
@@ -216,6 +259,8 @@ export function AuthProvider({ children }) {
     register,
     updateUser,
     refreshUser,
+    canAccessRoute,
+    hasPermission,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

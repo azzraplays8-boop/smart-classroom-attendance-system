@@ -6,13 +6,8 @@ import {
   FiLogOut,
   FiArrowRight,
 } from "react-icons/fi";
+import { getRoleLabel } from "../constants/roles";
 import "./UserMenu.css";
-
-const ROLE_LABELS = {
-  super_admin: "Super Admin",
-  administrator: "Administrator",
-  teacher: "Teacher",
-};
 
 export default function UserMenu() {
   const { user, logout } = useAuth();
@@ -49,8 +44,9 @@ export default function UserMenu() {
     .toUpperCase()
     .slice(0, 2);
 
-  const roleLabel = ROLE_LABELS[user.role] || user.role;
+const roleLabel = getRoleLabel(user.role);
   const email = user.email || "";
+  const orgName = user.organization_name || user.organization?.name || "";
 
   const handleLogout = async () => {
     setIsOpen(false);
@@ -97,8 +93,11 @@ export default function UserMenu() {
                 <span className="role-badge-dot" />
                 {roleLabel}
               </div>
-              {email && (
+{email && (
                 <div className="user-menu-dropdown-email">{email}</div>
+              )}
+              {orgName && (
+                <div className="user-menu-dropdown-org">{orgName}</div>
               )}
             </div>
           </div>
