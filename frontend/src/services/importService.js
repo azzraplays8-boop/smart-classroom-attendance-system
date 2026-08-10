@@ -10,7 +10,7 @@
  */
 
 import * as XLSX from "xlsx";
-import { API_BASE_URL } from "../config/api";
+import { API_BASE_URL, buildApiUrl } from "../config/api";
 
 const ACCEPTED_EXTENSIONS = [".xlsx", ".xls", ".csv"];
 
@@ -92,14 +92,30 @@ export async function submitImport({ file, mapping, duplicateMode, createdBy }) 
   fd.append("duplicateMode", duplicateMode || "skip");
   if (createdBy) fd.append("createdBy", String(createdBy));
 
-  const res = await fetch(`${API_BASE_URL}/participants/bulk-import`, {
+  const url = buildApiUrl("/participants/bulk-import");
+  if (import.meta.env.DEV) {
+    console.debug("submitImport: POST", url);
+  }
+
+  const res = await fetch(url, {
     method: "POST",
     body: fd,
   });
 
-  const data = await res.json().catch(() => null);
+  const text = await res.text();
+  let data = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = null;
+  }
 
   if (!res.ok) {
+    if (res.status === 404) {
+      throw new Error(
+        `Bulk import service is unavailable. Please check the API configuration. POST ${url}`
+      );
+    }
     throw new Error(
       data?.message || `Import failed (HTTP ${res.status}). Please try again.`
     );
@@ -112,8 +128,20 @@ export async function submitImport({ file, mapping, duplicateMode, createdBy }) 
  * Fetch recent import history (audit log).
  */
 export async function fetchImportHistory() {
-  const res = await fetch(`${API_BASE_URL}/participants/imports`);
-  const data = await res.json().catch(() => null);
+  const url = buildApiUrl("/participants/imports");
+  if (import.meta.env.DEV) {
+    console.debug("fetchImportHistory: GET", url);
+  }
+
+  const res = await fetch(url);
+  const text = await res.text();
+  let data = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = null;
+  }
+
   if (!res.ok) {
     throw new Error(data?.message || "Failed to load import history.");
   }

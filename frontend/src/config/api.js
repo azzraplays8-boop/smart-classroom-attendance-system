@@ -17,3 +17,11 @@ if (!raw) {
 
 // Normalize: strip any trailing slashes so callers can safely append paths.
 export const API_BASE_URL = raw.replace(/\/+$/, "");
+
+export function buildApiUrl(path) {
+  if (typeof path !== "string") {
+    throw new Error("API path must be a string.");
+  }
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return `${API_BASE_URL}${normalizedPath}`;
+}
