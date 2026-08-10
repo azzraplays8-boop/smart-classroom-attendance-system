@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import { exportErrorReport } from "../../../services/importService";
 
 /**
@@ -11,6 +12,7 @@ export default function ImportSummary({
   fileName,
   recentImports = [],
 }) {
+  const navigate = useNavigate();
   const s = summary || {};
 
   const statItems = [
@@ -81,7 +83,14 @@ export default function ImportSummary({
       ) : null}
 
       <div className="import-summary-actions">
-        <button type="button" className="import-btn import-btn-primary" onClick={onClose}>
+        <button
+          type="button"
+          className="import-btn import-btn-primary"
+          onClick={() => {
+            onClose?.();
+            navigate("/participants");
+          }}
+        >
           Done
         </button>
       </div>
