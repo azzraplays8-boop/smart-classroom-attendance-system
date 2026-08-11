@@ -1074,7 +1074,7 @@ export default function participantsRouter({ pool, upload }) {
             const errValues = errors.map((e) => [importId, e.rowNumber, e.participantIdentifier, e.reason]);
             const errPlaceholders = errors.map(() => "(?, ?, ?, ?)").join(", ");
             await connection.query(
-              `INSERT INTO participant_import_errors (import_id, row_number, participant_identifier, reason)
+              `INSERT INTO participant_import_errors (import_id, \`row_number\`, participant_identifier, reason)
                VALUES ${errPlaceholders}`,
               errValues.flat()
             );

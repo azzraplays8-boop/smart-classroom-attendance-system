@@ -42,7 +42,7 @@ PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 CREATE TABLE IF NOT EXISTS participant_import_errors (
   id INT AUTO_INCREMENT PRIMARY KEY,
   import_id INT NOT NULL,
-  row_number INT NOT NULL,
+  `row_number` INT NOT NULL,
   participant_identifier VARCHAR(255) NULL,
   reason VARCHAR(255) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
