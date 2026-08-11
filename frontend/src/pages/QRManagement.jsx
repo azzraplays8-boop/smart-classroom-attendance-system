@@ -1,5 +1,6 @@
   import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import QRCodeLib from "qrcode";
+import jsPDF from "jspdf";
 import QRCard from "../components/qr/QRCard";
 import QRFilters from "../components/qr/QRFilters";
 import QRTable from "../components/qr/QRTable";
@@ -212,7 +213,6 @@ function QRManagement() {
 
   const handleDownloadPdf = useCallback(async (participant) => {
     try {
-      const { default: jsPDF } = await import("jspdf");
       const doc = new jsPDF("portrait", "mm", "a4");
       const pageWidth = doc.internal.pageSize.getWidth();
 
