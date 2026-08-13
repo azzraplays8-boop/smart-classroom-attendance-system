@@ -5,8 +5,14 @@
  * extracts the user, and attaches it to req.user.
  *
  * Also provides role-based access control helpers.
+ *
+ * IMPORTANT: After JWT signature verification, the middleware re-fetches the
+ * user's current record from the database to ensure the account still exists
+ * and is still active/approved. This prevents deleted or deactivated users
+ * from continuing to use a previously-issued (still non-expired) JWT token.
  */
 import jwt from "jsonwebtoken";
+import { findUserByIdForAuth } from "./permissions.js";
 
 // JWT_SECRET is required in production. Fail fast if it is missing rather than
 // silently falling back to a hardcoded development secret.
@@ -32,33 +38,88 @@ export const PERMISSION_KEYS = {
 };
 
 /**
- * Verify that a valid JWT is present in the Authorization header.
- * If valid, attaches the decoded payload to req.user.
- * If invalid, returns 401.
+ * Verify that a valid JWT is present in the Authorization header AND that the
+ * corresponding user still exists and is active in the database.
+ *
+ * If valid, attaches the **fresh** user record (with current role, account_status,
+ * and permissions) to req.user. If the token is valid but the user has been
+ * deleted, deactivated, or is otherwise unauthorized, returns 401 so that no
+ * protected route can be accessed with a stale credential.
+ *
+ * @param {import('mysql2/promise').Pool} pool - MySQL connection pool
+ * @returns {Function} Express middleware
  *
  * req.user = { id, email, username, role, full_name, organization_id,
- *              account_status, permissions }
+ *              account_status, is_active, permissions }
  */
-export function authenticate(req, res, next) {
-  const authHeader = req.headers.authorization;
+export function authenticate(pool) {
+  return async (req, res, next) => {
+    const authHeader = req.headers.authorization;
 
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return res.status(401).json({ message: "Authentication required. No token provided." });
-  }
-
-  const token = authHeader.split(" ")[1];
-
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    req.user = decoded; // { id, email, role, full_name, organization_id, account_status, permissions }
-    if (!req.user.permissions) req.user.permissions = [];
-    next();
-  } catch (err) {
-    if (err.name === "TokenExpiredError") {
-      return res.status(401).json({ message: "Token has expired. Please login again." });
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ message: "Authentication required. No token provided." });
     }
-    return res.status(401).json({ message: "Invalid token. Please login again." });
-  }
+
+    const token = authHeader.split(" ")[1];
+
+    let decoded;
+    try {
+      decoded = jwt.verify(token, JWT_SECRET);
+    } catch (err) {
+      if (err.name === "TokenExpiredError") {
+        return res.status(401).json({ message: "Token has expired. Please login again." });
+      }
+      return res.status(401).json({ message: "Invalid token. Please login again." });
+    }
+
+    // ── Re-verify the user's current status against the database ──
+    // The JWT may be valid (signature + non-expired) but the user could have
+    // been deleted, deactivated, or rejected since the token was issued.
+    try {
+      const user = await findUserByIdForAuth(pool, decoded.id);
+
+      if (!user) {
+        // User no longer exists (deleted or removed from DB)
+        return res.status(401).json({
+          message: "Account is no longer active/authorized. Please contact an administrator.",
+        });
+      }
+
+      // Reject inactive / non-approved users
+      const isActive = user.is_active === 1;
+      if (
+        !isActive ||
+        user.account_status === "deactivated" ||
+        user.account_status === "rejected" ||
+        user.account_status === "pending"
+      ) {
+        return res.status(401).json({
+          message: "Account is no longer active/authorized. Please contact an administrator.",
+        });
+      }
+
+      // Attach the FRESH database record (not the stale JWT claims)
+      req.user = {
+        id: user.id,
+        email: user.email,
+        username: user.username,
+        role: user.role,
+        full_name: user.full_name,
+        organization_id: user.organization_id ?? null,
+        account_status: user.account_status,
+        is_active: user.is_active,
+        permissions: user.permissions || [],
+      };
+
+      next();
+    } catch (err) {
+      // Fail-closed: if we cannot verify the user against the DB, deny access
+      console.error("[authenticate] DB verification failed:", err?.message || err);
+      return res.status(401).json({
+        message: "Authentication failed. Please login again.",
+      });
+    }
+  };
 }
 
 /**

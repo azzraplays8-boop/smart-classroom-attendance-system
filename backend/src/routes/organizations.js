@@ -41,7 +41,7 @@ export default function organizationsRouter({ pool }) {
   const router = express.Router();
 
   // Apply auth + super_admin to all org routes
-  router.use(authenticate, authorize("super_admin"));
+  router.use(authenticate(pool), authorize("super_admin"));
 
   // ── GET /organizations ────────────────────────────────
   router.get("/", async (req, res) => {

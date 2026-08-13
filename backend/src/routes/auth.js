@@ -260,19 +260,19 @@ export default function authRouter({ pool }) {
   // ─────────────────────────────────────────────
   // POST /auth/logout
   // ─────────────────────────────────────────────
-  router.post("/logout", authenticate, async (req, res) => {
+  router.post("/logout", authenticate(pool), async (req, res) => {
     return res.json({ message: "Logged out successfully." });
   });
 
   // ─────────────────────────────────────────────
   // GET /auth/me
   // ─────────────────────────────────────────────
-  router.get("/me", authenticate, async (req, res) => {
+  router.get("/me", authenticate(pool), async (req, res) => {
     try {
       const user = await findUserByIdForAuth(pool, req.user.id);
 
       if (!user) {
-        return res.status(404).json({ message: "User not found." });
+        return res.status(401).json({ message: "Account is no longer active/authorized. Please contact an administrator." });
       }
 
       return res.json({ user });
@@ -286,7 +286,7 @@ export default function authRouter({ pool }) {
   // ─────────────────────────────────────────────
   // GET /auth/roles — list roles + permissions
   // ─────────────────────────────────────────────
-  router.get("/roles", authenticate, authorize("super_admin", "administrator"), async (req, res) => {
+  router.get("/roles", authenticate(pool), authorize("super_admin", "administrator"), async (req, res) => {
     try {
       const [roles] = await pool.query(
         `SELECT r.id, r.role_key AS roleKey, r.role_name AS roleName, r.description
@@ -321,7 +321,7 @@ export default function authRouter({ pool }) {
   // ─────────────────────────────────────────────
   // GET /auth/users - List all users
   // ─────────────────────────────────────────────
-  router.get("/users", authenticate, authorize("super_admin", "administrator"), async (req, res) => {
+  router.get("/users", authenticate(pool), authorize("super_admin", "administrator"), async (req, res) => {
     try {
       const [users] = await pool.query(
         `SELECT u.id, u.email, u.username, u.full_name, u.role, u.is_active,
@@ -342,7 +342,7 @@ export default function authRouter({ pool }) {
   // ─────────────────────────────────────────────
   // POST /auth/users - Create a new user (Admin+)
   // ─────────────────────────────────────────────
-  router.post("/users", authenticate, authorize("super_admin", "administrator"), async (req, res) => {
+  router.post("/users", authenticate(pool), authorize("super_admin", "administrator"), async (req, res) => {
     try {
       const { email, username, password, full_name, role, organization_id } = req.body;
 
@@ -410,7 +410,7 @@ export default function authRouter({ pool }) {
   // ─────────────────────────────────────────────
   // PUT /auth/users/:id - Update user (Admin+)
   // ─────────────────────────────────────────────
-  router.put("/users/:id", authenticate, authorize("super_admin", "administrator"), async (req, res) => {
+  router.put("/users/:id", authenticate(pool), authorize("super_admin", "administrator"), async (req, res) => {
     try {
       const userId = req.params.id;
       const { email, username, full_name, role, organization_id } = req.body;
@@ -484,7 +484,7 @@ export default function authRouter({ pool }) {
   // ─────────────────────────────────────────────
   // PUT /auth/users/:id/role - Assign/change role
   // ─────────────────────────────────────────────
-  router.put("/users/:id/role", authenticate, authorize("super_admin", "administrator"), async (req, res) => {
+  router.put("/users/:id/role", authenticate(pool), authorize("super_admin", "administrator"), async (req, res) => {
     try {
       const userId = req.params.id;
       const { role } = req.body;
@@ -535,7 +535,7 @@ export default function authRouter({ pool }) {
   // ─────────────────────────────────────────────
   // PUT /auth/users/:id/organization - Assign organization
   // ─────────────────────────────────────────────
-  router.put("/users/:id/organization", authenticate, authorize("super_admin", "administrator"), async (req, res) => {
+  router.put("/users/:id/organization", authenticate(pool), authorize("super_admin", "administrator"), async (req, res) => {
     try {
       const userId = req.params.id;
       const { organization_id } = req.body;
@@ -571,7 +571,7 @@ export default function authRouter({ pool }) {
   // ─────────────────────────────────────────────
   // DELETE /auth/users/:id - Delete a user (Admin+)
   // ─────────────────────────────────────────────
-  router.delete("/users/:id", authenticate, authorize("super_admin", "administrator"), async (req, res) => {
+  router.delete("/users/:id", authenticate(pool), authorize("super_admin", "administrator"), async (req, res) => {
     try {
       const userId = req.params.id;
 
@@ -600,7 +600,7 @@ export default function authRouter({ pool }) {
   // ─────────────────────────────────────────────
   // PUT /auth/users/:id/reset-password - Reset password (Admin+)
   // ─────────────────────────────────────────────
-  router.put("/users/:id/reset-password", authenticate, authorize("super_admin", "administrator"), async (req, res) => {
+  router.put("/users/:id/reset-password", authenticate(pool), authorize("super_admin", "administrator"), async (req, res) => {
     try {
       const userId = req.params.id;
       const { newPassword } = req.body;
@@ -628,7 +628,7 @@ export default function authRouter({ pool }) {
   // ─────────────────────────────────────────────
   // PUT /auth/users/:id/status - Activate/Deactivate (Admin+)
   // ─────────────────────────────────────────────
-  router.put("/users/:id/status", authenticate, authorize("super_admin", "administrator"), async (req, res) => {
+  router.put("/users/:id/status", authenticate(pool), authorize("super_admin", "administrator"), async (req, res) => {
     try {
       const userId = req.params.id;
       const { is_active } = req.body;
@@ -668,7 +668,7 @@ export default function authRouter({ pool }) {
   // ─────────────────────────────────────────────
   // GET /auth/pending - List pending registrations
   // ─────────────────────────────────────────────
-  router.get("/pending", authenticate, authorize("super_admin", "administrator"), async (req, res) => {
+  router.get("/pending", authenticate(pool), authorize("super_admin", "administrator"), async (req, res) => {
     try {
       const [rows] = await pool.query(
         `SELECT p.id, p.user_id AS userId, u.full_name, u.email, u.username,
@@ -692,7 +692,7 @@ export default function authRouter({ pool }) {
   // ─────────────────────────────────────────────
   // POST /auth/pending/:id/approve - Approve a pending registration
   // ─────────────────────────────────────────────
-  router.post("/pending/:id/approve", authenticate, authorize("super_admin", "administrator"), async (req, res) => {
+  router.post("/pending/:id/approve", authenticate(pool), authorize("super_admin", "administrator"), async (req, res) => {
     try {
       const pendingId = req.params.id;
       const { role, organization_id } = req.body;
@@ -743,7 +743,7 @@ export default function authRouter({ pool }) {
   // ─────────────────────────────────────────────
   // POST /auth/pending/:id/reject - Reject a pending registration
   // ─────────────────────────────────────────────
-  router.post("/pending/:id/reject", authenticate, authorize("super_admin", "administrator"), async (req, res) => {
+  router.post("/pending/:id/reject", authenticate(pool), authorize("super_admin", "administrator"), async (req, res) => {
     try {
       const pendingId = req.params.id;
 
