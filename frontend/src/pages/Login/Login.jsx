@@ -65,74 +65,65 @@ export default function Login() {
   };
 
   const features = [
-    { icon: <FiUsers size={17} />, label: "Member Management" },
-    { icon: <FiShield size={17} />, label: "Officer Management" },
-    { icon: <FiCalendar size={17} />, label: "Activities & Events" },
-    { icon: <FiClipboard size={17} />, label: "Attendance & Participation" },
-    { icon: <FiBarChart2 size={17} />, label: "Reports & Records" },
+    { icon: <FiUsers size={16} />, label: "Member Management" },
+    { icon: <FiShield size={16} />, label: "Officer Management" },
+    { icon: <FiCalendar size={16} />, label: "Activities & Events" },
+    { icon: <FiClipboard size={16} />, label: "Attendance & Participation" },
+    { icon: <FiBarChart2 size={16} />, label: "Reports & Records" },
   ];
 
   return (
     <div className="login-page">
-      <div className="login-bg-decoration" />
       <div className="login-card">
-        {/* ── Left branding panel ── */}
-        <div className="login-branding">
-          <div className="login-brandhead">
+        {/* ── Left brand panel (mirrors dashboard sidebar) ── */}
+        <aside className="login-panel">
+          <div className="login-brand">
             <div className="login-brandmark">
               <span>K</span>
             </div>
             <div className="login-brandtext">
               <h1 className="login-brandname">KATAGA Portal</h1>
-              <p className="login-brandtagline">Kapatiran ng Talino at Galing</p>
+              <p className="login-brandtag">Kapatiran ng Talino at Galing</p>
             </div>
           </div>
 
-          <div className="login-branddivider" />
-
-          <div className="login-featurelist">
-            <p className="login-featureheading">Organization Management Platform</p>
+          <div className="login-features">
+            <p className="login-features-title">Organization Management</p>
             {features.map((feature, i) => (
               <div className="login-feature" key={i}>
-                <span className="login-featureicon">{feature.icon}</span>
-                <span className="login-featurelabel">{feature.label}</span>
+                <span className="login-feature-ic">{feature.icon}</span>
+                <span>{feature.label}</span>
               </div>
             ))}
           </div>
 
-          <p className="login-brandfoot">
-            Secure member access · Administrator approval
-          </p>
-        </div>
+          <p className="login-panelfoot">Secure access · Administrator-managed</p>
+        </aside>
 
         {/* ── Right form panel ── */}
-        <div className="login-formpanel">
-          <div className="login-formwrapper">
-            <div className="login-formhead">
-              <h2 className="login-formtitle">Welcome Back</h2>
-              <p className="login-formsubtitle">
-                Sign in to your KATAGA Portal account
-              </p>
+        <div className="login-main">
+          <div className="login-form-inner">
+            <div className="login-head">
+              <h2 className="login-title">Welcome Back</h2>
+              <p className="login-subtitle">Sign in to your KATAGA Portal account</p>
             </div>
 
             {error && (
-              <div className="login-error" role="alert">
-                <span className="login-erroricon">!</span>
+              <div className="login-alert" role="alert">
+                <span className="login-alert-ic">!</span>
                 <span>{error}</span>
               </div>
             )}
 
             <form className="login-form" onSubmit={handleSubmit} noValidate>
               <div className="login-field">
-                <label className="login-label" htmlFor="login-email">
-                  Email or Username
-                </label>
+                <label className="login-label" htmlFor="login-email">Email or Username</label>
                 <div className="login-inputwrap">
-                  <FiMail className="login-inputicon" size={18} />
+                  <FiMail className="login-ic" size={16} />
                   <input
                     id="login-email"
                     type="text"
-                    className="login-input login-inputwithicon"
+                    className="login-input"
                     placeholder="Enter your email or username"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -144,15 +135,13 @@ export default function Login() {
               </div>
 
               <div className="login-field">
-                <label className="login-label" htmlFor="login-password">
-                  Password
-                </label>
+                <label className="login-label" htmlFor="login-password">Password</label>
                 <div className="login-inputwrap">
-                  <FiLock className="login-inputicon" size={18} />
+                  <FiLock className="login-ic" size={16} />
                   <input
                     id="login-password"
                     type={showPassword ? "text" : "password"}
-                    className="login-input login-inputwithicon login-passwordinput"
+                    className="login-input login-passwordinput"
                     placeholder="Enter your password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -184,11 +173,7 @@ export default function Login() {
                 </label>
               </div>
 
-              <button
-                type="submit"
-                className="login-submitbtn"
-                disabled={isSubmitting}
-              >
+              <button type="submit" className="login-submit" disabled={isSubmitting}>
                 {isSubmitting ? (
                   <>
                     <FiLoader className="login-spinner" size={18} />
@@ -196,21 +181,16 @@ export default function Login() {
                   </>
                 ) : (
                   <>
-                    <FiLogIn size={18} />
+                    <FiLogIn size={17} />
                     Sign In
                   </>
                 )}
               </button>
             </form>
 
-            <p className="login-registerlink">
+            <p className="login-links">
               Don&apos;t have an account?{" "}
-              <Link to="/register" className="login-registerlink-text">
-                Create one
-              </Link>
-            </p>
-            <p className="login-footnote">
-              KATAGA Portal · Organizational Management System
+              <Link to="/register" className="login-link">Create one</Link>
             </p>
           </div>
         </div>
