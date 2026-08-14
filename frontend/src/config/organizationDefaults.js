@@ -193,6 +193,25 @@ export const ORG_TYPE_CONFIGS = {
       absentLabel: "No Show",
     },
   },
+  kataga: {
+    id: "kataga",
+    label: "KATAGA",
+    icon: "🤝",
+    entity: {
+      entityName: "Member",
+      entityNamePlural: "Members",
+      primaryIdLabel: "Member ID",
+      departmentLabel: "Department",
+      groupLabel: "Committee",
+      roleLabel: "Position",
+    },
+    attendance: {
+      registeredMemberLabel: "Members",
+      checkedInLabel: "Present",
+      lateLabel: "Late",
+      absentLabel: "Absent",
+    },
+  },
 };
 
 /**

@@ -85,7 +85,7 @@ function statSkeleton(key) {
 function Attendance() {
   const labels = useOrgLabels();
 
-  const [statusMessage, setStatusMessage] = useState("Opening camera for QR scanning...");
+  const [statusMessage, setStatusMessage] = useState("Scanning QR code for member attendance");
   const [attendanceList, setAttendanceList] = useState([]);
   const [toast, setToast] = useState({ kind: "success", message: "" });
   const [toastVisible, setToastVisible] = useState(false);

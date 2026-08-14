@@ -1,5 +1,5 @@
 /**
- * Register Page - Universal Attendance Management Platform
+ * KATAGA Portal Register
  *
  * First registered user becomes Super Administrator (auto-approved, no org required).
  * Subsequent registrations require a valid invitation code and become Pending Approval.
@@ -258,9 +258,9 @@ if (!formData.confirm_password) {
                 <FiArrowLeft size={16} />
                 Back to Login
               </Link>
-              <h2 className="register-form-title">Create Account</h2>
+              <h2 className="register-form-title">Create Your KATAGA Account</h2>
               <p className="register-form-subtitle">
-                Register to access the attendance management platform
+                Register to access the KATAGA Portal
               </p>
             </div>
 

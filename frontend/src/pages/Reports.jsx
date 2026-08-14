@@ -16,7 +16,7 @@ import { API_BASE_URL } from "../config/api";
 import "../styles/Reports.css";
 
 /**
- * Analytics & Reports — True Analytics Dashboard (frontend-only redesign).
+ * KATAGA Portal Reports — True Analytics Dashboard (frontend-only redesign).
  * Reuses existing attendance API endpoints. No CRUD, no duplicate table.
  */
 function Reports() {
@@ -25,7 +25,7 @@ function Reports() {
   const [dashboardStats, setDashboardStats] = useState({ totalParticipants: 0, presentToday: 0, lateToday: 0, absentToday: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [schoolSettings, setSchoolSettings] = useState({ schoolName: "", schoolLogo: "" });
+  const [organizationSettings, setSchoolSettings] = useState({ schoolName: "", schoolLogo: "" });
 
   // Fetch school settings (name/logo) for report exports.
   const fetchSettings = async () => {
@@ -139,8 +139,8 @@ function Reports() {
       {error ? <div className="an-message an-message--error">{error}</div> : null}
 
       <AnalyticsHeader
-        title="Analytics & Reports"
-        subtitle="Monitor attendance trends, generate reports, and gain meaningful insights from attendance records."
+        title="KATAGA Portal Reports"
+        subtitle="Monitor KATAGA Portal activities, generate reports, and gain meaningful insights from member records."
       />
 
       {loading ? (
@@ -165,7 +165,7 @@ function Reports() {
             <QuickInsights records={records} />
           </div>
 
-          <ReportGenerator records={records} schoolSettings={schoolSettings} labels={labels} />
+          <ReportGenerator records={records} organizationSettings={organizationSettings} labels={labels} />
         </>
       )}
     </div>

@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════════════════════════
-   Settings — System Configuration Center
-   Enterprise admin dashboard (Google Workspace / Microsoft 365 style).
+   KATAGA Portal - Organization Settings
+   KATAGA Portal organization management dashboard.
    Frontend UI/UX only. All backend logic, APIs, save, upload, and
    localStorage behavior preserved exactly as-is.
    ═══════════════════════════════════════════════════════════ */
@@ -88,7 +88,7 @@ const DEFAULT_SETTINGS = {
   attendanceStartTime: "07:30", lateCutoffTime: "08:00", attendanceEndTime: "17:00",
   autoMarkAbsent: true, timezone: "(UTC+08:00) Asia/Manila", gracePeriod: "None", attendanceMode: "QR + Manual",
   orgYear: "", semester: "1st", defaultDepartments: "", defaultCourses: "", defaultSections: "",
-  studentNumberFormat: "", yearLevels: "", dateFormat: "YYYY-MM-DD", timeFormat: "h:mm A",
+  studentNumberFormat: "", positionLevels: "", dateFormat: "YYYY-MM-DD", timeFormat: "h:mm A",
   maintenanceMode: false, autoBackup: true, logRetention: "30 days",
   systemName: "", footerText: "",
   theme: "light", primaryColor: DEFAULT_PRIMARY_COLOR, language: "en",
@@ -509,7 +509,7 @@ function Settings() {
           <div className="sc-row">
             <div className="sc-field">
               <label><FaEnvelope className="sc-field-icon" /> Organization Email</label>
-              <input type="email" className="ui-input" placeholder="admin@school.edu" value={settings.orgEmail} onChange={(e) => handleChange("orgEmail", e.target.value)} />
+              <input type="email" className="ui-input" placeholder="admin@kataga.org" value={settings.orgEmail} onChange={(e) => handleChange("orgEmail", e.target.value)} />
             </div>
             <div className="sc-field">
               <label><FaPhoneAlt className="sc-field-icon" /> Contact Number</label>
@@ -518,7 +518,7 @@ function Settings() {
           </div>
           <div className="sc-field">
             <label><FaGlobeAsia className="sc-field-icon" /> Website</label>
-            <input type="url" className="ui-input" placeholder="https://school.edu" value={settings.orgWebsite} onChange={(e) => handleChange("orgWebsite", e.target.value)} />
+            <input type="url" className="ui-input" placeholder="https://kataga.org" value={settings.orgWebsite} onChange={(e) => handleChange("orgWebsite", e.target.value)} />
           </div>
         </div>
       </div>
@@ -712,7 +712,7 @@ function Settings() {
           <div className="sc-card-icon sc-card-icon--teal"><FaIdCard /></div>
           <div className="sc-card-heading">
             <h3 className="sc-card-title">Identification Formats</h3>
-            <p className="sc-card-subtitle">Student number format and year levels (frontend placeholder)</p>
+            <p className="sc-card-subtitle">Member ID format and year levels (frontend placeholder)</p>
           </div>
         </div>
         <div className="sc-card-body">
@@ -723,7 +723,7 @@ function Settings() {
             </div>
             <div className="sc-field">
               <label>Year Levels</label>
-              <input type="text" className="ui-input" placeholder="e.g. 1st, 2nd, 3rd, 4th" value={settings.yearLevels} onChange={(e) => handleChange("yearLevels", e.target.value)} />
+              <input type="text" className="ui-input" placeholder="e.g. 1st, 2nd, 3rd, 4th" value={settings.positionLevels} onChange={(e) => handleChange("positionLevels", e.target.value)} />
             </div>
           </div>
         </div>
@@ -886,7 +886,7 @@ function Settings() {
           <div className="sc-card-icon sc-card-icon--indigo"><FaTools /></div>
           <div className="sc-card-heading">
             <h3 className="sc-card-title">System Branding</h3>
-            <p className="sc-card-subtitle">System name, footer text and brand assets (frontend placeholders)</p>
+            <p className="sc-card-subtitle">Organization branding and assets</p>
           </div>
         </div>
         <div className="sc-card-body">

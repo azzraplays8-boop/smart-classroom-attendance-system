@@ -5,10 +5,10 @@
  * These replace all hardcoded branding references.
  */
 
-export const APP_NAME = "Attendance Management Platform";
-export const APP_SHORT_NAME = "Attendance Hub";
-export const APP_TAGLINE = "Universal Attendance Platform";
-export const APP_INITIALS = "AH"; // Used in logo/avatar branding
+export const APP_NAME = "KATAGA Portal";
+export const APP_SHORT_NAME = "KATAGA";
+export const APP_TAGLINE = "Kapatiran ng Talino at Galing";
+export const APP_INITIALS = "KT"; // Used in logo/avatar branding
 
 export const DEFAULT_BRAND_COLOR = "#4f46e5";
 

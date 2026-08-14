@@ -1,5 +1,5 @@
 /**
- * Login Page - Universal Attendance Management Platform
+ * KATAGA Portal Login
  */
 import { useState } from "react";
 import { Navigate, useNavigate, Link } from "react-router-dom";
@@ -57,10 +57,10 @@ export default function Login() {
         <div className="login-branding">
           <div className="login-logo-area">
             <div className="login-logo-icon">
-              <span className="login-logo-text">SA</span>
+              <span className="login-logo-text">KATAGA</span>
             </div>
-            <h1 className="login-school-name">Attendance Management</h1>
-            <p className="login-school-subtitle">Platform</p>
+            <h1 className="login-school-name">KATAGA Portal</h1>
+            <p className="login-school-subtitle">Kapatiran ng Talino at Galing</p>
           </div>
           <div className="login-branding-features">
             <div className="login-feature-item">
@@ -167,7 +167,7 @@ export default function Login() {
               </button>
             </form>
             <p className="login-footer-text">
-              Universal Attendance Management Platform v2.0
+              KATAGA Portal v2.0
             </p>
             <p className="login-register-link">
               Don&apos;t have an account?{" "}
