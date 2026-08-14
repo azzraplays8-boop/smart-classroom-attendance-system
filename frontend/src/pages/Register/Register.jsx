@@ -15,6 +15,11 @@ import {
   FiArrowLeft,
   FiCheckCircle,
   FiClock,
+  FiMail,
+  FiLock,
+  FiUser,
+  FiUsers,
+  FiKey,
 } from "react-icons/fi";
 import "./Register.css";
 
@@ -77,7 +82,7 @@ export default function Register() {
       errors.password = "Password must be at least 8 characters.";
     }
 
-if (!formData.confirm_password) {
+    if (!formData.confirm_password) {
       errors.confirm_password = "Please confirm your password.";
     } else if (formData.password !== formData.confirm_password) {
       errors.confirm_password = "Passwords do not match.";
@@ -143,14 +148,17 @@ if (!formData.confirm_password) {
         <label className="register-label" htmlFor={`register-${name}`}>
           {label}
         </label>
-        <div className={isPassword ? "register-password-wrapper" : undefined}>
+        <div className="register-inputwrap">
+          {options.icon && (
+            <span className="register-inputicon">{options.icon}</span>
+          )}
           <input
             id={`register-${name}`}
             name={name}
             type={
               isPassword ? (showState ? "text" : "password") : type || "text"
             }
-            className={`register-input${fieldErrors[name] ? " register-input-error" : ""}${isPassword ? " register-password-input" : ""}`}
+            className={`register-input${fieldErrors[name] ? " register-input-error" : ""}${isPassword ? " register-passwordinput" : ""}${options.icon ? " register-inputwithicon" : ""}`}
             placeholder={placeholder}
             value={formData[name]}
             onChange={handleChange}
@@ -161,7 +169,7 @@ if (!formData.confirm_password) {
           {isPassword && (
             <button
               type="button"
-              className="register-password-toggle"
+              className="register-passwordtoggle"
               onClick={toggleShow}
               aria-label={showState ? "Hide password" : "Show password"}
               tabIndex={-1}
@@ -171,51 +179,56 @@ if (!formData.confirm_password) {
           )}
         </div>
         {fieldErrors[name] && (
-          <span className="register-field-error">{fieldErrors[name]}</span>
+          <span className="register-fielderror">{fieldErrors[name]}</span>
         )}
       </div>
     );
   };
+
 
   // ── Pending approval success screen ─────────────────────
   if (pending) {
     return (
       <div className="register-page">
         <div className="register-bg-decoration" />
-        <div className="register-container">
+        <div className="register-card">
           <div className="register-branding">
-            <div className="register-logo-area">
-              <div className="register-logo-icon">
-                <span className="register-logo-text">KATAGA</span>
+            <div className="register-brandhead">
+              <div className="register-brandmark">
+                <span>K</span>
               </div>
-              <h1 className="register-school-name">KATAGA Portal</h1>
-              <p className="register-school-subtitle">Kapatiran ng Talino at Galing</p>
+              <div className="register-brandtext">
+                <h1 className="register-brandname">KATAGA Portal</h1>
+                <p className="register-brandtagline">Kapatiran ng Talino at Galing</p>
+              </div>
             </div>
-            <div className="register-branding-info">
-              <h3 className="register-branding-title">Registration Submitted</h3>
-              <p className="register-branding-desc">
+            <div className="register-branddivider" />
+            <div className="register-brandinfo">
+              <h3 className="register-brandtitle">Registration Submitted</h3>
+              <p className="register-branddesc">
                 Your account is now in the approval queue.
               </p>
             </div>
+            <p className="register-brandfoot">KATAGA · Member Portal</p>
           </div>
-          <div className="register-form-panel">
-            <div className="register-form-wrapper register-pending-wrapper">
-              <div className="register-pending-icon">
+          <div className="register-formpanel">
+            <div className="register-formwrapper register-pendingwrapper">
+              <div className="register-pendingicon">
                 <FiClock size={40} />
               </div>
-              <h2 className="register-pending-title">Account Pending Approval</h2>
-              <p className="register-pending-desc">
+              <h2 className="register-pendingtitle">Account Pending Approval</h2>
+              <p className="register-pendingdesc">
                 Your registration has been submitted successfully. An administrator
                 will review your account and assign your role before you can access
-                the platform.
+                the portal.
               </p>
-              <div className="register-pending-note">
+              <div className="register-pendingnote">
                 <FiCheckCircle size={16} />
                 <span>
                   You will be able to log in once your account is approved.
                 </span>
               </div>
-              <Link to="/login" className="register-submit-btn register-pending-btn">
+              <Link to="/login" className="register-submitbtn register-pendingbtn">
                 <FiArrowLeft size={18} />
                 Back to Login
               </Link>
@@ -229,96 +242,97 @@ if (!formData.confirm_password) {
   return (
     <div className="register-page">
       <div className="register-bg-decoration" />
-      <div className="register-container">
+      <div className="register-card">
         <div className="register-branding">
-          <div className="register-logo-area">
-            <div className="register-logo-icon">
-              <span className="register-logo-text">KATAGA</span>
+          <div className="register-brandhead">
+            <div className="register-brandmark">
+              <span>K</span>
             </div>
-            <h1 className="register-school-name">KATAGA Portal</h1>
-            <p className="register-school-subtitle">Kapatiran ng Talino at Galing</p>
+            <div className="register-brandtext">
+              <h1 className="register-brandname">KATAGA Portal</h1>
+              <p className="register-brandtagline">Kapatiran ng Talino at Galing</p>
+            </div>
           </div>
-          <div className="register-branding-info">
-            <h3 className="register-branding-title">Join KATAGA</h3>
-            <p className="register-branding-desc">
-              The first registered account becomes the{" "}
-              <strong>Super Administrator</strong> with full access to manage members and organization settings.
+          <div className="register-branddivider" />
+          <div className="register-brandinfo">
+            <h3 className="register-brandtitle">Join KATAGA</h3>
+            <p className="register-branddesc">
+              Register to become a member of the Kapatiran ng Talino at Galing
+              organizational portal.
             </p>
-            <p className="register-branding-desc">
-              All subsequent accounts require a valid{" "}
-              <strong>invitation code</strong> and are subject to{" "}
-              <strong>administrator approval</strong>.
-            </p>
+            <div className="register-notebox">
+              <FiClock size={16} />
+              <span>
+                Your account may require <strong>administrator approval</strong>{" "}
+                before you can sign in.
+              </span>
+            </div>
           </div>
+          <p className="register-brandfoot">Secure · Invitation-based · Member Portal</p>
         </div>
-        <div className="register-form-panel">
-          <div className="register-form-wrapper">
-            <div className="register-form-header">
-              <Link to="/login" className="register-back-link">
+
+        <div className="register-formpanel">
+          <div className="register-formwrapper">
+            <div className="register-formhead">
+              <Link to="/login" className="register-backlink">
                 <FiArrowLeft size={16} />
                 Back to Login
               </Link>
-              <h2 className="register-form-title">Create Your KATAGA Account</h2>
-              <p className="register-form-subtitle">
-                Register to access the KATAGA Portal
-              </p>
+              <h2 className="register-formtitle">Create Your Account</h2>
+              <p className="register-formsubtitle">Join KATAGA and get started</p>
             </div>
-
             {error && (
               <div className="register-error" role="alert">
-                <span className="register-error-icon">!</span>
+                <span className="register-erroricon">!</span>
                 <span>{error}</span>
               </div>
             )}
-
-            <form
-              className="register-form"
-              onSubmit={handleSubmit}
-              noValidate
-            >
+            <form className="register-form" onSubmit={handleSubmit} noValidate>
               {renderField(
                 "Full Name",
                 "full_name",
                 "text",
                 "Enter your full name",
-                { autoFocus: true, autoComplete: "name" }
+                { autoFocus: true, autoComplete: "name", icon: <FiUser size={17} /> }
               )}
               {renderField(
                 "Username",
                 "username",
                 "text",
                 "Choose a username",
-                { autoComplete: "username" }
+                { autoComplete: "username", icon: <FiUsers size={17} /> }
               )}
               {renderField(
                 "Email",
                 "email",
                 "email",
                 "Enter your email address",
-                { autoComplete: "email" }
+                { autoComplete: "email", icon: <FiMail size={17} /> }
               )}
               {renderField(
                 "Password",
                 "password",
                 "password",
-                "Minimum 8 characters"
+                "Minimum 8 characters",
+                { icon: <FiLock size={17} /> }
               )}
               {renderField(
                 "Confirm Password",
                 "confirm_password",
                 "password",
-                "Re-enter your password"
+                "Re-enter your password",
+                { icon: <FiLock size={17} /> }
               )}
-{renderField(
+              {renderField(
                 "Invitation Code",
                 "invitation_code",
                 "text",
-                "Required for non-first accounts (optional for first Super Admin)"
+                "Required for non-first accounts (optional for first Super Admin)",
+                { icon: <FiKey size={17} /> }
               )}
-
               <button
                 type="submit"
-                className="register-submit-btn"
+                className="register-submitbtn"
                 disabled={isSubmitting}
               >
                 {isSubmitting ? (
@@ -334,10 +348,9 @@ if (!formData.confirm_password) {
                 )}
               </button>
             </form>
-
-            <p className="register-footer-text">
+            <p className="register-footertext">
               Already have an account?{" "}
-              <Link to="/login" className="register-footer-link">
+              <Link to="/login" className="register-footerlink">
                 Sign in
               </Link>
             </p>

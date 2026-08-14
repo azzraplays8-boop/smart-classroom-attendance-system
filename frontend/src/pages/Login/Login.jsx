@@ -4,7 +4,19 @@
 import { useState } from "react";
 import { Navigate, useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
-import { FiEye, FiEyeOff, FiLoader, FiLogIn } from "react-icons/fi";
+import {
+  FiEye,
+  FiEyeOff,
+  FiLoader,
+  FiLogIn,
+  FiMail,
+  FiLock,
+  FiUsers,
+  FiShield,
+  FiCalendar,
+  FiClipboard,
+  FiBarChart2,
+} from "react-icons/fi";
 import "./Login.css";
 
 export default function Login() {
@@ -43,82 +55,104 @@ export default function Login() {
       navigate("/", { replace: true });
     } catch (err) {
       const message =
-        err.response?.data?.message || err.message || "Login failed. Please try again.";
+        err.response?.data?.message ||
+        err.message ||
+        "Login failed. Please try again.";
       setError(message);
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  const features = [
+    { icon: <FiUsers size={17} />, label: "Member Management" },
+    { icon: <FiShield size={17} />, label: "Officer Management" },
+    { icon: <FiCalendar size={17} />, label: "Activities & Events" },
+    { icon: <FiClipboard size={17} />, label: "Attendance & Participation" },
+    { icon: <FiBarChart2 size={17} />, label: "Reports & Records" },
+  ];
+
   return (
     <div className="login-page">
       <div className="login-bg-decoration" />
-      <div className="login-container">
+      <div className="login-card">
+        {/* ── Left branding panel ── */}
         <div className="login-branding">
-          <div className="login-logo-area">
-            <div className="login-logo-icon">
-              <span className="login-logo-text">KATAGA</span>
+          <div className="login-brandhead">
+            <div className="login-brandmark">
+              <span>K</span>
             </div>
-            <h1 className="login-school-name">KATAGA Portal</h1>
-            <p className="login-school-subtitle">Kapatiran ng Talino at Galing</p>
-          </div>
-          <div className="login-branding-features">
-            <div className="login-feature-item">
-              <span className="login-feature-icon">{String.fromCharCode(10003)}</span>
-              <span>Member Management</span>
-            </div>
-            <div className="login-feature-item">
-              <span className="login-feature-icon">{String.fromCharCode(10003)}</span>
-              <span>QR Code System</span>
-            </div>
-            <div className="login-feature-item">
-              <span className="login-feature-icon">{String.fromCharCode(10003)}</span>
-              <span>Participation Tracking</span>
-            </div>
-            <div className="login-feature-item">
-              <span className="login-feature-icon">{String.fromCharCode(10003)}</span>
-              <span>Analytics & Reports</span>
+            <div className="login-brandtext">
+              <h1 className="login-brandname">KATAGA Portal</h1>
+              <p className="login-brandtagline">Kapatiran ng Talino at Galing</p>
             </div>
           </div>
+
+          <div className="login-branddivider" />
+
+          <div className="login-featurelist">
+            <p className="login-featureheading">Organization Management Platform</p>
+            {features.map((feature, i) => (
+              <div className="login-feature" key={i}>
+                <span className="login-featureicon">{feature.icon}</span>
+                <span className="login-featurelabel">{feature.label}</span>
+              </div>
+            ))}
+          </div>
+
+          <p className="login-brandfoot">
+            Secure member access · Administrator approval
+          </p>
         </div>
-        <div className="login-form-panel">
-          <div className="login-form-wrapper">
-            <div className="login-form-header">
-              <h2 className="login-form-title">Welcome Back</h2>
-              <p className="login-form-subtitle">Sign in to your account to continue</p>
+
+        {/* ── Right form panel ── */}
+        <div className="login-formpanel">
+          <div className="login-formwrapper">
+            <div className="login-formhead">
+              <h2 className="login-formtitle">Welcome Back</h2>
+              <p className="login-formsubtitle">
+                Sign in to your KATAGA Portal account
+              </p>
             </div>
+
             {error && (
               <div className="login-error" role="alert">
-                <span className="login-error-icon">!</span>
+                <span className="login-erroricon">!</span>
                 <span>{error}</span>
               </div>
             )}
+
             <form className="login-form" onSubmit={handleSubmit} noValidate>
               <div className="login-field">
                 <label className="login-label" htmlFor="login-email">
                   Email or Username
                 </label>
-                <input
-                  id="login-email"
-                  type="text"
-                  className="login-input"
-                  placeholder="Enter your email or username"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  autoComplete="username"
-                  autoFocus
-                  disabled={isSubmitting}
-                />
+                <div className="login-inputwrap">
+                  <FiMail className="login-inputicon" size={18} />
+                  <input
+                    id="login-email"
+                    type="text"
+                    className="login-input login-inputwithicon"
+                    placeholder="Enter your email or username"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    autoComplete="username"
+                    autoFocus
+                    disabled={isSubmitting}
+                  />
+                </div>
               </div>
+
               <div className="login-field">
                 <label className="login-label" htmlFor="login-password">
                   Password
                 </label>
-                <div className="login-password-wrapper">
+                <div className="login-inputwrap">
+                  <FiLock className="login-inputicon" size={18} />
                   <input
                     id="login-password"
                     type={showPassword ? "text" : "password"}
-                    className="login-input login-password-input"
+                    className="login-input login-inputwithicon login-passwordinput"
                     placeholder="Enter your password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -127,7 +161,7 @@ export default function Login() {
                   />
                   <button
                     type="button"
-                    className="login-password-toggle"
+                    className="login-passwordtoggle"
                     onClick={() => setShowPassword(!showPassword)}
                     aria-label={showPassword ? "Hide password" : "Show password"}
                     tabIndex={-1}
@@ -136,8 +170,9 @@ export default function Login() {
                   </button>
                 </div>
               </div>
+
               <div className="login-row">
-                <label className="login-checkbox-label">
+                <label className="login-checkboxlabel">
                   <input
                     type="checkbox"
                     className="login-checkbox"
@@ -145,12 +180,13 @@ export default function Login() {
                     onChange={(e) => setRememberMe(e.target.checked)}
                     disabled={isSubmitting}
                   />
-                  <span className="login-checkbox-text">Remember Me</span>
+                  <span>Remember Me</span>
                 </label>
               </div>
+
               <button
                 type="submit"
-                className="login-submit-btn"
+                className="login-submitbtn"
                 disabled={isSubmitting}
               >
                 {isSubmitting ? (
@@ -166,14 +202,15 @@ export default function Login() {
                 )}
               </button>
             </form>
-            <p className="login-footer-text">
-              KATAGA Portal v2.0
-            </p>
-            <p className="login-register-link">
+
+            <p className="login-registerlink">
               Don&apos;t have an account?{" "}
-              <Link to="/register" className="login-register-link-text">
+              <Link to="/register" className="login-registerlink-text">
                 Create one
               </Link>
+            </p>
+            <p className="login-footnote">
+              KATAGA Portal · Organizational Management System
             </p>
           </div>
         </div>
@@ -181,3 +218,4 @@ export default function Login() {
     </div>
   );
 }
+
