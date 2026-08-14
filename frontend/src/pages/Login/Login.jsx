@@ -65,19 +65,19 @@ export default function Login() {
           <div className="login-branding-features">
             <div className="login-feature-item">
               <span className="login-feature-icon">{String.fromCharCode(10003)}</span>
-              <span>Entity Management</span>
+              <span>Member Management</span>
             </div>
             <div className="login-feature-item">
               <span className="login-feature-icon">{String.fromCharCode(10003)}</span>
-              <span>QR Code Generation</span>
+              <span>QR Code System</span>
             </div>
             <div className="login-feature-item">
               <span className="login-feature-icon">{String.fromCharCode(10003)}</span>
-              <span>Attendance Tracking</span>
+              <span>Participation Tracking</span>
             </div>
             <div className="login-feature-item">
               <span className="login-feature-icon">{String.fromCharCode(10003)}</span>
-              <span>Reports &amp; Analytics</span>
+              <span>Analytics & Reports</span>
             </div>
           </div>
         </div>

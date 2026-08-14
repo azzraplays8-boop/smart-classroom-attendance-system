@@ -186,10 +186,10 @@ if (!formData.confirm_password) {
           <div className="register-branding">
             <div className="register-logo-area">
               <div className="register-logo-icon">
-                <span className="register-logo-text">SA</span>
+                <span className="register-logo-text">KATAGA</span>
               </div>
-              <h1 className="register-school-name">Attendance Management</h1>
-              <p className="register-school-subtitle">Platform</p>
+              <h1 className="register-school-name">KATAGA Portal</h1>
+              <p className="register-school-subtitle">Kapatiran ng Talino at Galing</p>
             </div>
             <div className="register-branding-info">
               <h3 className="register-branding-title">Registration Submitted</h3>
@@ -233,16 +233,16 @@ if (!formData.confirm_password) {
         <div className="register-branding">
           <div className="register-logo-area">
             <div className="register-logo-icon">
-              <span className="register-logo-text">SA</span>
+              <span className="register-logo-text">KATAGA</span>
             </div>
-            <h1 className="register-school-name">Attendance Management</h1>
-            <p className="register-school-subtitle">Platform</p>
+            <h1 className="register-school-name">KATAGA Portal</h1>
+            <p className="register-school-subtitle">Kapatiran ng Talino at Galing</p>
           </div>
           <div className="register-branding-info">
-            <h3 className="register-branding-title">Join an Organization</h3>
+            <h3 className="register-branding-title">Join KATAGA</h3>
             <p className="register-branding-desc">
               The first registered account becomes the{" "}
-              <strong>Super Administrator</strong> with full access.
+              <strong>Super Administrator</strong> with full access to manage members and organization settings.
             </p>
             <p className="register-branding-desc">
               All subsequent accounts require a valid{" "}
