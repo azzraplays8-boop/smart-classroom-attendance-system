@@ -17,6 +17,9 @@ import {
   FiUserCheck,
   FiSearch,
   FiActivity,
+  FiUpload,
+  FiHelpCircle,
+  FiRotateCw,
 } from "react-icons/fi";
 import ParticipantAvatar from "../components/participants/ParticipantAvatar";
 import { useOrgLabels } from "../config/labels";
@@ -100,6 +103,9 @@ function Attendance() {
   const [scanPhase, setScanPhase] = useState("idle"); // idle | loading | active | processing | success | error
   const [highlightedId, setHighlightedId] = useState(null);
   const [loadingToday, setLoadingToday] = useState(true);
+  const [isSecureContext, setIsSecureContext] = useState(true);
+  const [showPermissionHelp, setShowPermissionHelp] = useState(false);
+  const [fileScanError, setFileScanError] = useState("");
 
   const videoRef = useRef(null);
   const streamRef = useRef(null);
@@ -112,6 +118,7 @@ function Attendance() {
   const torchOnRef = useRef(false);
   const camerasRef = useRef([]);
   const highlightTimerRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   const showToast = (kind, message) => {
     setToast({ kind, message });
@@ -161,21 +168,31 @@ function Attendance() {
   }, []);
 
   const selectInitialCamera = useCallback((cameraList = []) => {
+    // Check if we are in a secure context (HTTPS) — required for getUserMedia on most mobile browsers
+    const secure = window.isSecureContext === true;
+    setIsSecureContext(secure);
+
     const savedId = window.localStorage.getItem(CAMERA_STORAGE_KEY);
     if (savedId && cameraList.some((c) => c.id === savedId)) {
       return savedId;
     }
     const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || "");
+    // On mobile, prefer rear/environment camera by leaving deviceId empty
+    // so buildConstraints uses facingMode: { ideal: "environment" }.
+    if (isMobile) return "";
     const rear = cameraList.find((c) => /back|rear|environment/i.test(c.label));
     if (rear) return rear.id;
-    if (isMobile) return "";
     return cameraList[0]?.id || "";
   }, []);
 
   const buildConstraints = useCallback((deviceId) => {
     if (deviceId) {
-      return { audio: false, video: { deviceId: { exact: deviceId } } };
+      // Use `ideal` instead of `exact` so that if the deviceId is stale
+      // (common on iOS Safari where device IDs change per session),
+      // the browser picks a suitable fallback instead of throwing OverconstrainedError.
+      return { audio: false, video: { deviceId: { ideal: deviceId } } };
     }
+    // Default to rear/environment camera on mobile; front camera on desktop.
     return { audio: false, video: { facingMode: { ideal: "environment" } } };
   }, []);
 
@@ -266,12 +283,26 @@ function Attendance() {
       setIsStartingCamera(true);
 
       try {
-        const stream = await navigator.mediaDevices.getUserMedia(buildConstraints(deviceId));
+        // On iOS Safari, calling getUserMedia requires a user gesture.
+        // The camera start button already provides one, but the auto-start
+        // on initial load might be blocked. We handle this gracefully below.
+        const constraints = buildConstraints(deviceId);
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
         streamRef.current = stream;
 
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
-          try { await videoRef.current.play(); } catch {}
+          try {
+            await videoRef.current.play();
+          } catch (playErr) {
+            // iOS Safari may block autoplay — retry once with a small delay
+            await new Promise((resolve) => window.setTimeout(resolve, 200));
+            if (videoRef.current) {
+              try { await videoRef.current.play(); } catch (e2) {
+                console.warn("Video play retry failed:", e2);
+              }
+            }
+          }
         }
 
         const detector = new BrowserMultiFormatReader();
@@ -303,22 +334,46 @@ function Attendance() {
         }
 
         const name = err?.name || "";
-        if (name === "NotAllowedError" || name === "PermissionDeniedError") {
-          const message = "Camera permission denied. Please allow camera access and try again.";
-          setScanError(message);
-          setScanPhase("error");
-          showToast("error", message);
-        } else if (name === "NotFoundError" || name === "OverconstrainedError") {
-          const message = "No camera detected.";
-          setScanError(message);
-          setScanPhase("error");
-          showToast("error", message);
+        const message = err?.message || "";
+        const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || "");
+
+        // Build user-friendly guidance for mobile users
+        let userMessage = "";
+
+        if (!window.isSecureContext) {
+          userMessage = "Camera access requires a secure HTTPS connection. Please access this site via HTTPS and try again.";
+          setShowPermissionHelp(true);
+        } else if (name === "NotAllowedError" || name === "PermissionDeniedError") {
+          userMessage = isMobile
+            ? "Camera access denied. Please allow camera permissions in your browser settings (tap the lock/info icon in the address bar), then try again."
+            : "Camera permission denied. Please allow camera access in your browser settings and try again.";
+          setShowPermissionHelp(true);
+        } else if (name === "NotFoundError") {
+          userMessage = "No camera detected on this device. If you are on a laptop, make sure your webcam is connected and not being used by another app.";
+          setShowPermissionHelp(false);
+        } else if (name === "OverconstrainedError") {
+          userMessage = "The selected camera is no longer available. The browser will try a different camera. Please try again.";
+          setShowPermissionHelp(false);
+        } else if (name === "NotReadableError" || message.toLowerCase().includes("in use") || message.toLowerCase().includes("busy")) {
+          userMessage = "The camera is currently being used by another application. Please close other camera apps and try again.";
+          setShowPermissionHelp(false);
+        } else if (name === "AbortError") {
+          userMessage = "Camera access was aborted. Please try again.";
+          setShowPermissionHelp(false);
+        } else if (name === "SecurityError") {
+          userMessage = "Camera access was blocked for security reasons. Please ensure you are using HTTPS and try again.";
+          setShowPermissionHelp(true);
+        } else if (message.toLowerCase().includes("requested device not found")) {
+          userMessage = "The camera could not be found. Please check your camera connection and try again. You can also upload a QR image as a fallback.";
+          setShowPermissionHelp(false);
         } else {
-          const message = "Unable to access the camera. Please allow camera permissions and try again.";
-          setScanError(message);
-          setScanPhase("error");
-          showToast("error", message);
+          userMessage = "Unable to access the camera. Please check your device camera and try again. You can also upload a QR image as an alternative.";
+          setShowPermissionHelp(false);
         }
+
+        setScanError(userMessage);
+        setScanPhase("error");
+        showToast("error", userMessage);
       } finally {
         setIsStartingCamera(false);
       }
@@ -412,8 +467,98 @@ function Attendance() {
   }, []);
 
   // ------------------------------------------------------------------
-  // Attendance / QR business logic (unchanged)
+  // QR image upload fallback for mobile (or when camera is unavailable)
   // ------------------------------------------------------------------
+
+  const handleFileScan = useCallback(async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setFileScanError("");
+    setScanPhase("processing");
+    setStatusMessage("Decoding QR from image...");
+
+    try {
+      const img = new Image();
+      const imageUrl = URL.createObjectURL(file);
+
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = () => reject(new Error("Failed to load image"));
+        img.src = imageUrl;
+      });
+
+      const reader = new BrowserMultiFormatReader();
+      const result = await reader.decodeFromImage(img);
+      URL.revokeObjectURL(imageUrl);
+
+      const rawValue = result?.getText?.()?.trim?.() || result?.text?.trim?.();
+      if (!rawValue) {
+        throw new Error("No QR code found in the image.");
+      }
+
+      // Process the scanned QR value the same way as camera scans
+      handleAttendanceScan(rawValue);
+    } catch (err) {
+      const msg = err?.message || "Failed to decode QR code from the image. Try a clearer photo.";
+      setFileScanError(msg);
+      setScanPhase("error");
+      showToast("error", msg);
+    } finally {
+      // Reset the file input so the same file can be re-selected
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }, []);
+
+  // ------------------------------------------------------------------
+  // Retry camera after error (for the retry button)
+  // ------------------------------------------------------------------
+
+  const retryCamera = useCallback(() => {
+    setScanError("");
+    setShowPermissionHelp(false);
+    setFileScanError("");
+    // Re-fetch cameras in case they changed (e.g., permission was granted)
+    loadCameras().then((list) => {
+      const deviceId = selectInitialCamera(list);
+      startCamera(deviceId);
+    });
+  }, [loadCameras, selectInitialCamera, startCamera]);
+
+  // ------------------------------------------------------------------
+  // Orientation & visibility change handling (mobile-friendly)
+  // ------------------------------------------------------------------
+
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.hidden && cameraActiveRef.current) {
+        // Page is hidden (user switched apps/tabs) — stop camera to save resources
+        stopCamera();
+      }
+    };
+
+    // On orientation change, we just re-render (CSS handles the layout).
+    // But on iOS Safari, the video element may need a small kick.
+    const handleOrientation = () => {
+      if (cameraActiveRef.current && videoRef.current) {
+        // Trigger a re-render by toggling a brief resize on the video
+        try {
+          videoRef.current.style.transform = "scale(1.001)";
+          window.setTimeout(() => {
+            if (videoRef.current) videoRef.current.style.transform = "";
+          }, 50);
+        } catch {}
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("orientationchange", handleOrientation);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("orientationchange", handleOrientation);
+    };
+  }, [stopCamera]);
 
   const handleAttendanceScan = async (qrValue) => {
     const rawValue = String(qrValue || "").trim();
@@ -729,6 +874,31 @@ function Attendance() {
             </span>
           </div>
 
+          {/* Camera permission help banner (shown when permission denied or insecure context) */}
+          {showPermissionHelp ? (
+            <div className="att-permission-banner">
+              <div className="att-permission-banner-icon">
+                <FiHelpCircle size={22} />
+              </div>
+              <div className="att-permission-banner-content">
+                <div className="att-permission-banner-title">Camera Access Required</div>
+                <div className="att-permission-banner-text">
+                  {!isSecureContext
+                    ? "This site must be accessed via HTTPS (secure connection) to use the camera. If you are testing locally, use https://localhost or deploy via HTTPS."
+                    : "Please allow camera access in your browser settings:\n1. Tap the lock/info icon (🔒) in the address bar\n2. Find \"Camera\" or \"Permissions\"\n3. Select \"Allow\"\n4. Reload the page and try again"}
+                </div>
+              </div>
+              <button
+                type="button"
+                className="att-permission-banner-close"
+                onClick={() => setShowPermissionHelp(false)}
+                aria-label="Dismiss"
+              >
+                ×
+              </button>
+            </div>
+          ) : null}
+
           <div className="att-camera-viewport">
             <video
               ref={videoRef}
@@ -755,13 +925,55 @@ function Attendance() {
                 <div className="att-camera-off-hint">
                   {scanError || "Start the camera to scan a QR code and record attendance."}
                 </div>
-                <button
-                  type="button"
-                  className="att-btn att-btn--primary"
-                  onClick={() => startCamera(activeDeviceId || undefined)}
-                >
-                  <FiVideo size={18} /> Start Camera
-                </button>
+
+                <div className="att-camera-off-actions">
+                  <button
+                    type="button"
+                    className="att-btn att-btn--primary"
+                    onClick={() => startCamera(activeDeviceId || undefined)}
+                  >
+                    <FiVideo size={18} /> Start Camera
+                  </button>
+
+                  {/* Retry button shown when there's a camera error */}
+                  {scanError ? (
+                    <button
+                      type="button"
+                      className="att-btn att-btn--outline"
+                      onClick={retryCamera}
+                    >
+                      <FiRotateCw size={16} /> Retry
+                    </button>
+                  ) : null}
+                </div>
+
+                {/* QR image upload fallback — always available */}
+                <div className="att-file-upload-section">
+                  <div className="att-file-upload-divider">
+                    <span>or</span>
+                  </div>
+                  <button
+                    type="button"
+                    className="att-btn att-btn--ghost"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <FiUpload size={16} /> Upload QR Image
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    style={{ display: "none" }}
+                    onChange={handleFileScan}
+                  />
+                  {fileScanError ? (
+                    <div className="att-file-upload-error">{fileScanError}</div>
+                  ) : null}
+                  <div className="att-file-upload-hint">
+                    Take or select a photo of a QR code
+                  </div>
+                </div>
               </div>
             ) : null}
 

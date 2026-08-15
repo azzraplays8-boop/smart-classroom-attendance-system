@@ -411,6 +411,8 @@
   background: #0b1020;
   min-height: 440px;
   overflow: hidden;
+  /* Use aspect-ratio for responsive mobile sizing while preserving desktop min-height */
+  aspect-ratio: auto;
 }
 
 .att-video {
@@ -539,6 +541,159 @@
   font-size: 13.5px;
   max-width: 320px;
   line-height: 1.5;
+}
+
+.att-camera-off-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+  width: 100%;
+  max-width: 280px;
+}
+
+.att-camera-off-actions .att-btn {
+  width: 100%;
+  min-height: 48px;
+  font-size: 15px;
+  padding: 0 24px;
+}
+
+/* QR image upload fallback section */
+.att-file-upload-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  width: 100%;
+  max-width: 280px;
+}
+
+.att-file-upload-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.att-file-upload-divider::before,
+.att-file-upload-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: rgba(148, 163, 184, 0.3);
+}
+
+.att-file-upload-section .att-btn--ghost {
+  width: 100%;
+  min-height: 46px;
+  font-size: 14px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  color: #cbd5e1;
+  border-radius: 12px;
+}
+
+.att-file-upload-section .att-btn--ghost:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(148, 163, 184, 0.5);
+}
+
+.att-file-upload-error {
+  font-size: 12.5px;
+  color: #f87171;
+  text-align: center;
+  line-height: 1.4;
+  max-width: 260px;
+}
+
+.att-file-upload-hint {
+  font-size: 11.5px;
+  color: #64748b;
+  text-align: center;
+}
+
+/* ── Camera Permission Help Banner ────────────────── */
+.att-permission-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  margin: 0 12px 12px;
+  border-radius: 12px;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  animation: attFadeIn 250ms ease;
+}
+
+[data-theme="dark"] .att-permission-banner {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.att-permission-banner-icon {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+}
+
+.att-permission-banner-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.att-permission-banner-title {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--text, #1e293b);
+  margin-bottom: 4px;
+}
+
+[data-theme="dark"] .att-permission-banner-title {
+  color: #f1f5f9;
+}
+
+.att-permission-banner-text {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--muted, #64748b);
+  white-space: pre-line;
+}
+
+.att-permission-banner-close {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 20px;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background var(--trans-1);
+  padding: 0;
+  line-height: 1;
+}
+
+.att-permission-banner-close:hover {
+  background: rgba(0, 0, 0, 0.08);
+  border-radius: 8px;
 }
 
 /* Scan success overlay */
@@ -1135,6 +1290,81 @@
   .att-table-header {
     padding: 16px;
   }
+
+  /* Permission banner on mobile */
+  .att-permission-banner {
+    margin: 0 8px 8px;
+    padding: 12px;
+  }
+
+  .att-camera-off-actions .att-btn {
+    min-height: 48px;
+    font-size: 14px;
+  }
+
+  .att-file-upload-section .att-btn--ghost {
+    min-height: 44px;
+    font-size: 13px;
+  }
+}
+
+/* ── Landscape orientation on mobile ──────────────── */
+@media (max-height: 500px) and (orientation: landscape) {
+  .att-camera-viewport,
+  .att-video {
+    min-height: 220px;
+    max-height: 280px;
+  }
+
+  .att-scan-frame {
+    width: min(160px, 50%);
+    height: min(160px, 50%);
+  }
+
+  .att-camera-off {
+    padding: 12px 16px;
+    gap: 8px;
+  }
+
+  .att-camera-off-icon {
+    font-size: 36px;
+  }
+
+  .att-camera-off-title {
+    font-size: 15px;
+  }
+
+  .att-camera-off-hint {
+    font-size: 12px;
+  }
+
+  .att-camera-off-actions {
+    flex-direction: row;
+    max-width: 360px;
+  }
+
+  .att-camera-off-actions .att-btn {
+    flex: 1;
+    min-height: 40px;
+    font-size: 13px;
+  }
+
+  .att-file-upload-section {
+    /* Keep vertical layout but compact */
+    gap: 6px;
+    margin-top: 4px;
+  }
+
+  .att-file-upload-section .att-btn--ghost {
+    min-height: 38px;
+    font-size: 12px;
+  }
+
+  .att-scan-success-badge {
+    width: 60px;
+    height: 60px;
+    font-size: 28px;
+  }
 }
 
 @media (max-width: 480px) {
@@ -1165,5 +1395,108 @@
   .att-camera-viewport,
   .att-video {
     min-height: 320px;
+  }
+
+  /* Scanner card header — tighter spacing */
+  .att-scanner-card-header {
+    padding: 12px 14px;
+  }
+
+  .att-scanner-title {
+    font-size: 14px;
+  }
+
+  .att-scanner-status {
+    font-size: 11px;
+    padding: 4px 10px;
+  }
+
+  .att-permission-banner {
+    margin: 0 6px 6px;
+    padding: 10px 12px;
+    gap: 8px;
+  }
+
+  .att-permission-banner-icon {
+    width: 30px;
+    height: 30px;
+    font-size: 16px;
+  }
+
+  .att-permission-banner-title {
+    font-size: 13px;
+  }
+
+  .att-permission-banner-text {
+    font-size: 11.5px;
+  }
+
+  /* Camera off state compact */
+  .att-camera-off {
+    padding: 16px;
+    gap: 8px;
+  }
+
+  .att-camera-off-icon {
+    font-size: 42px;
+  }
+
+  .att-camera-off-title {
+    font-size: 16px;
+  }
+
+  .att-camera-off-hint {
+    font-size: 12.5px;
+    max-width: 260px;
+  }
+
+  .att-camera-off-actions .att-btn {
+    min-height: 44px;
+    font-size: 14px;
+  }
+
+  /* Stats grid single column on very small screens */
+  .att-stat-value {
+    font-size: 20px;
+  }
+}
+
+/* ── Ultra-small screens (≤375px, e.g., iPhone SE) ─ */
+@media (max-width: 375px) {
+  .att-camera-viewport,
+  .att-video {
+    min-height: 260px;
+  }
+
+  .att-scan-frame {
+    width: min(180px, 65%);
+    height: min(180px, 65%);
+  }
+
+  .att-camera-off-actions {
+    max-width: 240px;
+  }
+
+  .att-camera-off-actions .att-btn {
+    min-height: 40px;
+    font-size: 13px;
+  }
+
+  .att-file-upload-section {
+    max-width: 240px;
+  }
+
+  .att-file-upload-section .att-btn--ghost {
+    min-height: 40px;
+    font-size: 12px;
+  }
+
+  .att-stats-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .att-stat-card {
+    padding: 10px;
   }
 }
