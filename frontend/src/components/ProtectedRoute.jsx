@@ -15,12 +15,14 @@ const ROUTE_PERMISSION_MAP = {
   "/": "dashboard",
   "/participants": "participants",
   "/attendance": "attendance",
+  "/attendance-overview": "attendance-overview",
   "/attendance-history": "attendance-history",
   "/qr-management": "qr-management",
   "/reports": "reports",
   "/settings": "settings",
   "/user-management": "user-management",
   "/organizations": "organizations",
+  "/account": "account",
 };
 
 function ProtectedRoute({ children }) {

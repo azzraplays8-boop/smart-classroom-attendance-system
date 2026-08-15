@@ -1,4 +1,10 @@
 import express from "express";
+import {
+  authenticate,
+  authorizePermission,
+  authorizeAnyPermission,
+  PERMISSION_KEYS,
+} from "../auth/authMiddleware.js";
 
 // ── Attendance settings helpers ────────────────────────────
 
@@ -94,7 +100,12 @@ function computeAttendanceStatus(settings) {
 export default function attendanceRouter({ pool }) {
   const router = express.Router();
 
-  router.get("/", async (req, res) => {
+  // Every attendance route requires a valid, active authenticated user.
+  // Read endpoints are open to any authenticated role (including Viewer);
+  // mutations additionally require the matching permission key.
+  const auth = authenticate(pool);
+
+  router.get("/", auth, async (req, res) => {
     try {
       const date = req.query.date || null;
       const dateSql = date ? `= ?` : `= CURDATE()`;
@@ -119,14 +130,17 @@ export default function attendanceRouter({ pool }) {
     }
   });
 
-  router.get("/history", async (req, res) => {
+  router.get("/history", auth, async (req, res) => {
     try {
-      const { page = 1, limit = 50, search = "", date = "", course = "", status = "" } = req.query || {};
+      const { page = 1, limit = 50, search = "", date = "", course = "", status = "", from = "", to = "", participantId = "" } = req.query || {};
       const offset = (Number(page) - 1) * Number(limit);
       const searchTerm = String(search || "").trim();
       const dateFilter = String(date || "").trim();
       const courseFilter = String(course || "").trim();
       const statusFilter = String(status || "").trim();
+      const fromFilter = String(from || "").trim();
+      const toFilter = String(to || "").trim();
+      const participantIdFilter = String(participantId || "").trim();
 
       const whereClauses = [];
       const params = [];
@@ -144,6 +158,22 @@ export default function attendanceRouter({ pool }) {
       if (dateFilter) {
         whereClauses.push(`a.attendance_date = ?`);
         params.push(dateFilter);
+      }
+
+      // Date-range filter (inclusive). Ignored when an exact `date` is provided.
+      if (!dateFilter && fromFilter) {
+        whereClauses.push(`a.attendance_date >= ?`);
+        params.push(fromFilter);
+      }
+      if (!dateFilter && toFilter) {
+        whereClauses.push(`a.attendance_date <= ?`);
+        params.push(toFilter);
+      }
+
+      // Optional per-member filter
+      if (participantIdFilter) {
+        whereClauses.push(`a.participant_id = ?`);
+        params.push(participantIdFilter);
       }
 
       if (courseFilter) {
@@ -167,9 +197,9 @@ export default function attendanceRouter({ pool }) {
       );
 
 const [rows] = await pool.query(
-        `SELECT a.id, a.attendance_date AS attendanceDate, a.time_in AS timeIn, a.status,
+        `SELECT a.id, a.participant_id AS participantId, a.attendance_date AS attendanceDate, a.time_in AS timeIn,
                 p.participant_identifier AS participantIdentifier, p.first_name AS firstName, p.last_name AS lastName,
-                p.photo, p.department, p.level AS year, p.group_name AS section
+                p.photo, p.department, p.level AS year, p.group_name AS section, a.status
          FROM attendance a
          LEFT JOIN participants p ON p.id = a.participant_id
          ${whereSql}
@@ -193,7 +223,7 @@ const [rows] = await pool.query(
     }
   });
 
-  router.put("/:id", async (req, res) => {
+  router.put("/:id", auth, authorizePermission(PERMISSION_KEYS.MANAGE_ATTENDANCE), async (req, res) => {
     try {
       const id = Number(req.params.id);
       if (!id || Number.isNaN(id)) {
@@ -236,7 +266,7 @@ const [rows] = await pool.query(
     }
   });
 
-  router.delete("/:id", async (req, res) => {
+  router.delete("/:id", auth, authorizePermission(PERMISSION_KEYS.MANAGE_ATTENDANCE), async (req, res) => {
     try {
       const id = Number(req.params.id);
       if (!id || Number.isNaN(id)) {
@@ -255,7 +285,7 @@ const [rows] = await pool.query(
     }
   });
 
-  router.get("/dashboard", async (req, res) => {
+  router.get("/dashboard", auth, async (req, res) => {
     try {
       const [{ total }] = await pool.query(`SELECT COUNT(*) AS total FROM participants`);
 
@@ -287,9 +317,174 @@ const [rows] = await pool.query(
       console.error("GET /attendance/dashboard error:", err);
       res.status(500).json({ message: "Failed to fetch dashboard stats" });
     }
+    });
+
+  // ── Monthly Attendance Summary (read-only) ─────────────────────────
+  router.get("/monthly-summary", auth, async (req, res) => {
+    try {
+      const month = Number(req.query.month);
+      const year = Number(req.query.year);
+      if (!month || !year || month < 1 || month > 12 || year < 1900) {
+        return res.status(400).json({ message: "Valid month (1-12) and year are required." });
+      }
+      const startDate = `${year}-${String(month).padStart(2, "0")}-01`;
+      const endDate = `${year}-${String(month).padStart(2, "0")}-${new Date(year, month, 0).getDate()}`;
+
+      const [sessionRows] = await pool.query(
+        `SELECT COUNT(DISTINCT attendance_date) AS total
+         FROM attendance
+         WHERE attendance_date >= ? AND attendance_date <= ?`,
+        [startDate, endDate]
+      );
+      const [statusRows] = await pool.query(
+        `SELECT status, COUNT(*) AS cnt
+         FROM attendance
+         WHERE attendance_date >= ? AND attendance_date <= ?
+         GROUP BY status`,
+        [startDate, endDate]
+      );
+      const [memberRows] = await pool.query(
+        `SELECT COUNT(DISTINCT participant_id) AS total
+         FROM attendance
+         WHERE attendance_date >= ? AND attendance_date <= ?`,
+        [startDate, endDate]
+      );
+      const [activeMemberRows] = await pool.query(
+        `SELECT p.participant_identifier AS participantIdentifier,
+                p.first_name AS firstName, p.last_name AS lastName,
+                p.photo, p.department, COUNT(a.id) AS recordCount
+         FROM attendance a
+         LEFT JOIN participants p ON p.id = a.participant_id
+         WHERE a.attendance_date >= ? AND a.attendance_date <= ?
+         GROUP BY a.participant_id
+         ORDER BY recordCount DESC, p.last_name ASC LIMIT 1`,
+        [startDate, endDate]
+      );
+
+      const statusMap = {};
+      for (const row of statusRows) {
+        statusMap[String(row.status).toLowerCase()] = Number(row.cnt) || 0;
+      }
+      const present = statusMap.present || 0;
+      const late = statusMap.late || 0;
+      const absent = statusMap.absent || 0;
+      const recordedRecords = present + late + absent;
+      const attendanceRate = recordedRecords > 0 ? Math.round((present / recordedRecords) * 100) : 0;
+
+      const mostActiveMember = activeMemberRows?.[0]?.recordCount > 0
+        ? {
+            participantIdentifier: activeMemberRows[0].participantIdentifier,
+            firstName: activeMemberRows[0].firstName,
+            lastName: activeMemberRows[0].lastName,
+            photo: activeMemberRows[0].photo,
+            department: activeMemberRows[0].department,
+            recordCount: Number(activeMemberRows[0].recordCount),
+          }
+        : null;
+
+      res.json({
+        month, year, startDate, endDate,
+        totalSessions: Number(sessionRows?.[0]?.total ?? 0) || 0,
+        totalRecords: recordedRecords,
+        present, late, absent,
+        attendanceRate,
+        totalMembersParticipated: Number(memberRows?.[0]?.total ?? 0) || 0,
+        mostActiveMember,
+      });
+    } catch (err) {
+      console.error("GET /attendance/monthly-summary error:", err);
+      res.status(500).json({ message: "Failed to fetch monthly summary." });
+        }
   });
 
-router.post("/", async (req, res) => {
+  // ── Per-member attendance detail (read-only) ─────────────────────────
+  router.get("/member/:id", auth, async (req, res) => {
+    try {
+      const participantId = Number(req.params.id);
+      if (!participantId || Number.isNaN(participantId)) {
+        return res.status(400).json({ message: "Invalid participant id." });
+      }
+      const [rows] = await pool.query(
+        `SELECT a.id, a.participant_id AS participantId, a.attendance_date AS attendanceDate,
+                a.time_in AS timeIn, a.status, a.remarks,
+                p.participant_identifier AS participantIdentifier,
+                p.first_name AS firstName, p.last_name AS lastName,
+                p.photo, p.department, p.level AS year, p.group_name AS section
+         FROM attendance a
+         LEFT JOIN participants p ON p.id = a.participant_id
+         WHERE a.participant_id = ?
+         ORDER BY a.attendance_date DESC, a.time_in DESC, a.created_at DESC`,
+        [participantId]
+      );
+      const [participantRows] = await pool.query(
+        `SELECT id, participant_identifier AS participantIdentifier,
+                first_name AS firstName, last_name AS lastName,
+                photo, department, level AS year, group_name AS section
+         FROM participants
+         WHERE id = ? LIMIT 1`,
+        [participantId]
+      );
+      const member = participantRows?.[0] ?? null;
+      const records = rows || [];
+      const present = records.filter((r) => String(r.status || "").toLowerCase() === "present").length;
+      const late = records.filter((r) => String(r.status || "").toLowerCase() === "late").length;
+      const absent = records.filter((r) => String(r.status || "").toLowerCase() === "absent").length;
+      const total = records.length;
+      const byMonth = {};
+      for (const record of records) {
+        const mk = String(record.attendanceDate || "").slice(0, 7);
+        if (!mk) continue;
+        if (!byMonth[mk]) byMonth[mk] = { present: 0, late: 0, absent: 0 };
+        const s = String(record.status || "").toLowerCase();
+        if (s === "present") byMonth[mk].present += 1;
+        else if (s === "late") byMonth[mk].late += 1;
+        else if (s === "absent") byMonth[mk].absent += 1;
+      }
+      res.json({
+        member, records,
+        summary: { totalRecords: total, present, late, absent,
+          attendanceRate: total > 0 ? Math.round((present / total) * 100) : 0 },
+        monthly: byMonth,
+      });
+    } catch (err) {
+      console.error("GET /attendance/member/:id error:", err);
+      res.status(500).json({ message: "Failed to fetch member attendance." });
+    }
+  });
+
+  // ── Activity/Session attendance grouped by department (read-only) ────
+  router.get("/activity-summary", auth, async (req, res) => {
+    try {
+      const from = String(req.query.from || "").trim();
+      const to = String(req.query.to || "").trim();
+      const department = String(req.query.department || "").trim();
+      const whereClauses = [];
+      const params = [];
+      if (from) { whereClauses.push(`a.attendance_date >= ?`); params.push(from); }
+      if (to) { whereClauses.push(`a.attendance_date <= ?`); params.push(to); }
+      if (department) { whereClauses.push(`p.department = ?`); params.push(department); }
+      const whereSql = whereClauses.length ? `WHERE ${whereClauses.join(" AND ")}` : "";
+      const [rows] = await pool.query(
+        `SELECT p.department AS department,
+                COUNT(a.id) AS totalRecords,
+                SUM(CASE WHEN a.status = 'Present' THEN 1 ELSE 0 END) AS present,
+                SUM(CASE WHEN a.status = 'Late' THEN 1 ELSE 0 END) AS late,
+                SUM(CASE WHEN a.status = 'Absent' THEN 1 ELSE 0 END) AS absent
+         FROM attendance a
+         LEFT JOIN participants p ON p.id = a.participant_id
+         ${whereSql}
+         GROUP BY p.department
+         ORDER BY totalRecords DESC`,
+        params
+      );
+      res.json({ activities: rows || [] });
+    } catch (err) {
+      console.error("GET /attendance/activity-summary error:", err);
+      res.status(500).json({ message: "Failed to fetch activity summary." });
+    }
+  });
+
+router.post("/", auth, authorizeAnyPermission(PERMISSION_KEYS.MANAGE_ATTENDANCE, PERMISSION_KEYS.ENCODE_ATTENDANCE), async (req, res) => {
     try {
       const { participantIdentifier, qrUuid, status, remarks } = req.body || {};
       console.log("🔍 [TRACE] 1. Request body:", JSON.stringify(req.body));

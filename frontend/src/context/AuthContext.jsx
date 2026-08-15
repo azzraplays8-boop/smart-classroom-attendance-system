@@ -58,27 +58,29 @@ export const PERMISSIONS = {
     canAccess: (route) => !["super_admin", "organizations"].includes(route),
   },
   teacher: {
+      teacher: {
     label: "Teacher",
-    routes: ["dashboard", "attendance", "attendance-history"],
+    routes: ["dashboard", "attendance", "attendance-history", "account"],
     canAccess: (route) =>
-      ["dashboard", "attendance", "attendance-history"].includes(route),
+      ["dashboard", "attendance", "attendance-history", "account"].includes(route),
   },
   moderator: {
     label: "Moderator",
-    routes: ["dashboard", "participants", "attendance", "attendance-history", "reports"],
+    routes: ["dashboard", "participants", "attendance", "attendance-history", "reports", "account"],
     canAccess: (route) =>
-      ["dashboard", "participants", "attendance", "attendance-history", "reports"].includes(route),
+      ["dashboard", "participants", "attendance", "attendance-history", "reports", "account"].includes(route),
   },
   encoder: {
     label: "Encoder",
-    routes: ["dashboard", "participants", "attendance", "attendance-history"],
+    routes: ["dashboard", "participants", "attendance", "attendance-history", "account"],
     canAccess: (route) =>
-      ["dashboard", "participants", "attendance", "attendance-history"].includes(route),
+      ["dashboard", "participants", "attendance", "attendance-history", "account"].includes(route),
   },
   viewer: {
     label: "Viewer",
-    routes: ["dashboard", "reports"],
-    canAccess: (route) => ["dashboard", "reports"].includes(route),
+    routes: ["dashboard", "attendance-overview", "attendance-history", "reports", "account"],
+    canAccess: (route) =>
+      ["dashboard", "attendance-overview", "attendance-history", "reports", "account"].includes(route),
   },
 };
 

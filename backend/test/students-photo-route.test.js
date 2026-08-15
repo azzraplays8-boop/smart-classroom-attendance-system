@@ -1,21 +1,26 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import express from 'express';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
+import os from 'os';
 import { createServer } from 'node:http';
-import studentsRouter from '../src/routes/students.js';
+import participantsRouter from '../src/routes/participants.js';
+import { makeToken, wrapPoolForAuth } from './rbacTestHelpers.js';
 
-function createStubPool() {
+function createStubPool(existingParticipant) {
   return {
     async query(sql, params) {
-      const normalizedSql = String(sql).trim();
+      const sqlStr = String(sql);
 
-      if (normalizedSql.includes('information_schema.COLUMNS')) {
-        return [[{ count: 1 }]];
+      // Participant lookup by id
+      if (sqlStr.includes('SELECT id, photo FROM participants WHERE id = ?')) {
+        return [[existingParticipant].filter(Boolean)];
       }
 
-      if (normalizedSql.startsWith('INSERT INTO students')) {
-        const photoValue = Array.isArray(params) ? params.find((value) => typeof value === 'string' && value.includes('/uploads/students/')) : null;
-        return [{ insertId: 42, photoValue }];
+      if (sqlStr.includes('UPDATE participants SET photo = ?')) {
+        return [{ affectedRows: 1 }];
       }
 
       return [[]];
@@ -23,10 +28,24 @@ function createStubPool() {
   };
 }
 
-test('student creation accepts a photo upload and stores a relative photo path', async () => {
+function makeApp(pool, dirName) {
+  const uploadsDir = path.join(os.tmpdir(), dirName);
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  }
+  const storage = multer.diskStorage({
+    destination: (req, file, cb) => cb(null, uploadsDir),
+    filename: (req, file, cb) => cb(null, `${dirName}-${Date.now()}.jpg`),
+  });
+  const upload = multer({ storage });
   const app = express();
-  app.use(express.json());
-  app.use('/students', studentsRouter({ pool: createStubPool() }));
+  app.use('/participants', participantsRouter({ pool, upload }));
+  return { app, uploadsDir };
+}
+
+test('admin can upload a photo for a participant', async () => {
+  const authedPool = wrapPoolForAuth(createStubPool({ id: 42, photo: null }), "administrator");
+  const { app, uploadsDir } = makeApp(authedPool, 'test-photo-uploads');
 
   const server = createServer(app);
   await new Promise((resolve) => server.listen(0, resolve));
@@ -34,31 +53,44 @@ test('student creation accepts a photo upload and stores a relative photo path',
 
   try {
     const formData = new FormData();
-    formData.append('studentNumber', '2023-001');
-    formData.append('lastName', 'Dela Cruz');
-    formData.append('firstName', 'Juan');
-    formData.append('middleName', 'Santos');
-    formData.append('gender', 'Male');
-    formData.append('dateOfBirth', '2004-01-10');
-    formData.append('email', 'juan@example.com');
-    formData.append('contactNumber', '09171234567');
-    formData.append('course', 'BSIT');
-    formData.append('year', '1');
-    formData.append('section', 'A');
-    formData.append('status', 'Active');
-    formData.append('photo', new Blob(['fake image'], { type: 'image/png' }), 'avatar.png');
+    formData.append('photo', new Blob(['fake image'], { type: 'image/jpeg' }), 'avatar.jpg');
 
-    const response = await fetch(`http://127.0.0.1:${port}/students`, {
+    const response = await fetch(`http://127.0.0.1:${port}/participants/42/photo`, {
       method: 'POST',
+      headers: { Authorization: `Bearer ${makeToken('administrator')}` },
       body: formData,
     });
-
     const body = await response.json();
 
-    assert.equal(response.status, 201);
-    assert.equal(body.message, 'Student created');
-    assert.match(body.photoPath || '', /\/uploads\/students\//);
+    assert.equal(response.status, 200);
+    assert.equal(body.message, 'Photo uploaded successfully');
+    assert.ok(body.photo && body.photo.startsWith('participants/'));
   } finally {
     await new Promise((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+    try { fs.rmSync(uploadsDir, { recursive: true, force: true }); } catch { /* ignore */ }
+  }
+});
+
+test('viewer cannot upload a photo for a participant (403)', async () => {
+  const authedPool = wrapPoolForAuth(createStubPool({ id: 99, photo: null }), "viewer");
+  const { app, uploadsDir } = makeApp(authedPool, 'test-photo-forbidden');
+
+  const server = createServer(app);
+  await new Promise((resolve) => server.listen(0, resolve));
+  const { port } = server.address();
+
+  try {
+    const formData = new FormData();
+    formData.append('photo', new Blob(['f'], { type: 'image/jpeg' }), 'ph.jpg');
+
+    const response = await fetch(`http://127.0.0.1:${port}/participants/99/photo`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${makeToken('viewer')}` },
+      body: formData,
+    });
+    assert.equal(response.status, 403);
+  } finally {
+    await new Promise((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+    try { fs.rmSync(uploadsDir, { recursive: true, force: true }); } catch { /* ignore */ }
   }
 });

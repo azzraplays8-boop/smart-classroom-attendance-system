@@ -3,47 +3,60 @@ import assert from 'node:assert/strict';
 import express from 'express';
 import { createServer } from 'node:http';
 import attendanceRouter from '../src/routes/attendance.js';
+import { makeToken, wrapPoolForAuth } from './rbacTestHelpers.js';
 
-function createStubPool(studentsByNumber) {
-  const students = Object.entries(studentsByNumber).map(([studentNumber, details], index) => ({
+function createStubPool(participantsByNumber) {
+  const participants = Object.entries(participantsByNumber).map(([participantIdentifier, details], index) => ({
     id: index + 1,
-    student_number: studentNumber,
-    studentNumber,
+    participant_identifier: participantIdentifier,
+    participantIdentifier,
     first_name: details.firstName,
     firstName: details.firstName,
     last_name: details.lastName,
     lastName: details.lastName,
-    course: details.course,
+    middle_name: details.middleName || '',
+    middleName: details.middleName || '',
+    department: details.department,
   }));
 
   return {
     async query(sql, params) {
-      if (String(sql).includes('FROM students')) {
-        const studentNumber = params?.[0];
-        const match = students.find((student) => student.student_number === studentNumber);
-        return [[match].filter(Boolean)];
-      }
+      const sqlStr = String(sql);
 
-      if (String(sql).includes('FROM attendance WHERE student_id = ? AND attendance_date = CURDATE()')) {
+      // Duplicate check — no existing attendance today
+      if (sqlStr.includes('FROM attendance') && sqlStr.includes('attendance_date = CURDATE()')) {
         return [[]];
       }
 
-      if (String(sql).includes('INSERT INTO attendance')) {
+      // Participant lookup by identifier for the chosen branch
+      if (sqlStr.includes('FROM participants') && sqlStr.includes('WHERE participant_identifier')) {
+        const identifier = params?.[0];
+        const match = participants.find((p) => p.participant_identifier === identifier);
+        return [[match].filter(Boolean)];
+      }
+
+      if (sqlStr.includes('FROM participants') && sqlStr.includes('WHERE qr_uuid')) {
+        return [[]];
+      }
+
+      if (sqlStr.includes('INSERT INTO attendance')) {
         return [{ insertId: 99 }];
       }
 
-      if (String(sql).includes('SELECT a.id')) {
-        const studentNumber = params?.[0];
-        const match = students.find((student) => student.student_number === studentNumber);
+      // Fetch the freshly-inserted attendance row
+      if (sqlStr.includes('SELECT a.id')) {
+        const identifier = params?.length ? params[params.length - 1] : null;
+        const match = participants.find((p) => p.participant_identifier === identifier) || participants[0];
         return [[{
           id: 99,
-          student_id: match?.id ?? 1,
-          attendance_date: '2026-07-07',
-          status: 'Present',
-          studentNumber: match?.studentNumber ?? null,
+          participant_id: match?.id ?? 1,
+          attendanceDate: '2026-07-07',
+          timeIn: '2026-07-07T07:35:00.000Z',
+          status: 'Late',
+          participantIdentifier: match?.participantIdentifier ?? null,
           firstName: match?.firstName ?? null,
           lastName: match?.lastName ?? null,
-          course: match?.course ?? null,
+          department: match?.department ?? null,
         }]];
       }
 
@@ -52,41 +65,62 @@ function createStubPool(studentsByNumber) {
   };
 }
 
-test('attendance POST returns the correct student details for different scanned QR values', async () => {
+test('attendance POST records attendance for an administrator using participantIdentifier', async () => {
+  const pool = wrapPoolForAuth(createStubPool({
+    '2023-001245': { firstName: 'Juan', lastName: 'Dela Cruz', department: 'BSIT' },
+  }));
+
   const app = express();
   app.use(express.json());
-  app.use('/attendance', attendanceRouter({ pool: createStubPool({
-    '2023-001245': { firstName: 'Juan', lastName: 'Dela Cruz', course: 'BSIT' },
-    '2023-002245': { firstName: 'Eren', lastName: 'Yeager', course: 'BSIT' },
-  }) }));
+  app.use('/attendance', attendanceRouter({ pool }));
 
   const server = createServer(app);
   await new Promise((resolve) => server.listen(0, resolve));
   const { port } = server.address();
 
   try {
-    const firstResponse = await fetch(`http://127.0.0.1:${port}/attendance`, {
+    const response = await fetch(`http://127.0.0.1:${port}/attendance`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ studentNumber: '2023-001245' }),
+      headers: {
+        Authorization: `Bearer ${makeToken('administrator')}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ participantIdentifier: '2023-001245', status: 'Late' }),
     });
-    const firstBody = await firstResponse.json();
+    const body = await response.json();
 
-    const secondResponse = await fetch(`http://127.0.0.1:${port}/attendance`, {
+    assert.equal(response.status, 201);
+    assert.equal(body.message, 'Attendance recorded');
+    assert.equal(body.attendance?.status, 'Late');
+    assert.equal(body.attendance?.firstName, 'Juan');
+  } finally {
+    await new Promise((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+  }
+});
+
+test('attendance POST is denied for an encoder without manage_attendance? (encoder has encode_attendance → allowed)', async () => {
+  const pool = wrapPoolForAuth(createStubPool({
+    '2023-009999': { firstName: 'Levi', lastName: 'Ackerman', department: 'ICT' },
+  }));
+
+  const app = express();
+  app.use(express.json());
+  app.use('/attendance', attendanceRouter({ pool }));
+
+  const server = createServer(app);
+  await new Promise((resolve) => server.listen(0, resolve));
+  const { port } = server.address();
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/attendance`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ studentNumber: '2023-002245' }),
+      headers: {
+        Authorization: `Bearer ${makeToken('encoder')}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ participantIdentifier: '2023-009999', status: 'Present' }),
     });
-    const secondBody = await secondResponse.json();
-
-    assert.equal(firstResponse.status, 201);
-    assert.equal(secondResponse.status, 201);
-    assert.equal(firstBody.student?.studentNumber, '2023-001245');
-    assert.equal(firstBody.student?.firstName, 'Juan');
-    assert.equal(firstBody.student?.lastName, 'Dela Cruz');
-    assert.equal(secondBody.student?.studentNumber, '2023-002245');
-    assert.equal(secondBody.student?.firstName, 'Eren');
-    assert.equal(secondBody.student?.lastName, 'Yeager');
+    assert.equal(response.status, 201);
   } finally {
     await new Promise((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
   }

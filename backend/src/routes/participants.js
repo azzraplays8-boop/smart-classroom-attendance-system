@@ -4,6 +4,11 @@ import path from "path";
 import { fileURLToPath } from "url";
 import multer from "multer";
 import * as XLSX from "xlsx";
+import {
+  authenticate,
+  authorizePermission,
+  PERMISSION_KEYS,
+} from "../auth/authMiddleware.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -79,6 +84,14 @@ const importUpload = multer({
 
 export default function participantsRouter({ pool, upload }) {
   const router = express.Router();
+
+  // All participant routes require a valid login. Reading is open to any
+  // authenticated role (needed for member directories/counts); mutating a
+  // participant requires the MANAGE_PARTICIPANTS permission so that Viewer
+  // (read-only) and Teacher cannot create, edit, or delete members directly.
+  const auth = authenticate(pool);
+  const canManageParticipants = authorizePermission(PERMISSION_KEYS.MANAGE_PARTICIPANTS);
+  router.use(auth);
 
   // GET /participants
   router.get("/", async (req, res) => {
@@ -187,7 +200,7 @@ export default function participantsRouter({ pool, upload }) {
   });
 
   // POST /participants/:id/photo - Upload or change photo
-  router.post("/:id/photo", upload.single("photo"), async (req, res) => {
+  router.post("/:id/photo", canManageParticipants, upload.single("photo"), async (req, res) => {
     try {
       const id = Number(req.params.id);
       if (!id || Number.isNaN(id)) {
@@ -225,7 +238,7 @@ export default function participantsRouter({ pool, upload }) {
   });
 
   // DELETE /participants/:id/photo - Remove photo
-  router.delete("/:id/photo", async (req, res) => {
+  router.delete("/:id/photo", canManageParticipants, async (req, res) => {
     try {
       const id = Number(req.params.id);
       if (!id || Number.isNaN(id)) {
@@ -252,7 +265,7 @@ export default function participantsRouter({ pool, upload }) {
   });
 
   // POST /participants
-  router.post("/", async (req, res) => {
+  router.post("/", canManageParticipants, async (req, res) => {
     try {
       // Support both camelCase (frontend) and snake_case (if sent)
 
@@ -462,7 +475,7 @@ export default function participantsRouter({ pool, upload }) {
   });
 
   // PUT /participants/:id
-  router.put("/:id", async (req, res) => {
+  router.put("/:id", canManageParticipants, async (req, res) => {
     try {
       const id = Number(req.params.id);
       if (!id || Number.isNaN(id)) {
@@ -639,7 +652,7 @@ export default function participantsRouter({ pool, upload }) {
   });
 
   // DELETE /participants/:id
-  router.delete("/:id", async (req, res) => {
+  router.delete("/:id", canManageParticipants, async (req, res) => {
     try {
       const id = Number(req.params.id);
       if (!id || Number.isNaN(id)) {
@@ -667,7 +680,7 @@ export default function participantsRouter({ pool, upload }) {
   });
 
   // DELETE /participants
-  router.delete("/", async (req, res) => {
+  router.delete("/", canManageParticipants, async (req, res) => {
     try {
       const [countResult] = await pool.query("SELECT COUNT(*) AS total FROM participants");
       const deletedCount = Number(countResult?.[0]?.total ?? 0);
@@ -717,6 +730,7 @@ export default function participantsRouter({ pool, upload }) {
   // multer parses the file field 'file' (single). The 'mapping' field is a JSON string.
   router.post(
     "/bulk-import",
+    canManageParticipants,
     importUpload.single("file"),
     async (req, res) => {
       const startedAt = new Date();

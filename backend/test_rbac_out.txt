@@ -1,0 +1,69 @@
+Γ£ö GET /attendance/history without token returns 401 (83.5277ms)
+Γ£ö POST /attendance as viewer returns 403 (83.9147ms)
+Γ£û POST /attendance as administrator returns 201 (77.2974ms)
+Γ£û PUT /attendance/:id as viewer returns 403 (25.2712ms)
+Γ£û DELETE /attendance/:id as viewer returns 403 (15.0538ms)
+Γä╣ tests 5
+Γä╣ suites 0
+Γä╣ pass 2
+Γä╣ fail 3
+Γä╣ cancelled 0
+Γä╣ skipped 0
+Γä╣ todo 0
+Γä╣ duration_ms 1147.2191
+
+Γ£û failing tests:
+
+test at test\attendance-rbac.test.js:105:1
+Γ£û POST /attendance as administrator returns 201 (77.2974ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+  
+    assert.ok(res.status === 201 || res.status === 409)
+  
+      at TestContext.<anonymous> (file:///C:/Users/Ronel%20Pesalbon/(VS%20CODE)/backend/test/attendance-rbac.test.js:124:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1332:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:911:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test\attendance-rbac.test.js:133:1
+Γ£û PUT /attendance/:id as viewer returns 403 (25.2712ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  404 !== 403
+  
+      at TestContext.<anonymous> (file:///C:/Users/Ronel%20Pesalbon/(VS%20CODE)/backend/test/attendance-rbac.test.js:152:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1332:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:911:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 404,
+    expected: 403,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test\attendance-rbac.test.js:161:1
+Γ£û DELETE /attendance/:id as viewer returns 403 (15.0538ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  404 !== 403
+  
+      at TestContext.<anonymous> (file:///C:/Users/Ronel%20Pesalbon/(VS%20CODE)/backend/test/attendance-rbac.test.js:176:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1332:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:911:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 404,
+    expected: 403,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

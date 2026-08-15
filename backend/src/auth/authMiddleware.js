@@ -177,6 +177,36 @@ export function authorizePermission(...required) {
 }
 
 /**
+ * Middleware factory that checks if the authenticated user has AT LEAST ONE of
+ * the given permission keys (OR semantics). Super Admin bypasses all checks.
+ * Must be used AFTER the `authenticate` middleware.
+ *
+ * @param {string[]} required - Permission key(s), e.g. PERMISSION_KEYS.MANAGE_ATTENDANCE
+ * @returns {Function} Express middleware
+ */
+export function authorizeAnyPermission(...required) {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ message: "Authentication required." });
+    }
+
+    if (req.user.role === "super_admin") {
+      return next();
+    }
+
+    const perms = req.user.permissions || [];
+    const hasAny = required.some((perm) => perms.includes(perm));
+    if (!hasAny) {
+      return res.status(403).json({
+        message: "Access denied. You do not have the required permissions.",
+      });
+    }
+
+    next();
+  };
+}
+
+/**
  * Generate a JWT token for a user.
  *
  * @param {Object} user - User object from database

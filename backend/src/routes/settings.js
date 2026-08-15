@@ -1,4 +1,9 @@
 import express from "express";
+import {
+  authenticate,
+  authorizePermission,
+  PERMISSION_KEYS,
+} from "../auth/authMiddleware.js";
 
 // Ensure the settings table exists (safety net in case migration hasn't run)
 const ENSURE_TABLE_SQL = `CREATE TABLE IF NOT EXISTS settings (
@@ -21,8 +26,11 @@ async function ensureTable(pool) {
 export default function settingsRouter({ pool }) {
   const router = express.Router();
 
+  // Reading settings requires login; changing them requires MANAGE_SETTINGS.
+  const auth = authenticate(pool);
+
   // GET /settings — return all settings as a flat object
-  router.get("/", async (req, res) => {
+  router.get("/", auth, async (req, res) => {
     try {
       await ensureTable(pool);
       const [rows] = await pool.query("SELECT setting_key, setting_value FROM settings");
@@ -41,7 +49,7 @@ export default function settingsRouter({ pool }) {
 
   // PUT /settings — upsert multiple settings at once
   // Body: { schoolName: "...", schoolLogo: "data:image/...", ... }
-  router.put("/", async (req, res) => {
+  router.put("/", auth, authorizePermission(PERMISSION_KEYS.MANAGE_SETTINGS), async (req, res) => {
     try {
       await ensureTable(pool);
 

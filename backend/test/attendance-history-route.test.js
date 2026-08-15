@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import express from 'express';
 import { createServer } from 'node:http';
 import attendanceRouter from '../src/routes/attendance.js';
+import { makeToken, wrapPoolForAuth } from './rbacTestHelpers.js';
 
 function createStubPool(rows) {
   return {
@@ -48,16 +49,20 @@ test('attendance history endpoint returns attendance rows for the history page',
     },
   ];
 
+  const pool = wrapPoolForAuth(createStubPool(rows));
+
   const app = express();
   app.use(express.json());
-  app.use('/attendance', attendanceRouter({ pool: createStubPool(rows) }));
+  app.use('/attendance', attendanceRouter({ pool }));
 
   const server = createServer(app);
   await new Promise((resolve) => server.listen(0, resolve));
   const { port } = server.address();
 
   try {
-    const response = await fetch(`http://127.0.0.1:${port}/attendance/history`);
+    const response = await fetch(`http://127.0.0.1:${port}/attendance/history`, {
+      headers: { Authorization: `Bearer ${makeToken('viewer')}` },
+    });
     const body = await response.json();
 
     assert.equal(response.status, 200);

@@ -1,0 +1,153 @@
+Γ£ö attendance history endpoint returns attendance rows for the history page (120.2783ms)
+Γ£ö attendance PUT updates an existing record (154.995ms)
+Γ£ö attendance DELETE removes the requested record (28.2ms)
+Γ£ö GET /attendance/history without token returns 401 (154.134ms)
+Γ£ö POST /attendance as viewer returns 403 (103.4753ms)
+Γû╢ POST /attendance as administrator returns 201
+  Γ£û POST /attendance as administrator returns 201 (4.8193ms)
+  Γ£û POST /attendance as encoder returns 201
+  Γ£û PUT /attendance/:id as viewer returns 403
+  Γ£û DELETE /attendance/:id as viewer returns 403
+  Γ£û GET /attendance/history as viewer returns 200
+Γ£û POST /attendance as administrator returns 201 (5.934ms)
+≡ƒöì [TRACE] 1. Request body: {"participantIdentifier":"A001","status":"Present"}
+≡ƒöì [TRACE] 2. Looking up participantIdentifier: A001
+≡ƒöì [TRACE] 3. Participant found by identifier: {"id":1,"participant_identifier":"A001"}
+≡ƒöì [TRACE] 4. Existing attendance today: null
+≡ƒöì [TRACE] 6. Computed status: Present
+≡ƒöì [TRACE] 7. INSERT SQL: INSERT INTO attendance (participant_id, attendance_date, time_in, status, remarks, created_at)
+                         VALUES (?, CURDATE(), NOW(), ?, ?, NOW())
+≡ƒöì [TRACE] 8. INSERT params: [1,"Present",null]
+≡ƒöì [TRACE] 9. INSERT result: []
+Γ£û PUT /attendance/:id as viewer returns 403 (69.2725ms)
+Γ£û DELETE /attendance/:id as viewer returns 403 (17.289ms)
+≡ƒöì [TRACE] 1. Request body: {"participantIdentifier":"2023-001245","status":"Late"}
+≡ƒöì [TRACE] 2. Looking up participantIdentifier: 2023-001245
+≡ƒöì [TRACE] 3. Participant found by identifier: {"id":1,"participant_identifier":"2023-001245","participantIdentifier":"2023-001245","first_name":"Juan","firstName":"Juan","last_name":"Dela Cruz","lastName":"Dela Cruz","middle_name":"","middleName":"","department":"BSIT"}
+≡ƒöì [TRACE] 4. Existing attendance today: null
+≡ƒöì [TRACE] 6. Computed status: Late
+≡ƒöì [TRACE] 7. INSERT SQL: INSERT INTO attendance (participant_id, attendance_date, time_in, status, remarks, created_at)
+                         VALUES (?, CURDATE(), NOW(), ?, ?, NOW())
+≡ƒöì [TRACE] 8. INSERT params: [1,"Late",null]
+≡ƒöì [TRACE] 9. INSERT result: {"insertId":99}
+Γ£ö attendance POST records attendance for an administrator using participantIdentifier (151.9637ms)
+≡ƒöì [TRACE] 1. Request body: {"participantIdentifier":"2023-009999","status":"Present"}
+≡ƒöì [TRACE] 2. Looking up participantIdentifier: 2023-009999
+≡ƒöì [TRACE] 3. Participant found by identifier: {"id":1,"participant_identifier":"2023-009999","participantIdentifier":"2023-009999","first_name":"Levi","firstName":"Levi","last_name":"Ackerman","lastName":"Ackerman","middle_name":"","middleName":"","department":"ICT"}
+≡ƒöì [TRACE] 4. Existing attendance today: null
+≡ƒöì [TRACE] 6. Computed status: Present
+≡ƒöì [TRACE] 7. INSERT SQL: INSERT INTO attendance (participant_id, attendance_date, time_in, status, remarks, created_at)
+                         VALUES (?, CURDATE(), NOW(), ?, ?, NOW())
+≡ƒöì [TRACE] 8. INSERT params: [1,"Present",null]
+≡ƒöì [TRACE] 9. INSERT result: {"insertId":99}
+Γ£ö attendance POST is denied for an encoder without manage_attendance? (encoder has encode_attendance ΓåÆ allowed) (83.7403ms)
+Γ£ö authenticate allows access for active, approved user (92.0354ms)
+Γ£ö authenticate rejects deleted user (no DB record) (23.704ms)
+Γ£ö authenticate rejects inactive user (is_active = 0) (34.5112ms)
+Γ£ö authenticate rejects deactivated user (account_status = 'deactivated') (26.4147ms)
+Γ£ö authenticate rejects rejected user (account_status = 'rejected') (13.7639ms)
+Γ£ö authenticate rejects pending user (account_status = 'pending') (15.2736ms)
+Γ£ö authenticate rejects request with no token (14.4263ms)
+Γ£ö authenticate rejects invalid token (18.355ms)
+[authenticate] DB verification failed: Connection refused
+Γ£ö authenticate rejects when DB is unavailable (fail-closed) (12.2239ms)
+Γ£ö authenticate attaches fresh DB user data (not stale JWT claims) (12.9103ms)
+Γ£û dashboard endpoint returns absent count from participants without today attendance (99.4584ms)
+Γ£ö admin can upload a photo for a participant (100.757ms)
+Γ£ö viewer cannot upload a photo for a participant (403) (32.1122ms)
+Γä╣ tests 28
+Γä╣ suites 0
+Γä╣ pass 19
+Γä╣ fail 4
+Γä╣ cancelled 5
+Γä╣ skipped 0
+Γä╣ todo 0
+Γä╣ duration_ms 1713.5389
+
+Γ£û failing tests:
+
+test at test\attendance-rbac.test.js:85:1
+Γ£û POST /attendance as administrator returns 201 (4.8193ms)
+  'test did not finish before its parent and was cancelled'
+
+test at test\attendance-rbac.test.js:105:1
+Γ£û POST /attendance as encoder returns 201
+  'test did not finish before its parent and was cancelled'
+
+test at test\attendance-rbac.test.js:125:1
+Γ£û PUT /attendance/:id as viewer returns 403
+  'test did not finish before its parent and was cancelled'
+
+test at test\attendance-rbac.test.js:145:1
+Γ£û DELETE /attendance/:id as viewer returns 403
+  'test did not finish before its parent and was cancelled'
+
+test at test\attendance-rbac.test.js:164:1
+Γ£û GET /attendance/history as viewer returns 200
+  'test did not finish before its parent and was cancelled'
+
+test at test\attendance-rbac.test.js:81:1
+Γ£û POST /attendance as administrator returns 201 (5.934ms)
+  ReferenceError: stubPoolForPost is not defined
+      at TestContext.<anonymous> (file:///C:/Users/Ronel%20Pesalbon/(VS%20CODE)/backend/test/attendance-rbac.test.js:178:16)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1325:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:911:18)
+      at Test.postRun (node:internal/test_runner/test:1465:19)
+      at Test.run (node:internal/test_runner/test:1390:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:911:7)
+
+test at test\attendance-rbac.test.js:205:1
+Γ£û PUT /attendance/:id as viewer returns 403 (69.2725ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  404 !== 403
+  
+      at TestContext.<anonymous> (file:///C:/Users/Ronel%20Pesalbon/(VS%20CODE)/backend/test/attendance-rbac.test.js:224:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1332:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:911:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 404,
+    expected: 403,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test\attendance-rbac.test.js:233:1
+Γ£û DELETE /attendance/:id as viewer returns 403 (17.289ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  404 !== 403
+  
+      at TestContext.<anonymous> (file:///C:/Users/Ronel%20Pesalbon/(VS%20CODE)/backend/test/attendance-rbac.test.js:248:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1332:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:911:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 404,
+    expected: 403,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test\dashboard-route.test.js:30:1
+Γ£û dashboard endpoint returns absent count from participants without today attendance (99.4584ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  0 !== 3
+  
+      at TestContext.<anonymous> (file:///C:/Users/Ronel%20Pesalbon/(VS%20CODE)/backend/test/dashboard-route.test.js:47:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1332:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:385:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 3,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

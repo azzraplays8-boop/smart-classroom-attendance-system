@@ -2,12 +2,22 @@ import express from "express";
 import crypto from "crypto";
 import path from "path";
 import { fileURLToPath } from "url";
+import {
+  authenticate,
+  authorizePermission,
+  PERMISSION_KEYS,
+} from "../auth/authMiddleware.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 export default function qrRouter({ pool }) {
   const router = express.Router();
+
+  // All QR routes require login; generating/modifying QR requires MANAGE_QR.
+  const auth = authenticate(pool);
+  const canManageQr = authorizePermission(PERMISSION_KEYS.MANAGE_QR);
+  router.use(auth);
 
   // ── Summary Stats ─────────────────────────────────────────────
   router.get("/stats", async (req, res) => {
@@ -133,7 +143,7 @@ export default function qrRouter({ pool }) {
   });
 
   // ── Generate QR for a single participant ─────────────────────────
-  router.post("/generate/:id", async (req, res) => {
+  router.post("/generate/:id", canManageQr, async (req, res) => {
     try {
       const id = Number(req.params.id);
       if (!id || Number.isNaN(id)) {
@@ -191,7 +201,7 @@ export default function qrRouter({ pool }) {
   });
 
   // ── Generate QR for multiple participants (bulk) ─────────────────
-  router.post("/generate-bulk", async (req, res) => {
+  router.post("/generate-bulk", canManageQr, async (req, res) => {
     try {
       const { ids } = req.body;
 
@@ -250,7 +260,7 @@ export default function qrRouter({ pool }) {
   });
 
   // ── Regenerate QR for a participant ──────────────────────────────
-  router.post("/regenerate/:id", async (req, res) => {
+  router.post("/regenerate/:id", canManageQr, async (req, res) => {
     try {
       const id = Number(req.params.id);
       if (!id || Number.isNaN(id)) {
@@ -303,7 +313,7 @@ export default function qrRouter({ pool }) {
   });
 
   // ── Mark QR as printed ───────────────────────────────────────
-  router.put("/:id/print", async (req, res) => {
+  router.put("/:id/print", canManageQr, async (req, res) => {
     try {
       const id = Number(req.params.id);
       if (!id || Number.isNaN(id)) {
@@ -327,7 +337,7 @@ export default function qrRouter({ pool }) {
   });
 
   // ── Bulk mark as printed ─────────────────────────────────────
-  router.put("/print-bulk", async (req, res) => {
+  router.put("/print-bulk", canManageQr, async (req, res) => {
     try {
       const { ids } = req.body;
       if (!ids || !Array.isArray(ids) || ids.length === 0) {
@@ -360,7 +370,7 @@ export default function qrRouter({ pool }) {
   });
 
   // ── Delete QR for a participant ──────────────────────────────────
-  router.delete("/:id", async (req, res) => {
+  router.delete("/:id", canManageQr, async (req, res) => {
     try {
       const id = Number(req.params.id);
       if (!id || Number.isNaN(id)) {
@@ -388,7 +398,7 @@ export default function qrRouter({ pool }) {
   });
 
   // ── Bulk delete QR codes ─────────────────────────────────────
-  router.delete("/bulk/delete", async (req, res) => {
+  router.delete("/bulk/delete", canManageQr, async (req, res) => {
     try {
       const { ids } = req.body;
       if (!ids || !Array.isArray(ids) || ids.length === 0) {

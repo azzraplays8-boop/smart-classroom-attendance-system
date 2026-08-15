@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import express from 'express';
 import { createServer } from 'node:http';
 import attendanceRouter from '../src/routes/attendance.js';
+import { makeToken, wrapPoolForAuth } from './rbacTestHelpers.js';
 
 function createStubPool(initialRows) {
   let rows = initialRows.map((row) => ({ ...row }));
@@ -34,10 +35,13 @@ function createStubPool(initialRows) {
   };
 }
 
+const adminHeaders = { Authorization: `Bearer ${makeToken('administrator')}`, 'Content-Type': 'application/json' };
+
 test('attendance PUT updates an existing record', async () => {
+  const pool = wrapPoolForAuth(createStubPool([{ id: 10, attendanceDate: '2026-07-07', timeIn: '2026-07-07T08:00:00.000Z', status: 'Present' }]));
   const app = express();
   app.use(express.json());
-  app.use('/attendance', attendanceRouter({ pool: createStubPool([{ id: 10, attendanceDate: '2026-07-07', timeIn: '2026-07-07T08:00:00.000Z', status: 'Present' }]) }));
+  app.use('/attendance', attendanceRouter({ pool }));
 
   const server = createServer(app);
   await new Promise((resolve) => server.listen(0, resolve));
@@ -46,7 +50,7 @@ test('attendance PUT updates an existing record', async () => {
   try {
     const response = await fetch(`http://127.0.0.1:${port}/attendance/10`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: adminHeaders,
       body: JSON.stringify({ attendanceDate: '2026-07-08', timeIn: '2026-07-08T09:30:00.000Z', status: 'Late' }),
     });
     const body = await response.json();
@@ -61,16 +65,20 @@ test('attendance PUT updates an existing record', async () => {
 });
 
 test('attendance DELETE removes the requested record', async () => {
+  const pool = wrapPoolForAuth(createStubPool([{ id: 11, attendanceDate: '2026-07-07', timeIn: '2026-07-07T08:00:00.000Z', status: 'Present' }]));
   const app = express();
   app.use(express.json());
-  app.use('/attendance', attendanceRouter({ pool: createStubPool([{ id: 11, attendanceDate: '2026-07-07', timeIn: '2026-07-07T08:00:00.000Z', status: 'Present' }]) }));
+  app.use('/attendance', attendanceRouter({ pool }));
 
   const server = createServer(app);
   await new Promise((resolve) => server.listen(0, resolve));
   const { port } = server.address();
 
   try {
-    const response = await fetch(`http://127.0.0.1:${port}/attendance/11`, { method: 'DELETE' });
+    const response = await fetch(`http://127.0.0.1:${port}/attendance/11`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${makeToken('administrator')}` },
+    });
     const body = await response.json();
 
     assert.equal(response.status, 200);

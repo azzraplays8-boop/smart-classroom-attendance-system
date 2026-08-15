@@ -8,6 +8,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import Dashboard from "./pages/Dashboard";
 import Participants from "./pages/Participants";
 import Attendance from "./pages/Attendance";
+import AttendanceOverview from "./pages/AttendanceOverview";
 import AttendanceHistory from "./pages/AttendanceHistory";
 import QRManagement from "./pages/QRManagement";
 import Reports from "./pages/Reports";

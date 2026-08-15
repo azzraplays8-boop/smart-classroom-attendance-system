@@ -9,6 +9,9 @@ import {
   FaQrcode,
   FaUsersCog,
   FaBuilding,
+  FaClipboardList,
+  FaUser,
+  FaEye,
 } from "react-icons/fa";
 
 import "../styles/Sidebar.css";
@@ -25,17 +28,17 @@ function Sidebar() {
     if (!role) return false;
     if (role === "super_admin") return true;
     if (role === "administrator") return !["organizations"].includes(route);
-    if (role === "teacher") {
-      return ["dashboard", "attendance", "attendance-history"].includes(route);
+        if (role === "teacher") {
+      return ["dashboard", "attendance", "attendance-history", "account"].includes(route);
     }
     if (role === "moderator") {
-      return ["dashboard", "participants", "attendance", "attendance-history", "reports"].includes(route);
+      return ["dashboard", "participants", "attendance", "attendance-history", "reports", "account"].includes(route);
     }
     if (role === "encoder") {
-      return ["dashboard", "participants", "attendance", "attendance-history"].includes(route);
+      return ["dashboard", "participants", "attendance", "attendance-history", "account"].includes(route);
     }
     if (role === "viewer") {
-      return ["dashboard", "reports"].includes(route);
+      return ["dashboard", "attendance-overview", "attendance-history", "reports", "account"].includes(route);
     }
     return false;
   };
@@ -60,30 +63,39 @@ function Sidebar() {
           </NavLink>
         )}
 
-        {hasRoute("attendance") && (
-        <NavLink to="/attendance" className="nav-item">
-          <FaCamera />
-          <span>Attendance</span>
-        </NavLink>
+                {hasRoute("attendance") && (
+          <NavLink to="/attendance" className="nav-item">
+            <FaCamera />
+            <span>Attendance</span>
+          </NavLink>
         )}
 
-        <NavLink to="/attendance-history" className="nav-item">
-          <FaHistory />
-          <span>Attendance History</span>
-        </NavLink>
+        {hasRoute("attendance-overview") && (
+          <NavLink to="/attendance-overview" className="nav-item">
+            <FaEye />
+            <span>Attendance Overview</span>
+          </NavLink>
+        )}
+
+        {hasRoute("attendance-history") && (
+          <NavLink to="/attendance-history" className="nav-item">
+            <FaHistory />
+            <span>Attendance Records</span>
+          </NavLink>
+        )}
 
         {hasRoute("qr-management") && (
-        <NavLink to="/qr-management" className="nav-item">
+          <NavLink to="/qr-management" className="nav-item">
             <FaQrcode />
             <span>QR Check-in</span>
           </NavLink>
         )}
 
         {hasRoute("reports") && (
-        <NavLink to="/reports" className="nav-item">
-          <FaChartBar />
-          <span>Analytics & Reports</span>
-        </NavLink>
+          <NavLink to="/reports" className="nav-item">
+            <FaChartBar />
+            <span>Analytics & Reports</span>
+          </NavLink>
         )}
 
         {hasRoute("user-management") && (
@@ -104,6 +116,13 @@ function Sidebar() {
           <NavLink to="/settings" className="nav-item">
             <FaCog />
             <span>Settings</span>
+          </NavLink>
+        )}
+
+        {hasRoute("account") && (
+          <NavLink to="/account" className="nav-item">
+            <FaUser />
+            <span>My Account</span>
           </NavLink>
         )}
       </nav>
