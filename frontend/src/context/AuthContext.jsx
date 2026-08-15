@@ -58,7 +58,6 @@ export const PERMISSIONS = {
     canAccess: (route) => !["super_admin", "organizations"].includes(route),
   },
   teacher: {
-      teacher: {
     label: "Teacher",
     routes: ["dashboard", "attendance", "attendance-history", "account"],
     canAccess: (route) =>

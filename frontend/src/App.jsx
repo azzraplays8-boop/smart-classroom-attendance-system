@@ -30,9 +30,10 @@ function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/participants" element={<Participants />} />
           <Route path="/attendance" element={<Attendance />} />
+          <Route path="/attendance-overview" element={<AttendanceOverview />} />
           <Route path="/attendance-history" element={<AttendanceHistory />} />
           <Route path="/qr-management" element={<QRManagement />} />
-<Route path="/reports" element={<Reports />} />
+          <Route path="/reports" element={<Reports />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/account" element={<AccountWorkspace />} />
           <Route path="/user-management" element={<UserManagement />} />
