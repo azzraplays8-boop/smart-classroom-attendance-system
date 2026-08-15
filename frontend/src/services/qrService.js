@@ -1,6 +1,15 @@
 import { API_BASE_URL } from "../config/api";
 
-
+function getAuthHeaders() {
+  const token = localStorage.getItem("auth_token") || sessionStorage.getItem("auth_token");
+  const headers = {
+    "Content-Type": "application/json",
+  };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  return headers;
+}
 
 async function handleResponse(res) {
   const data = await res.json();
@@ -13,7 +22,9 @@ async function handleResponse(res) {
 export const qrService = {
   // ── Stats ────────────────────────────────────────────────────
   async getStats() {
-    const res = await fetch(`${API_BASE_URL}/qr/stats`);
+    const res = await fetch(`${API_BASE_URL}/qr/stats`, {
+      headers: getAuthHeaders(),
+    });
     return handleResponse(res);
   },
 
@@ -29,13 +40,17 @@ export const qrService = {
     if (group.trim()) params.set("group", group.trim());
     if (qrStatus.trim()) params.set("qrStatus", qrStatus.trim());
 
-    const res = await fetch(`${API_BASE_URL}/qr?${params.toString()}`);
+    const res = await fetch(`${API_BASE_URL}/qr?${params.toString()}`, {
+      headers: getAuthHeaders(),
+    });
     return handleResponse(res);
   },
 
   // ── Get single participant QR data ───────────────────────────
   async getById(id) {
-    const res = await fetch(`${API_BASE_URL}/qr/${id}`);
+    const res = await fetch(`${API_BASE_URL}/qr/${id}`, {
+      headers: getAuthHeaders(),
+    });
     return handleResponse(res);
   },
 
@@ -43,6 +58,7 @@ export const qrService = {
   async generate(id) {
     const res = await fetch(`${API_BASE_URL}/qr/generate/${id}`, {
       method: "POST",
+      headers: getAuthHeaders(),
     });
     return handleResponse(res);
   },
@@ -51,7 +67,7 @@ export const qrService = {
   async generateBulk(ids) {
     const res = await fetch(`${API_BASE_URL}/qr/generate-bulk`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: getAuthHeaders(),
       body: JSON.stringify({ ids }),
     });
     return handleResponse(res);
@@ -61,6 +77,7 @@ export const qrService = {
   async regenerate(id) {
     const res = await fetch(`${API_BASE_URL}/qr/regenerate/${id}`, {
       method: "POST",
+      headers: getAuthHeaders(),
     });
     return handleResponse(res);
   },
@@ -69,6 +86,7 @@ export const qrService = {
   async markPrinted(id) {
     const res = await fetch(`${API_BASE_URL}/qr/${id}/print`, {
       method: "PUT",
+      headers: getAuthHeaders(),
     });
     return handleResponse(res);
   },
@@ -77,7 +95,7 @@ export const qrService = {
   async markPrintedBulk(ids) {
     const res = await fetch(`${API_BASE_URL}/qr/print-bulk`, {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers: getAuthHeaders(),
       body: JSON.stringify({ ids }),
     });
     return handleResponse(res);
@@ -87,6 +105,7 @@ export const qrService = {
   async delete(id) {
     const res = await fetch(`${API_BASE_URL}/qr/${id}`, {
       method: "DELETE",
+      headers: getAuthHeaders(),
     });
     return handleResponse(res);
   },
@@ -95,7 +114,7 @@ export const qrService = {
   async deleteBulk(ids) {
     const res = await fetch(`${API_BASE_URL}/qr/bulk/delete`, {
       method: "DELETE",
-      headers: { "Content-Type": "application/json" },
+      headers: getAuthHeaders(),
       body: JSON.stringify({ ids }),
     });
     return handleResponse(res);
@@ -103,7 +122,9 @@ export const qrService = {
 
   // ── Get filter options ───────────────────────────────────────
   async getFilterOptions() {
-    const res = await fetch(`${API_BASE_URL}/qr/filters/options`);
+    const res = await fetch(`${API_BASE_URL}/qr/filters/options`, {
+      headers: getAuthHeaders(),
+    });
     return handleResponse(res);
   },
 };

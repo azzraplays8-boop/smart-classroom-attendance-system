@@ -6,7 +6,7 @@ import ParticipantsTable from "./ParticipantsTable";
 import ParticipantsToolbar from "./ParticipantsToolbar";
 import ImportParticipantsModal from "./import/ImportParticipantsModal";
 import { useOrgLabels } from "../../config/labels";
-import { API_BASE_URL } from "../../config/api";
+import participantsService from "../../services/participantsService";
 
 import "../../styles/participants/Participants.css";
 
@@ -28,20 +28,9 @@ const [query, setQuery] = useState("");
     setLoadError("");
 
     try {
-      const res = await fetch(`${API_BASE_URL}/participants`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
-      }
-
-      const data = await res.json();
+      const data = await participantsService.getParticipants();
       setParticipants(Array.isArray(data.participants) ? data.participants : []);
-    } catch {
+    } catch (err) {
       setLoadError("Failed to load participants.");
     } finally {
       setIsLoading(false);
@@ -141,23 +130,15 @@ const [query, setQuery] = useState("");
         photo: newParticipant.photo || null,
       };
 
-      const res = await fetch(
-        editMode
-          ? `${API_BASE_URL}/participants/${selectedParticipant?.id}`
-          : `${API_BASE_URL}/participants`,
-        {
-          method: editMode ? "PUT" : "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(payload),
+      let responseData;
+      try {
+        if (editMode) {
+          responseData = await participantsService.updateParticipant(selectedParticipant?.id, payload);
+        } else {
+          responseData = await participantsService.createParticipant(payload);
         }
-      );
-
-      const responseBody = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        const backendMessage = responseBody?.message || responseBody?.error || "";
+      } catch (err) {
+        const backendMessage = err.response?.data?.message || err.message || "";
         const message = backendMessage === "Participant identifier must be unique."
           ? `${labels.primaryIdLabel} already exists.`
           : editMode
@@ -169,16 +150,12 @@ const [query, setQuery] = useState("");
 
       // If there's a photo blob, upload it after creating the participant
       if (newParticipant.photoFile) {
-        const participantId = editMode ? selectedParticipant?.id : responseBody?.id;
+        const participantId = editMode ? selectedParticipant?.id : responseData?.id;
         if (participantId) {
-          const photoFormData = new FormData();
-          photoFormData.append("photo", newParticipant.photoFile);
-          const photoRes = await fetch(`${API_BASE_URL}/participants/${participantId}/photo`, {
-            method: "POST",
-            body: photoFormData,
-          });
-          if (!photoRes.ok) {
-            console.error("Photo upload failed");
+          try {
+            await participantsService.uploadPhoto(participantId, newParticipant.photoFile);
+          } catch (photoErr) {
+            console.error("Photo upload failed", photoErr);
             showToast("error", `${labels.entityName} saved but photo upload failed.`);
           }
         }
@@ -186,9 +163,11 @@ const [query, setQuery] = useState("");
         // Remove photo if flag is set
         const participantId = selectedParticipant?.id;
         if (participantId) {
-          await fetch(`${API_BASE_URL}/participants/${participantId}/photo`, {
-            method: "DELETE",
-          });
+          try {
+            await participantsService.deletePhoto(participantId);
+          } catch (photoErr) {
+            console.error("Photo deletion failed", photoErr);
+          }
         }
       }
 
@@ -234,15 +213,7 @@ const [query, setQuery] = useState("");
     setIsDeletingParticipant(true);
 
     try {
-      const res = await fetch(`${API_BASE_URL}/participants/${id}`, {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-      });
-
-      if (!res.ok) {
-        const errJson = await res.json().catch(() => null);
-        throw new Error(errJson?.message || `HTTP ${res.status}`);
-      }
+      await participantsService.deleteParticipant(id);
 
       setIsDeleteDialogOpen(false);
       setPendingDeleteParticipant(null);
@@ -271,15 +242,7 @@ const [query, setQuery] = useState("");
     setIsDeletingAll(true);
 
     try {
-      const res = await fetch(`${API_BASE_URL}/participants`, {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-      });
-
-      if (!res.ok) {
-        const errJson = await res.json().catch(() => null);
-        throw new Error(errJson?.message || `HTTP ${res.status}`);
-      }
+      await participantsService.deleteAllParticipants();
 
       setIsDeleteAllDialogOpen(false);
       setDeleteAllDraft("");

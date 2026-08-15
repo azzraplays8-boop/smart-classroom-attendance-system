@@ -97,8 +97,15 @@ export async function submitImport({ file, mapping, duplicateMode, createdBy }) 
     console.debug("submitImport: POST", url);
   }
 
+  const token = localStorage.getItem("auth_token") || sessionStorage.getItem("auth_token");
+  const headers = {};
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
   const res = await fetch(url, {
     method: "POST",
+    headers,
     body: fd,
   });
 
@@ -133,7 +140,13 @@ export async function fetchImportHistory() {
     console.debug("fetchImportHistory: GET", url);
   }
 
-  const res = await fetch(url);
+  const token = localStorage.getItem("auth_token") || sessionStorage.getItem("auth_token");
+  const headers = {};
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const res = await fetch(url, { headers });
   const text = await res.text();
   let data = null;
   try {
