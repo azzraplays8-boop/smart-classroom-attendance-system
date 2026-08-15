@@ -65,8 +65,8 @@ FaFileImport,
 import "../styles/Settings.css";
 import translations from "../data/translations.js";
 import { useOrgLabels } from "../config/labels";
-import { API_BASE_URL } from "../config/api";
 import { APP_VERSION } from "../constants";
+import { authFetch } from "../services/apiClient";
 import UserManagement from "./UserManagement";
 
 const DEFAULT_PRIMARY_COLOR = "#4f46e5";
@@ -245,7 +245,7 @@ function Settings() {
     }
 
     try {
-      const res = await fetch(`${API_BASE_URL}/settings`);
+      const res = await authFetch("/settings");
       const data = await res.json();
       if (res.ok && data.settings) {
         const mergedTheme = data.settings.theme || storedTheme || "light";
@@ -312,7 +312,7 @@ function Settings() {
     const savingKey = sectionKeys.length >= 10 ? "all" : sectionKeys[0];
     setSaving((prev) => ({ ...prev, [savingKey]: true }));
     try {
-      const res = await fetch(`${API_BASE_URL}/settings`, {
+      const res = await authFetch("/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),

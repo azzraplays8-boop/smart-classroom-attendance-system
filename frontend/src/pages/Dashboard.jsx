@@ -46,8 +46,8 @@ import "../styles/Dashboard.css";
 import { useAuth } from "../hooks/useAuth";
 import { useSettings } from "../context/SettingsContext";
 import { useOrgLabels } from "../config/labels";
-import { API_BASE_URL } from "../config/api";
 import { APP_NAME } from "../constants";
+import { authFetch } from "../services/apiClient";
 import {
   addDays,
   formatFullDate,
@@ -130,7 +130,7 @@ function Dashboard() {
 
     // 1) Participants (accurate total count)
     try {
-      const res = await fetch(`${API_BASE_URL}/participants`);
+      const res = await authFetch("/participants");
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || "Failed to load participants");
       setParticipantCount(Array.isArray(data.participants) ? data.participants.length : 0);
@@ -140,7 +140,7 @@ function Dashboard() {
 
     // 2) Dashboard stats
     try {
-      const res = await fetch(`${API_BASE_URL}/attendance/dashboard`);
+      const res = await authFetch("/attendance/dashboard");
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || "Failed to load dashboard stats");
       setStats({
@@ -156,7 +156,7 @@ function Dashboard() {
     // 3) Attendance history (all records for total count, recent activity & charts)
     try {
       const params = new URLSearchParams({ page: "1", limit: "10000" });
-      const res = await fetch(`${API_BASE_URL}/attendance/history?${params.toString()}`);
+      const res = await authFetch(`/attendance/history?${params.toString()}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || "Failed to load attendance history");
       setRecords(Array.isArray(data.records) ? data.records : []);
@@ -166,7 +166,7 @@ function Dashboard() {
 
     // 4) Session settings
     try {
-      const res = await fetch(`${API_BASE_URL}/settings`);
+      const res = await authFetch("/settings");
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || "Failed to load settings");
       setSessionSettings(data?.settings || null);
@@ -176,7 +176,7 @@ function Dashboard() {
 
     // 5) Health check
     try {
-      const res = await fetch(`${API_BASE_URL}/health`);
+      const res = await authFetch("/health");
       const data = await res.json();
       setHealth({ ok: res.ok && data?.ok === true });
     } catch {

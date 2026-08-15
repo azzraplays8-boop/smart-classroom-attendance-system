@@ -12,8 +12,8 @@ import QuickInsights from "../components/analytics/QuickInsights";
 import ReportGenerator from "../components/analytics/ReportGenerator";
 import { useOrgLabels } from "../config/labels";
 import { formatHourLabel, getHour, normalizeStatus } from "../components/analytics/analyticsUtils";
-import { API_BASE_URL } from "../config/api";
 import "../styles/Reports.css";
+import { authFetch } from "../services/apiClient";
 
 /**
  * KATAGA Portal Reports — True Analytics Dashboard (frontend-only redesign).
@@ -30,7 +30,7 @@ function Reports() {
   // Fetch school settings (name/logo) for report exports.
   const fetchSettings = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/settings`);
+      const res = await authFetch("/settings");
       const data = await res.json();
       if (res.ok && data.settings) {
         setSchoolSettings({
@@ -49,7 +49,7 @@ function Reports() {
     setError("");
     try {
       const params = new URLSearchParams({ page: "1", limit: "10000" });
-      const res = await fetch(`${API_BASE_URL}/attendance/history?${params.toString()}`);
+      const res = await authFetch(`/attendance/history?${params.toString()}`);
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data.message || "Unable to load analytics data.");
@@ -66,7 +66,7 @@ function Reports() {
   // Fetch dashboard stats (existing endpoint) for KPIs.
   const fetchDashboardStats = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/attendance/dashboard`);
+      const res = await authFetch("/attendance/dashboard");
       const data = await res.json();
       if (res.ok) {
         setDashboardStats({

@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { FiActivity, FiCalendar, FiCheckCircle, FiClock, FiLoader, FiPercent, FiUserCheck, FiUsers, FiXCircle } from "react-icons/fi";
 
 import { useAuth } from "../hooks/useAuth";
-import { API_BASE_URL } from "../config/api";
 import "../styles/AttendanceOverview.css";
+import { authFetch } from "../services/apiClient";
 
 const STATUS_COLORS = {
   present: "#22c55e",
@@ -88,10 +88,10 @@ function AttendanceOverview() {
       const toDate = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().slice(0, 10);
 
       const [dashboardResult, historyResult, monthlyResult, activityResult] = await Promise.allSettled([
-        fetch(`${API_BASE_URL}/attendance/dashboard`),
-        fetch(`${API_BASE_URL}/attendance/history?page=1&limit=25`),
-        fetch(`${API_BASE_URL}/attendance/monthly-summary?month=${month}&year=${year}`),
-        fetch(`${API_BASE_URL}/attendance/activity-summary?from=${fromDate}&to=${toDate}`),
+        authFetch("/attendance/dashboard"),
+        authFetch("/attendance/history?page=1&limit=25"),
+        authFetch(`/attendance/monthly-summary?month=${month}&year=${year}`),
+        authFetch(`/attendance/activity-summary?from=${fromDate}&to=${toDate}`),
       ]);
 
       if (dashboardResult.status === "fulfilled") {

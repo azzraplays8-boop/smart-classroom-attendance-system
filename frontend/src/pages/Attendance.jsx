@@ -23,8 +23,8 @@ import {
 } from "react-icons/fi";
 import ParticipantAvatar from "../components/participants/ParticipantAvatar";
 import { useOrgLabels } from "../config/labels";
-import { API_BASE_URL } from "../config/api";
 import "../styles/attendance/Attendance.css";
+import { authFetch } from "../services/apiClient";
 
 // Key used to remember the user's chosen camera across visits.
 const CAMERA_STORAGE_KEY = "attendance-selected-camera";
@@ -129,7 +129,7 @@ function Attendance() {
   const fetchToday = async () => {
     try {
       const today = new Date().toLocaleDateString("en-CA");
-      const res = await fetch(`${API_BASE_URL}/attendance?date=${today}`);
+      const res = await authFetch(`/attendance?date=${today}`);
       const data = await res.json();
       if (res.ok) {
         setAttendanceList(data.attendance || []);
@@ -594,7 +594,7 @@ function Attendance() {
     setScanPhase("processing");
 
     try {
-      const res = await fetch(`${API_BASE_URL}/attendance`, {
+      const res = await authFetch("/attendance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(requestBody),

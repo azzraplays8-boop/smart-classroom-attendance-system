@@ -6,8 +6,8 @@ import * as XLSX from "xlsx";
 import { FiEdit2, FiTrash2, FiChevronLeft, FiChevronRight } from "react-icons/fi";
 
 import ConfirmDialog from "../components/participants/ConfirmDialog";
-import { API_BASE_URL } from "../config/api";
 import "../styles/attendance/AttendanceHistory.css";
+import { authFetch } from "../services/apiClient";
 
 function formatDate(value) {
   if (!value) return "-";
@@ -113,7 +113,7 @@ function AttendanceHistory() {
       if (courseFilter) params.set("course", courseFilter);
       if (statusFilter) params.set("status", statusFilter);
 
-      const res = await fetch(`${API_BASE_URL}/attendance/history?${params.toString()}`);
+      const res = await authFetch(`/attendance/history?${params.toString()}`);
       const data = await res.json();
 
       if (!res.ok) {
@@ -142,7 +142,7 @@ function AttendanceHistory() {
     if (courseFilter) params.set("course", courseFilter);
     if (statusFilter) params.set("status", statusFilter);
 
-    const res = await fetch(`${API_BASE_URL}/attendance/history?${params.toString()}`);
+    const res = await authFetch(`/attendance/history?${params.toString()}`);
     const data = await res.json();
 
     if (!res.ok) {
@@ -315,7 +315,7 @@ function AttendanceHistory() {
         status: editForm.status,
       };
 
-      const res = await fetch(`${API_BASE_URL}/attendance/${editingRecord.id}`, {
+      const res = await authFetch(`/attendance/${editingRecord.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -346,7 +346,7 @@ function AttendanceHistory() {
 
     try {
       setIsDeletingRecord(true);
-      const res = await fetch(`${API_BASE_URL}/attendance/${pendingDeleteRecord.id}`, {
+      const res = await authFetch(`/attendance/${pendingDeleteRecord.id}`, {
         method: "DELETE",
       });
       const data = await res.json().catch(() => ({}));
