@@ -15,25 +15,33 @@ import { useMemo } from "react";
 import { useSettings } from "../context/SettingsContext";
 import { DEFAULT_ORG_SETTINGS } from "../config/organizationDefaults";
 
+function firstConfiguredList(...values) {
+  for (const value of values) {
+    const parsed = parseList(value);
+    if (parsed.length) return parsed;
+  }
+  return [];
+}
+
 export function normalizeAcademicSettings(settings = {}) {
   const academicYear = settings.academicYear ?? settings.schoolYear ?? settings.orgYear ?? "";
   const semester = settings.semester ?? settings.academicSemester ?? "1st";
 
-  const departmentValue =
-    settings.departmentOptions ??
-    settings.defaultDepartments ??
-    settings.courseOptions ??
-    settings.defaultCourses ??
-    "";
-  const sectionValue = settings.sectionOptions ?? settings.defaultSections ?? "";
-  const yearValue = settings.yearLevelOptions ?? settings.positionLevels ?? "";
+  const departmentList = firstConfiguredList(
+    settings.departmentOptions,
+    settings.defaultDepartments,
+    settings.courseOptions,
+    settings.defaultCourses
+  );
+  const sectionList = firstConfiguredList(settings.sectionOptions, settings.defaultSections);
+  const yearList = firstConfiguredList(settings.yearLevelOptions, settings.positionLevels);
 
   return {
     academicYear,
     semester,
-    departmentValue,
-    sectionValue,
-    yearValue,
+    departmentValue: departmentList.join(", "),
+    sectionValue: sectionList.join(", "),
+    yearValue: yearList.join(", "),
   };
 }
 
@@ -42,13 +50,16 @@ export function normalizeAcademicSettings(settings = {}) {
  */
 export function parseList(value) {
   if (value == null) return [];
-  if (Array.isArray(value)) {
-    return value.map((v) => String(v).trim()).filter(Boolean);
-  }
-  return String(value)
-    .split(",")
-    .map((v) => v.trim())
-    .filter(Boolean);
+  const entries = Array.isArray(value) ? value : String(value).split(",");
+  const seen = new Set();
+
+  return entries
+    .map((v) => String(v).trim())
+    .filter((v) => {
+      if (!v || seen.has(v)) return false;
+      seen.add(v);
+      return true;
+    });
 }
 
 export const SEMESTER_OPTIONS = [
@@ -95,15 +106,9 @@ export function useAcademicConfig() {
   return useMemo(() => {
     const { academicYear, semester, departmentValue, sectionValue, yearValue } = normalizeAcademicSettings(settings);
 
-    const fromDepartments = parseList(departmentValue);
+    const departments = parseList(departmentValue);
     const fromCourses = parseList(settings.courseOptions ?? settings.defaultCourses ?? "");
-    const departments = fromDepartments.length
-      ? fromDepartments
-      : fromCourses.length
-      ? fromCourses
-      : DEFAULT_DEPARTMENTS;
-
-    const sections = parseList(sectionValue) || DEFAULT_SECTIONS;
+    const sections = parseList(sectionValue);
 
     let yearLevels = parseList(yearValue);
     if (!yearLevels.length) yearLevels = DEFAULT_YEAR_LEVELS;
@@ -113,7 +118,7 @@ export function useAcademicConfig() {
       semester,
       departments,
       courses: fromCourses,
-      sections,
+      sections: sections.length ? sections : DEFAULT_SECTIONS,
       yearLevels,
       semesterOptions: SEMESTER_OPTIONS,
       formatYearLevelLabel,

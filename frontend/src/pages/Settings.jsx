@@ -171,16 +171,28 @@ const NOTIF_OPTIONS = [
 ];
 
 function normalizeAcademicSettingsForStorage(rawSettings = {}) {
+  const readListValue = (...values) => {
+    for (const value of values) {
+      if (value == null) continue;
+      const entries = Array.isArray(value) ? value : String(value).split(",");
+      const cleaned = entries
+        .map((entry) => String(entry).trim())
+        .filter(Boolean);
+      if (cleaned.length) return cleaned.join(", ");
+    }
+    return "";
+  };
+
   const academicYear = rawSettings.academicYear ?? rawSettings.schoolYear ?? rawSettings.orgYear ?? "";
   const semester = rawSettings.semester ?? rawSettings.academicSemester ?? "1st";
-  const departmentValue =
-    rawSettings.departmentOptions ??
-    rawSettings.defaultDepartments ??
-    rawSettings.courseOptions ??
-    rawSettings.defaultCourses ??
-    "";
-  const sectionValue = rawSettings.sectionOptions ?? rawSettings.defaultSections ?? "";
-  const yearValue = rawSettings.yearLevelOptions ?? rawSettings.positionLevels ?? "";
+  const departmentValue = readListValue(
+    rawSettings.departmentOptions,
+    rawSettings.defaultDepartments,
+    rawSettings.courseOptions,
+    rawSettings.defaultCourses
+  );
+  const sectionValue = readListValue(rawSettings.sectionOptions, rawSettings.defaultSections);
+  const yearValue = readListValue(rawSettings.yearLevelOptions, rawSettings.positionLevels);
 
   return {
     ...rawSettings,
@@ -189,14 +201,19 @@ function normalizeAcademicSettingsForStorage(rawSettings = {}) {
     semester,
     departmentOptions: departmentValue,
     defaultDepartments: departmentValue,
-    courseOptions: rawSettings.courseOptions ?? rawSettings.defaultCourses ?? "",
-    defaultCourses: rawSettings.defaultCourses ?? rawSettings.courseOptions ?? "",
+    courseOptions: readListValue(rawSettings.courseOptions, rawSettings.defaultCourses),
+    defaultCourses: readListValue(rawSettings.defaultCourses, rawSettings.courseOptions),
     sectionOptions: sectionValue,
     defaultSections: sectionValue,
     yearLevelOptions: Array.isArray(rawSettings.yearLevelOptions)
       ? rawSettings.yearLevelOptions
+          .map((v) => String(v).trim())
+          .filter(Boolean)
       : typeof yearValue === "string"
-        ? yearValue.split(",").map((v) => v.trim()).filter(Boolean)
+        ? yearValue
+            .split(",")
+            .map((v) => v.trim())
+            .filter(Boolean)
         : [],
     positionLevels: yearValue,
   };

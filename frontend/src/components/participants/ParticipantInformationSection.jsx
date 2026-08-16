@@ -4,6 +4,15 @@ import "../../styles/participants/ParticipantModal.css";
 import { useAcademicConfig } from "../../hooks/useAcademicConfig";
 
 function DepartmentSelect({ id, label, value, onChange, required, error, showError, options }) {
+  const normalizedValue = String(value ?? "").trim();
+  const safeOptions = Array.from(
+    new Set(
+      [...(options || []), ...(normalizedValue ? [normalizedValue] : [])]
+        .map((opt) => String(opt ?? "").trim())
+        .filter(Boolean)
+    )
+  );
+
   return (
     <div className="sis-field">
       <label className="sis-label" htmlFor={id}>
@@ -13,13 +22,13 @@ function DepartmentSelect({ id, label, value, onChange, required, error, showErr
       <select
         className="sis-input"
         id={id}
-        value={value}
+        value={normalizedValue}
         onChange={(e) => onChange?.(e.target.value)}
         aria-invalid={Boolean(error)}
         aria-describedby={showError && error ? `${id}-error` : undefined}
       >
         <option value="">Select department / group</option>
-        {options.map((opt) => (
+        {safeOptions.map((opt) => (
           <option key={opt} value={opt}>
             {opt}
           </option>
