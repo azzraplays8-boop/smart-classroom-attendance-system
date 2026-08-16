@@ -51,6 +51,83 @@ function getCurrentTimeInTimezone(tzName) {
   return { hours, minutes, seconds };
 }
 
+async function resolveCurrentParticipant(pool, user) {
+  if (!user || !user.email) return null;
+
+  const [rows] = await pool.query(
+    `SELECT id, participant_identifier AS participantIdentifier,
+            first_name AS firstName, last_name AS lastName, middle_name AS middleName,
+            photo, department, level AS year, group_name AS section, email
+     FROM participants
+     WHERE LOWER(email) = LOWER(?)
+     LIMIT 1`,
+    [String(user.email).trim()]
+  );
+
+  return rows?.[0] ?? null;
+}
+
+async function buildMemberAttendanceSummary(pool, user) {
+  const member = await resolveCurrentParticipant(pool, user);
+  if (!member) {
+    return {
+      member: null,
+      records: [],
+      summary: {
+        totalRecords: 0,
+        present: 0,
+        late: 0,
+        absent: 0,
+        attendanceRate: 0,
+      },
+      monthly: {},
+    };
+  }
+
+  const [rows] = await pool.query(
+    `SELECT a.id, a.participant_id AS participantId, a.attendance_date AS attendanceDate,
+            a.time_in AS timeIn, a.time_out AS timeOut, a.status, a.remarks,
+            p.participant_identifier AS participantIdentifier,
+            p.first_name AS firstName, p.last_name AS lastName,
+            p.photo, p.department, p.level AS year, p.group_name AS section
+     FROM attendance a
+     LEFT JOIN participants p ON p.id = a.participant_id
+     WHERE a.participant_id = ?
+     ORDER BY a.attendance_date DESC, a.time_in DESC, a.created_at DESC`,
+    [member.id]
+  );
+
+  const records = rows || [];
+  const present = records.filter((r) => String(r.status || "").toLowerCase() === "present").length;
+  const late = records.filter((r) => String(r.status || "").toLowerCase() === "late").length;
+  const absent = records.filter((r) => String(r.status || "").toLowerCase() === "absent").length;
+  const total = records.length;
+  const byMonth = {};
+
+  for (const record of records) {
+    const mk = String(record.attendanceDate || "").slice(0, 7);
+    if (!mk) continue;
+    if (!byMonth[mk]) byMonth[mk] = { present: 0, late: 0, absent: 0 };
+    const s = String(record.status || "").toLowerCase();
+    if (s === "present") byMonth[mk].present += 1;
+    else if (s === "late") byMonth[mk].late += 1;
+    else if (s === "absent") byMonth[mk].absent += 1;
+  }
+
+  return {
+    member,
+    records,
+    summary: {
+      totalRecords: total,
+      present,
+      late,
+      absent,
+      attendanceRate: total > 0 ? Math.round((present / total) * 100) : 0,
+    },
+    monthly: byMonth,
+  };
+}
+
 /**
  * Determine attendance status dynamically from loaded settings.
  * Accepts an object of attendance-relevant settings (attendanceStartTime,
@@ -130,6 +207,26 @@ export default function attendanceRouter({ pool }) {
     }
   });
 
+  router.get("/me", auth, async (req, res) => {
+    try {
+      const summary = await buildMemberAttendanceSummary(pool, req.user);
+      if (!summary.member) {
+        return res.json({
+          member: null,
+          records: [],
+          summary: summary.summary,
+          monthly: summary.monthly,
+          message: "Your account is not yet linked to a participant record. Please contact an administrator.",
+        });
+      }
+
+      return res.json(summary);
+    } catch (err) {
+      console.error("GET /attendance/me error:", err);
+      return res.status(500).json({ message: "Failed to fetch your attendance." });
+    }
+  });
+
   router.get("/history", auth, async (req, res) => {
     try {
       const { page = 1, limit = 50, search = "", date = "", course = "", status = "", from = "", to = "", participantId = "" } = req.query || {};
@@ -140,7 +237,15 @@ export default function attendanceRouter({ pool }) {
       const statusFilter = String(status || "").trim();
       const fromFilter = String(from || "").trim();
       const toFilter = String(to || "").trim();
-      const participantIdFilter = String(participantId || "").trim();
+      let participantIdFilter = String(participantId || "").trim();
+
+      if (req.user.role === "viewer") {
+        const member = await resolveCurrentParticipant(pool, req.user);
+        if (!member) {
+          return res.json({ records: [], pagination: { page: Number(page), limit: Number(limit), total: 0, pages: 1 } });
+        }
+        participantIdFilter = String(member.id);
+      }
 
       const whereClauses = [];
       const params = [];
@@ -287,6 +392,25 @@ const [rows] = await pool.query(
 
   router.get("/dashboard", auth, async (req, res) => {
     try {
+      if (req.user.role === "viewer") {
+        const summary = await buildMemberAttendanceSummary(pool, req.user);
+        const totalRecords = summary.summary.totalRecords;
+        const presentToday = summary.records.filter((row) => String(row.attendanceDate || "").slice(0, 10) === new Date().toISOString().slice(0, 10)).filter((row) => String(row.status || "").toLowerCase() === "present").length;
+        const lateToday = summary.records.filter((row) => String(row.attendanceDate || "").slice(0, 10) === new Date().toISOString().slice(0, 10)).filter((row) => String(row.status || "").toLowerCase() === "late").length;
+        const absentToday = summary.records.filter((row) => String(row.attendanceDate || "").slice(0, 10) === new Date().toISOString().slice(0, 10)).filter((row) => String(row.status || "").toLowerCase() === "absent").length;
+
+        return res.json({
+          totalParticipants: summary.member ? 1 : 0,
+          presentToday,
+          lateToday,
+          absentToday,
+          totalRecords,
+          attendanceRate: summary.summary.attendanceRate,
+          member: summary.member,
+          records: summary.records,
+        });
+      }
+
       const [{ total }] = await pool.query(`SELECT COUNT(*) AS total FROM participants`);
 
       const [presentRows] = await pool.query(
@@ -404,6 +528,14 @@ const [rows] = await pool.query(
       if (!participantId || Number.isNaN(participantId)) {
         return res.status(400).json({ message: "Invalid participant id." });
       }
+
+      if (req.user.role === "viewer") {
+        const currentParticipant = await resolveCurrentParticipant(pool, req.user);
+        if (!currentParticipant || Number(currentParticipant.id) !== participantId) {
+          return res.status(403).json({ message: "Access denied. You can only view your own attendance." });
+        }
+      }
+
       const [rows] = await pool.query(
         `SELECT a.id, a.participant_id AS participantId, a.attendance_date AS attendanceDate,
                 a.time_in AS timeIn, a.status, a.remarks,

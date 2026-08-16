@@ -16,6 +16,7 @@ const ROUTE_PERMISSION_MAP = {
   "/participants": "participants",
   "/attendance": "attendance",
   "/attendance-overview": "attendance-overview",
+  "/my-attendance": "my-attendance",
   "/attendance-history": "attendance-history",
   "/qr-management": "qr-management",
   "/reports": "reports",

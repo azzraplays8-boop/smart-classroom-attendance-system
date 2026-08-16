@@ -128,40 +128,66 @@ function Dashboard() {
     setError("");
     const errors = [];
 
-    // 1) Participants (accurate total count)
-    try {
-      const res = await authFetch("/participants");
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.message || "Failed to load participants");
-      setParticipantCount(Array.isArray(data.participants) ? data.participants.length : 0);
-    } catch (err) {
-      errors.push(`Participants: ${err?.message || "error"}`);
-    }
+    if (user?.role === "viewer") {
+      try {
+        const res = await authFetch("/attendance/me");
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.message || "Failed to load personal attendance");
 
-    // 2) Dashboard stats
-    try {
-      const res = await authFetch("/attendance/dashboard");
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.message || "Failed to load dashboard stats");
-      setStats({
-        totalParticipants: Number(data?.totalParticipants ?? 0) || 0,
-        presentToday: Number(data?.presentToday ?? 0) || 0,
-        lateToday: Number(data?.lateToday ?? 0) || 0,
-        absentToday: Number(data?.absentToday ?? 0) || 0,
-      });
-    } catch (err) {
-      errors.push(`Dashboard: ${err?.message || "error"}`);
-    }
+        const personalRecords = Array.isArray(data.records) ? data.records : [];
+        const total = personalRecords.length;
+        const present = personalRecords.filter((r) => String(r.status || "").toLowerCase() === "present").length;
+        const late = personalRecords.filter((r) => String(r.status || "").toLowerCase() === "late").length;
+        const absent = personalRecords.filter((r) => String(r.status || "").toLowerCase() === "absent").length;
+        setStats({
+          totalParticipants: data?.member ? 1 : 0,
+          presentToday: present,
+          lateToday: late,
+          absentToday: absent,
+          totalRecords: total,
+          attendanceRate: total > 0 ? Math.round((present / total) * 100) : 0,
+        });
+        setRecords(personalRecords);
+        setParticipantCount(data?.member ? 1 : 0);
+      } catch (err) {
+        errors.push(`Personal attendance: ${err?.message || "error"}`);
+      }
+    } else {
+      // 1) Participants (accurate total count)
+      try {
+        const res = await authFetch("/participants");
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.message || "Failed to load participants");
+        setParticipantCount(Array.isArray(data.participants) ? data.participants.length : 0);
+      } catch (err) {
+        errors.push(`Participants: ${err?.message || "error"}`);
+      }
 
-    // 3) Attendance history (all records for total count, recent activity & charts)
-    try {
-      const params = new URLSearchParams({ page: "1", limit: "10000" });
-      const res = await authFetch(`/attendance/history?${params.toString()}`);
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.message || "Failed to load attendance history");
-      setRecords(Array.isArray(data.records) ? data.records : []);
-    } catch (err) {
-      errors.push(`History: ${err?.message || "error"}`);
+      // 2) Dashboard stats
+      try {
+        const res = await authFetch("/attendance/dashboard");
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.message || "Failed to load dashboard stats");
+        setStats({
+          totalParticipants: Number(data?.totalParticipants ?? 0) || 0,
+          presentToday: Number(data?.presentToday ?? 0) || 0,
+          lateToday: Number(data?.lateToday ?? 0) || 0,
+          absentToday: Number(data?.absentToday ?? 0) || 0,
+        });
+      } catch (err) {
+        errors.push(`Dashboard: ${err?.message || "error"}`);
+      }
+
+      // 3) Attendance history (all records for total count, recent activity & charts)
+      try {
+        const params = new URLSearchParams({ page: "1", limit: "10000" });
+        const res = await authFetch(`/attendance/history?${params.toString()}`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.message || "Failed to load attendance history");
+        setRecords(Array.isArray(data.records) ? data.records : []);
+      } catch (err) {
+        errors.push(`History: ${err?.message || "error"}`);
+      }
     }
 
     // 4) Session settings
@@ -284,32 +310,55 @@ function Dashboard() {
 
   const adminName = user?.full_name || "Administrator";
 
-  const kpis = [
-    { key: "totalParticipants", label: labels.registeredMemberLabel || "Total Participants", value: totalParticipants, icon: <FiUsers />, tone: "indigo" },
-    { key: "presentToday", label: labels.checkedInLabel || "Present Today", value: presentToday, icon: <FiCheckCircle />, tone: "green" },
-    { key: "lateToday", label: labels.lateLabel || "Late Today", value: lateToday, icon: <FiClock />, tone: "amber" },
-    { key: "absentToday", label: labels.absentLabel || "Absent Today", value: absentToday, icon: <FiXCircle />, tone: "red" },
-    { key: "attendanceRate", label: "Attendance Rate", value: attendanceRate, suffix: "%", icon: <FiPercent />, tone: "violet" },
-    { key: "todayCheckIns", label: "Today's Check-ins", value: todayCheckIns, icon: <FiUserCheck />, tone: "teal" },
-    { key: "totalRecords", label: "Total Attendance Records", value: totalRecords, icon: <FiDatabase />, tone: "blue" },
-    { key: "activeSession", label: "Active Session", value: sessionStatus.label, icon: <FiActivity />, tone: "slate" },
-  ];
+  const kpis = user?.role === "viewer"
+    ? [
+      { key: "myAttendance", label: "My Attendance", value: totalRecords, icon: <FiUserCheck />, tone: "indigo" },
+      { key: "presentToday", label: "Present", value: presentToday, icon: <FiCheckCircle />, tone: "green" },
+      { key: "lateToday", label: "Late", value: lateToday, icon: <FiClock />, tone: "amber" },
+      { key: "absentToday", label: "Absent", value: absentToday, icon: <FiXCircle />, tone: "red" },
+      { key: "attendanceRate", label: "Attendance Rate", value: attendanceRate, suffix: "%", icon: <FiPercent />, tone: "violet" },
+      { key: "myRecords", label: "My Attendance Records", value: totalRecords, icon: <FiDatabase />, tone: "blue" },
+    ]
+    : [
+      { key: "totalParticipants", label: labels.registeredMemberLabel || "Total Participants", value: totalParticipants, icon: <FiUsers />, tone: "indigo" },
+      { key: "presentToday", label: labels.checkedInLabel || "Present Today", value: presentToday, icon: <FiCheckCircle />, tone: "green" },
+      { key: "lateToday", label: labels.lateLabel || "Late Today", value: lateToday, icon: <FiClock />, tone: "amber" },
+      { key: "absentToday", label: labels.absentLabel || "Absent Today", value: absentToday, icon: <FiXCircle />, tone: "red" },
+      { key: "attendanceRate", label: "Attendance Rate", value: attendanceRate, suffix: "%", icon: <FiPercent />, tone: "violet" },
+      { key: "todayCheckIns", label: "Today's Check-ins", value: todayCheckIns, icon: <FiUserCheck />, tone: "teal" },
+      { key: "totalRecords", label: "Total Attendance Records", value: totalRecords, icon: <FiDatabase />, tone: "blue" },
+      { key: "activeSession", label: "Active Session", value: sessionStatus.label, icon: <FiActivity />, tone: "slate" },
+    ];
 
-  const quickActions = [
-    { to: "/attendance", label: "Start Session", icon: <FiPlay />, tone: "primary", desc: "Begin / continue attendance recording" },
-    { to: "/attendance", label: "Open Attendance Scanner", icon: <FiCamera />, tone: "blue", desc: "Scan QR codes to mark attendance" },
-    { to: "/participants", label: "Manage Participants", icon: <FiUserPlus />, tone: "green", desc: "Add, edit or remove participants" },
-    { to: "/attendance-history", label: "Attendance History", icon: <FiList />, tone: "amber", desc: "View and export attendance records" },
-    { to: "/reports", label: "Analytics & Reports", icon: <FiBarChart2 />, tone: "violet", desc: "Monitor trends and generate insights" },
-    { to: "/reports", label: "Generate Report", icon: <FiFileText />, tone: "teal", desc: "Create a downloadable attendance report" },
-    { to: "/settings", label: "Settings", icon: <FiSettings />, tone: "slate", desc: "Configure organization and system" },
-  ];
+  const quickActions = user?.role === "viewer"
+    ? [{ to: "/my-attendance", label: "My Attendance", icon: <FiUserCheck />, tone: "primary", desc: "View your attendance summary" }]
+    : [
+      { to: "/attendance", label: "Start Session", icon: <FiPlay />, tone: "primary", desc: "Begin / continue attendance recording" },
+      { to: "/attendance", label: "Open Attendance Scanner", icon: <FiCamera />, tone: "blue", desc: "Scan QR codes to mark attendance" },
+      { to: "/participants", label: "Manage Participants", icon: <FiUserPlus />, tone: "green", desc: "Add, edit or remove participants" },
+      { to: "/attendance-history", label: "Attendance History", icon: <FiList />, tone: "amber", desc: "View and export attendance records" },
+      { to: "/reports", label: "Analytics & Reports", icon: <FiBarChart2 />, tone: "violet", desc: "Monitor trends and generate insights" },
+      { to: "/reports", label: "Generate Report", icon: <FiFileText />, tone: "teal", desc: "Create a downloadable attendance report" },
+      { to: "/settings", label: "Settings", icon: <FiSettings />, tone: "slate", desc: "Configure organization and system" },
+    ];
+
+  const viewerOnly = user?.role === "viewer";
+
+  const topRecentTitle = viewerOnly ? "Recent Attendance" : "Recent Activity";
+
+  const topRecentSubtitle = viewerOnly ? "Your latest attendance records" : "Latest attendance records";
+
+  const recentEmptyText = viewerOnly ? "No attendance records yet." : "No attendance records yet.";
+
+  const recentLinkTarget = viewerOnly ? "/my-attendance" : "/attendance-history";
+
+  const recentLinkLabel = viewerOnly ? "View my attendance" : "View all";
 
   const sessionInfoRows = [
     { icon: <FiClock />, label: "Attendance Start", value: sessionSettings?.attendanceStartTime ? formatTime(sessionSettings.attendanceStartTime) : "07:30 AM" },
     { icon: <FiAlertTriangle />, label: "Late Cutoff", value: sessionSettings?.lateCutoffTime ? formatTime(sessionSettings.lateCutoffTime) : "08:00 AM" },
     { icon: <FiSunset />, label: "Attendance End", value: sessionSettings?.attendanceEndTime ? formatTime(sessionSettings.attendanceEndTime) : "05:00 PM" },
-{ icon: <FiGlobe />, label: "Timezone", value: sessionSettings?.timezone || orgSettings.timezone || "(UTC+08:00) Asia/Manila" },
+    { icon: <FiGlobe />, label: "Timezone", value: sessionSettings?.timezone || orgSettings.timezone || "(UTC+08:00) Asia/Manila" },
     { icon: <FiLoader />, label: "Grace Period", value: sessionSettings?.gracePeriod || orgSettings.gracePeriod || "None" },
     { icon: <FiZap />, label: "Attendance Mode", value: sessionSettings?.attendanceMode || orgSettings.attendanceMode || "QR + Manual" },
   ];

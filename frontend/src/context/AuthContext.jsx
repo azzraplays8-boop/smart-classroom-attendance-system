@@ -11,6 +11,7 @@
  */
 import { createContext, useCallback, useEffect, useState } from "react";
 import authService from "../services/authService";
+import { clearStoredAuth, getStoredAuthToken } from "../services/apiClient";
 
 export const AuthContext = createContext(null);
 
@@ -77,9 +78,8 @@ export const PERMISSIONS = {
   },
   viewer: {
     label: "Viewer",
-    routes: ["dashboard", "attendance-overview", "attendance-history", "reports", "account"],
-    canAccess: (route) =>
-      ["dashboard", "attendance-overview", "attendance-history", "reports", "account"].includes(route),
+    routes: ["dashboard", "my-attendance", "account"],
+    canAccess: (route) => ["dashboard", "my-attendance", "account"].includes(route),
   },
 };
 
@@ -121,8 +121,7 @@ export function AuthProvider({ children }) {
    * If the token is invalid/expired, clears auth state.
    */
   useEffect(() => {
-    const storedToken =
-      localStorage.getItem("auth_token") || sessionStorage.getItem("auth_token");
+    const storedToken = getStoredAuthToken();
     const storedUser =
       localStorage.getItem("auth_user") || sessionStorage.getItem("auth_user");
 
@@ -143,10 +142,7 @@ export function AuthProvider({ children }) {
       })
       .catch(() => {
         // Token is invalid or expired — clear everything
-        localStorage.removeItem("auth_token");
-        localStorage.removeItem("auth_user");
-        sessionStorage.removeItem("auth_token");
-        sessionStorage.removeItem("auth_user");
+        clearStoredAuth();
         setToken(null);
         setUser(null);
       })
@@ -209,10 +205,7 @@ export function AuthProvider({ children }) {
       // Silently ignore logout API errors
     }
 
-    localStorage.removeItem("auth_token");
-    localStorage.removeItem("auth_user");
-    sessionStorage.removeItem("auth_token");
-    sessionStorage.removeItem("auth_user");
+    clearStoredAuth();
 
     setToken(null);
     setUser(null);

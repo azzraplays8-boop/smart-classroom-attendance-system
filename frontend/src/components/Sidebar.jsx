@@ -38,7 +38,7 @@ function Sidebar() {
       return ["dashboard", "participants", "attendance", "attendance-history", "account"].includes(route);
     }
     if (role === "viewer") {
-      return ["dashboard", "attendance-overview", "attendance-history", "reports", "account"].includes(route);
+      return ["dashboard", "my-attendance", "account"].includes(route);
     }
     return false;
   };
@@ -70,10 +70,10 @@ function Sidebar() {
           </NavLink>
         )}
 
-        {hasRoute("attendance-overview") && (
-          <NavLink to="/attendance-overview" className="nav-item">
+        {hasRoute("my-attendance") && (
+          <NavLink to="/my-attendance" className="nav-item">
             <FaEye />
-            <span>Attendance Overview</span>
+            <span>My Attendance</span>
           </NavLink>
         )}
 

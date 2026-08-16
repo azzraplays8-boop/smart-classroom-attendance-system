@@ -6,6 +6,7 @@ import Register from "./pages/Register/Register";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 import Dashboard from "./pages/Dashboard";
+import MyAttendance from "./pages/MyAttendance";
 import Participants from "./pages/Participants";
 import Attendance from "./pages/Attendance";
 import AttendanceOverview from "./pages/AttendanceOverview";
@@ -30,6 +31,7 @@ function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/participants" element={<Participants />} />
           <Route path="/attendance" element={<Attendance />} />
+          <Route path="/my-attendance" element={<MyAttendance />} />
           <Route path="/attendance-overview" element={<AttendanceOverview />} />
           <Route path="/attendance-history" element={<AttendanceHistory />} />
           <Route path="/qr-management" element={<QRManagement />} />

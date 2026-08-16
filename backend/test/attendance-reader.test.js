@@ -110,6 +110,39 @@ test("GET /attendance/activity-summary as viewer returns 200", async () => {
   }
 });
 
+test("GET /attendance/me as viewer returns only their participant attendance", async () => {
+  const pool = {
+    async query(sql, params) {
+      const s = String(sql);
+      if (s.includes("FROM user_permissions")) return [[]];
+      if (s.includes("WHERE u.id = ?")) return [[{ id: 1, role: "viewer", is_active: 1, account_status: "approved", email: "viewer@test.local", username: "viewer" }]];
+      if (s.includes("FROM participants WHERE email = ? LIMIT 1") || s.includes("FROM participants\n         WHERE email = ? LIMIT 1")) {
+        return [[{ id: 7, participant_identifier: "V-001", first_name: "Viewer", last_name: "User", participantIdentifier: "V-001", firstName: "Viewer", lastName: "User", department: "BSIT", level: "3", group_name: "A", year: "3", section: "A" }]];
+      }
+      if (s.includes("WHERE a.participant_id = ?") && Array.isArray(params) && params[0] === 7) {
+        return [[{ id: 101, participant_id: 7, attendance_date: "2026-08-16", time_in: "08:15:00", status: "Present", remarks: "On time" }]];
+      }
+      return [[]];
+    },
+  };
+
+  const server = createServer(makeServer(wrapPoolForAuth(pool, "viewer")));
+  await new Promise((resolve) => server.listen(0, resolve));
+  const { port } = server.address();
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/attendance/me`, {
+      headers: { Authorization: `Bearer ${makeToken("viewer")}` },
+    });
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.equal(body.member.participantIdentifier, "V-001");
+    assert.equal(body.records.length, 1);
+    assert.equal(body.records[0].status, "Present");
+  } finally {
+    await new Promise((resolve) => server.close(() => resolve()));
+  }
+});
+
 test("GET /attendance/monthly-summary without token returns 401", async () => {
   const pool = wrapPoolForAuth(readerStub());
   const server = createServer(makeServer(pool));

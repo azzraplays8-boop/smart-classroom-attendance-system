@@ -2,7 +2,15 @@ import { API_BASE_URL } from "../config/api";
 
 export function getStoredAuthToken() {
   if (typeof window === "undefined") return null;
-  return localStorage.getItem("auth_token") || sessionStorage.getItem("auth_token");
+  return localStorage.getItem("auth_token") ?? sessionStorage.getItem("auth_token") ?? null;
+}
+
+export function clearStoredAuth() {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem("auth_token");
+  localStorage.removeItem("auth_user");
+  sessionStorage.removeItem("auth_token");
+  sessionStorage.removeItem("auth_user");
 }
 
 export function applyAuthHeaders(existingHeaders = {}) {

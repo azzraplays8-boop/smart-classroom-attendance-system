@@ -1,7 +1,8 @@
 import { API_BASE_URL } from "../config/api";
+import { getStoredAuthToken } from "./apiClient";
 
 function getAuthHeaders() {
-  const token = localStorage.getItem("auth_token") || sessionStorage.getItem("auth_token");
+  const token = getStoredAuthToken();
   const headers = {
     "Content-Type": "application/json",
   };

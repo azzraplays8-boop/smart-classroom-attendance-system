@@ -4,6 +4,7 @@
  */
 import axios from "axios";
 import { API_BASE_URL } from "../config/api";
+import { clearStoredAuth, getStoredAuthToken } from "./apiClient";
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -14,7 +15,7 @@ const api = axios.create({
  * Attach JWT token to every request if available.
  */
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("auth_token") || sessionStorage.getItem("auth_token");
+  const token = getStoredAuthToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -28,10 +29,7 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem("auth_token");
-      localStorage.removeItem("auth_user");
-      sessionStorage.removeItem("auth_token");
-      sessionStorage.removeItem("auth_user");
+      clearStoredAuth();
       // Only redirect if not already on login page
       if (window.location.pathname !== "/login") {
         window.location.href = "/login";
