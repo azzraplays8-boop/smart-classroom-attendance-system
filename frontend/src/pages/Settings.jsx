@@ -68,7 +68,6 @@ import { useOrgLabels } from "../config/labels";
 import { useSettings } from "../context/SettingsContext";
 import { APP_VERSION } from "../constants";
 import { authFetch } from "../services/apiClient";
-import { useSettings } from "../context/SettingsContext";
 import UserManagement from "./UserManagement";
 
 const DEFAULT_PRIMARY_COLOR = "#4f46e5";
