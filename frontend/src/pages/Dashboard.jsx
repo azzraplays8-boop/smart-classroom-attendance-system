@@ -364,7 +364,7 @@ function Dashboard() {
     { icon: <FiZap />, label: "Attendance Mode", value: sessionSettings?.attendanceMode || orgSettings.attendanceMode || "QR + Manual" },
     // Academic term (single source of truth from Settings → Academic Configuration)
     { icon: <FaGraduationCap />, label: "Academic Year", value: orgSettings.academicYear || orgSettings.orgYear || "—" },
-    { icon: <FaMoon />, label: "Semester", value: orgSettings.semester || "—" },
+    { icon: <FiMoon />, label: "Semester", value: orgSettings.semester || "—" },
   ];
 
   const activityStatusClass = (status) => {
