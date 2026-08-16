@@ -158,6 +158,8 @@
   justify-content: center;
   padding: 34px 42px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.96));
+  overflow-y: auto;
+  max-height: 100vh;
 }
 
 .register-form-inner {
@@ -411,6 +413,39 @@
 .register-link:hover {
   color: var(--k-btn-hover);
   text-decoration: underline;
+}
+
+/* ── Form sections (multi-step visual organization) ── */
+.register-section {
+  padding: 16px 0;
+  border-bottom: 1px solid rgba(203, 213, 225, 0.4);
+}
+
+.register-section:last-of-type {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.register-section:first-of-type {
+  padding-top: 0;
+}
+
+.register-section-title {
+  margin: 0 0 12px;
+  font-size: 13.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #475569;
+  opacity: 0.85;
+}
+
+.register-section .register-field {
+  margin-bottom: 12px;
+}
+
+.register-section .register-field:last-child {
+  margin-bottom: 0;
 }
 
 /* ── Pending approval screen ── */

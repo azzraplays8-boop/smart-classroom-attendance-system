@@ -215,11 +215,27 @@ export default function authRouter({ pool }) {
   // ─────────────────────────────────────────────
   router.post("/register", async (req, res) => {
     try {
-      const { full_name, username, email, password, confirm_password, invitation_code } = req.body;
+      const {
+        // Account fields
+        first_name, middle_name, last_name,
+        username, email, password, confirm_password, invitation_code,
+        // Participant fields
+        participant_id, gender, date_of_birth,
+        // Academic fields
+        department, category,
+        // Contact fields
+        contact_number,
+      } = req.body;
 
-      // --- Validate required fields ---
-      if (!full_name || !full_name.trim()) {
-        return res.status(400).json({ message: "Full name is required." });
+      // --- Validate required account fields ---
+      if (!first_name || !first_name.trim()) {
+        return res.status(400).json({ message: "First name is required." });
+      }
+      if (!middle_name || !middle_name.trim()) {
+        return res.status(400).json({ message: "Middle name is required." });
+      }
+      if (!last_name || !last_name.trim()) {
+        return res.status(400).json({ message: "Last name is required." });
       }
       if (!username || !username.trim()) {
         return res.status(400).json({ message: "Username is required." });
@@ -232,6 +248,30 @@ export default function authRouter({ pool }) {
       }
       if (!confirm_password) {
         return res.status(400).json({ message: "Confirm password is required." });
+      }
+
+      // --- Validate required participant fields ---
+      if (!participant_id || !participant_id.trim()) {
+        return res.status(400).json({ message: "Participant ID is required." });
+      }
+      if (!gender || !gender.trim()) {
+        return res.status(400).json({ message: "Gender is required." });
+      }
+      if (!date_of_birth || !date_of_birth.trim()) {
+        return res.status(400).json({ message: "Date of birth is required." });
+      }
+
+      // --- Validate required academic fields ---
+      if (!department || !department.trim()) {
+        return res.status(400).json({ message: "Department/Group is required." });
+      }
+      if (!category || !category.trim()) {
+        return res.status(400).json({ message: "Category is required." });
+      }
+
+      // --- Validate required contact fields ---
+      if (!contact_number || !contact_number.trim()) {
+        return res.status(400).json({ message: "Contact number is required." });
       }
 
       // --- Validate password length ---
@@ -270,6 +310,15 @@ export default function authRouter({ pool }) {
         return res.status(409).json({ message: "This username is already taken." });
       }
 
+      // --- Check for existing participant ID ---
+      const [participantIdCheck] = await pool.query(
+        "SELECT id FROM participants WHERE participant_identifier = ?",
+        [participant_id.trim()]
+      );
+      if (participantIdCheck.length > 0) {
+        return res.status(409).json({ message: "This Participant ID already exists." });
+      }
+
       // --- Determine if this is the first user (Super Admin) ---
       const [userCount] = await pool.query("SELECT COUNT(*) AS count FROM users");
       const isFirstUser = Number(userCount[0].count) === 0;
@@ -300,25 +349,108 @@ export default function authRouter({ pool }) {
       try {
         await connection.beginTransaction();
 
+        // --- Construct full name from parts ---
+        const fullName = `${first_name.trim()} ${middle_name.trim()} ${last_name.trim()}`.replace(/\s+/g, " ").trim();
+
         // --- Hash password and create user ---
         const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
         const [result] = await connection.query(
           `INSERT INTO users (email, username, password, full_name, role, is_active, account_status, organization_id)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-          [normalizedEmail, normalizedUsername, hashedPassword, full_name.trim(), role,
+          [normalizedEmail, normalizedUsername, hashedPassword, fullName, role,
            isFirstUser ? 1 : 0, accountStatus, organizationId]
         );
 
         const newUserId = result.insertId;
 
-        // --- Create the linked participant profile atomically to avoid duplicate records.
-        const existingParticipant = await ensureParticipantLink(
-          connection,
-          newUserId,
-          normalizedEmail,
-          full_name.trim(),
-          normalizedUsername
+        // --- Create the participant profile with all registration data ---
+        const [nameColumnResult] = await connection.query(
+          `SELECT COUNT(*) AS count
+             FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = 'participants'
+              AND COLUMN_NAME = 'name'`
         );
+        const hasNameColumn = Number(nameColumnResult?.[0]?.count ?? 0) > 0;
+
+        const participantIdentifier = participant_id.trim();
+        const participantInsertSql = hasNameColumn
+          ? `INSERT INTO participants (
+              participant_identifier,
+              qr_code,
+              name,
+              last_name,
+              first_name,
+              middle_name,
+              gender,
+              date_of_birth,
+              email,
+              user_id,
+              contact_number,
+              department,
+              level,
+              group_name,
+              status
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          : `INSERT INTO participants (
+              participant_identifier,
+              qr_code,
+              last_name,
+              first_name,
+              middle_name,
+              gender,
+              date_of_birth,
+              email,
+              user_id,
+              contact_number,
+              department,
+              level,
+              group_name,
+              status
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+
+        const participantInsertParams = hasNameColumn
+          ? [
+              participantIdentifier,
+              participantIdentifier,
+              fullName,
+              last_name.trim(),
+              first_name.trim(),
+              middle_name.trim(),
+              gender.trim(),
+              date_of_birth.trim(),
+              normalizedEmail,
+              newUserId,
+              contact_number.trim(),
+              department.trim(),
+              category.trim(),
+              null, // group_name (Team) is left null/empty per requirements
+              "Active",
+            ]
+          : [
+              participantIdentifier,
+              participantIdentifier,
+              last_name.trim(),
+              first_name.trim(),
+              middle_name.trim(),
+              gender.trim(),
+              date_of_birth.trim(),
+              normalizedEmail,
+              newUserId,
+              contact_number.trim(),
+              department.trim(),
+              category.trim(),
+              null, // group_name (Team) is left null/empty per requirements
+              "Active",
+            ];
+
+        const [participantResult] = await connection.query(participantInsertSql, participantInsertParams);
+
+        const participantData = {
+          id: participantResult.insertId,
+          participantIdentifier: participantIdentifier,
+          userId: newUserId,
+        };
 
         // --- If used an invitation code, increment its use count ---
         if (resolvedInvite) {
@@ -346,7 +478,7 @@ export default function authRouter({ pool }) {
             message: "Super Administrator account created successfully. You are now the system Super Admin.",
             token,
             user: createdUser,
-            participant: existingParticipant,
+            participant: participantData,
           });
         }
 
@@ -354,7 +486,7 @@ export default function authRouter({ pool }) {
         return res.status(201).json({
           message: "Registration submitted. Your account is pending approval. You will be able to log in once an administrator approves your account.",
           user: null,
-          participant: existingParticipant,
+          participant: participantData,
           pending: true,
         });
       } catch (err) {

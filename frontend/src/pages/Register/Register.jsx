@@ -1,12 +1,14 @@
 /**
  * KATAGA Portal Register
  *
+ * Registration form with automatic participant profile creation.
  * First registered user becomes Super Administrator (auto-approved, no org required).
  * Subsequent registrations require a valid invitation code and become Pending Approval.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
+import { useAcademicConfig } from "../../hooks/useAcademicConfig";
 import {
   FiEye,
   FiEyeOff,
@@ -26,21 +28,36 @@ import "./Register.css";
 export default function Register() {
   const { register, isAuthenticated, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const academicConfig = useAcademicConfig();
 
   const [formData, setFormData] = useState({
-    full_name: "",
+    // Personal Information
+    first_name: "",
+    middle_name: "",
+    last_name: "",
+    // Account Information
     username: "",
     email: "",
     password: "",
     confirm_password: "",
     invitation_code: "",
+    // Participant Information
+    participant_id: "",
+    gender: "",
+    date_of_birth: "",
+    // Academic Information
+    department: "",
+    category: "",
+    // Contact Information
+    contact_number: "",
   });
+  
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState({});
-  const [pending, setPending] = useState(false); // true after pending registration submitted
+  const [pending, setPending] = useState(false);
 
   if (!authLoading && isAuthenticated) {
     return <Navigate to="/" replace />;
@@ -49,7 +66,6 @@ export default function Register() {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
-    // Clear field error on change
     if (fieldErrors[name]) {
       setFieldErrors((prev) => ({ ...prev, [name]: "" }));
     }
@@ -59,10 +75,18 @@ export default function Register() {
   const validate = () => {
     const errors = {};
 
-    if (!formData.full_name.trim()) {
-      errors.full_name = "Full name is required.";
+    // Personal Information
+    if (!formData.first_name.trim()) {
+      errors.first_name = "First name is required.";
+    }
+    if (!formData.middle_name.trim()) {
+      errors.middle_name = "Middle name is required.";
+    }
+    if (!formData.last_name.trim()) {
+      errors.last_name = "Last name is required.";
     }
 
+    // Account Information
     if (!formData.username.trim()) {
       errors.username = "Username is required.";
     } else if (!/^[a-zA-Z0-9_]{3,30}$/.test(formData.username.trim())) {
@@ -88,10 +112,29 @@ export default function Register() {
       errors.confirm_password = "Passwords do not match.";
     }
 
-    // NOTE: The invitation code is OPTIONAL for the first registered account
-    // (which becomes the sole Super Admin). The backend decides whether a code
-    // is required based on whether a user already exists. If this is not the
-    // first user and no code was provided, the backend returns a clear error.
+    // Participant Information
+    if (!formData.participant_id.trim()) {
+      errors.participant_id = "Participant ID is required.";
+    }
+    if (!formData.gender.trim()) {
+      errors.gender = "Gender is required.";
+    }
+    if (!formData.date_of_birth.trim()) {
+      errors.date_of_birth = "Date of birth is required.";
+    }
+
+    // Academic Information
+    if (!formData.department.trim()) {
+      errors.department = "Department/Group is required.";
+    }
+    if (!formData.category.trim()) {
+      errors.category = "Category is required.";
+    }
+
+    // Contact Information
+    if (!formData.contact_number.trim()) {
+      errors.contact_number = "Contact number is required.";
+    }
 
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
@@ -107,21 +150,32 @@ export default function Register() {
 
     try {
       const result = await register({
-        full_name: formData.full_name.trim(),
+        // Personal Information
+        first_name: formData.first_name.trim(),
+        middle_name: formData.middle_name.trim(),
+        last_name: formData.last_name.trim(),
+        // Account Information
         username: formData.username.trim(),
         email: formData.email.trim(),
         password: formData.password,
         confirm_password: formData.confirm_password,
         invitation_code: formData.invitation_code.trim(),
+        // Participant Information
+        participant_id: formData.participant_id.trim(),
+        gender: formData.gender.trim(),
+        date_of_birth: formData.date_of_birth.trim(),
+        // Academic Information
+        department: formData.department.trim(),
+        category: formData.category.trim(),
+        // Contact Information
+        contact_number: formData.contact_number.trim(),
       });
 
-      // If the registration is pending approval, show the pending screen
       if (result.pending) {
         setPending(true);
         return;
       }
 
-      // Otherwise (first user / Super Admin), navigate to dashboard
       navigate("/", { replace: true });
     } catch (err) {
       const message =
@@ -134,7 +188,7 @@ export default function Register() {
     }
   };
 
-  const renderField = (label, name, type, placeholder, options = {}) => {
+  const renderTextInput = (label, name, type, placeholder, options = {}) => {
     const isPassword = type === "password";
     const showState = name === "password" ? showPassword : showConfirmPassword;
     const toggleShow = name === "password"
@@ -171,6 +225,36 @@ export default function Register() {
               {showState ? <FiEyeOff size={18} /> : <FiEye size={18} />}
             </button>
           )}
+        </div>
+        {fieldErrors[name] && (
+          <span className="register-fielderror">{fieldErrors[name]}</span>
+        )}
+      </div>
+    );
+  };
+
+  const renderSelect = (label, name, options, placeholder = "Select an option") => {
+    return (
+      <div className="register-field">
+        <label className="register-label" htmlFor={`register-${name}`}>
+          {label}
+        </label>
+        <div className="register-inputwrap">
+          <select
+            id={`register-${name}`}
+            name={name}
+            className={`register-input ${fieldErrors[name] ? "register-input-error" : ""}`}
+            value={formData[name]}
+            onChange={handleChange}
+            disabled={isSubmitting}
+          >
+            <option value="">{placeholder}</option>
+            {options.map((opt) => (
+              <option key={opt} value={opt}>
+                {opt}
+              </option>
+            ))}
+          </select>
         </div>
         {fieldErrors[name] && (
           <span className="register-fielderror">{fieldErrors[name]}</span>
@@ -258,7 +342,7 @@ export default function Register() {
                 Back to Login
               </Link>
               <h2 className="register-title">Create Your Account</h2>
-              <p className="register-subtitle">Join KATAGA and get started</p>
+              <p className="register-subtitle">Register and create your participant profile</p>
             </div>
 
             {error && (
@@ -269,19 +353,64 @@ export default function Register() {
             )}
 
             <form className="register-form" onSubmit={handleSubmit} noValidate>
-              {renderField("Full Name", "full_name", "text", "Enter your full name",
-                { autoFocus: true, autoComplete: "name", icon: <FiUser size={15} /> })}
-              {renderField("Username", "username", "text", "Choose a username",
-                { autoComplete: "username", icon: <FiUsers size={15} /> })}
-              {renderField("Email", "email", "email", "Enter your email address",
-                { autoComplete: "email", icon: <FiMail size={15} /> })}
-              {renderField("Password", "password", "password", "Minimum 8 characters",
-                { icon: <FiLock size={15} /> })}
-              {renderField("Confirm Password", "confirm_password", "password", "Re-enter your password",
-                { icon: <FiLock size={15} /> })}
-              {renderField("Invitation Code", "invitation_code", "text",
-                "Required for non-first accounts (optional for first Super Admin)",
-                { icon: <FiKey size={15} /> })}
+              {/* PERSONAL INFORMATION */}
+              <div className="register-section">
+                <h3 className="register-section-title">Personal Information</h3>
+                {renderTextInput("First Name", "first_name", "text", "Enter your first name",
+                  { autoFocus: true, autoComplete: "given-name", icon: <FiUser size={15} /> })}
+                {renderTextInput("Middle Name", "middle_name", "text", "Enter your middle name",
+                  { autoComplete: "additional-name" })}
+                {renderTextInput("Last Name", "last_name", "text", "Enter your last name",
+                  { autoComplete: "family-name" })}
+              </div>
+
+              {/* ACCOUNT INFORMATION */}
+              <div className="register-section">
+                <h3 className="register-section-title">Account Information</h3>
+                {renderTextInput("Username", "username", "text", "Choose a username",
+                  { autoComplete: "username", icon: <FiUsers size={15} /> })}
+                {renderTextInput("Email", "email", "email", "Enter your email address",
+                  { autoComplete: "email", icon: <FiMail size={15} /> })}
+                {renderTextInput("Password", "password", "password", "Minimum 8 characters",
+                  { icon: <FiLock size={15} /> })}
+                {renderTextInput("Confirm Password", "confirm_password", "password", "Re-enter your password",
+                  { icon: <FiLock size={15} /> })}
+                {renderTextInput("Invitation Code", "invitation_code", "text",
+                  "Required for non-first accounts (optional for first Super Admin)",
+                  { icon: <FiKey size={15} /> })}
+              </div>
+
+              {/* PARTICIPANT INFORMATION */}
+              <div className="register-section">
+                <h3 className="register-section-title">Participant Information</h3>
+                {renderTextInput("Participant ID", "participant_id", "text", "Enter participant ID (e.g., 2026-0001)",
+                  { icon: <FiUser size={15} /> })}
+                {renderSelect("Gender", "gender", ["Male", "Female", "Other"])}
+                {renderTextInput("Date of Birth", "date_of_birth", "date", "")}
+              </div>
+
+              {/* ACADEMIC INFORMATION */}
+              <div className="register-section">
+                <h3 className="register-section-title">Academic Information</h3>
+                {renderSelect("Department / Group", "department", 
+                  academicConfig.departments && academicConfig.departments.length > 0
+                    ? academicConfig.departments
+                    : ["BS ENTREP", "BS CRIM", "BS ACCOUNTANCY", "BS IT"],
+                  "Select a department")}
+                {renderSelect("Category", "category", 
+                  academicConfig.yearLevels && academicConfig.yearLevels.length > 0
+                    ? academicConfig.yearLevels
+                    : ["1st Year", "2nd Year", "3rd Year", "4th Year"],
+                  "Select a year level")}
+              </div>
+
+              {/* CONTACT INFORMATION */}
+              <div className="register-section">
+                <h3 className="register-section-title">Contact Information</h3>
+                {renderTextInput("Contact Number", "contact_number", "tel", "Enter your contact number (e.g., 09123456789)",
+                  { autoComplete: "tel" })}
+              </div>
+
               <button type="submit" className="register-submit" disabled={isSubmitting}>
                 {isSubmitting ? (
                   <>
@@ -291,7 +420,7 @@ export default function Register() {
                 ) : (
                   <>
                     <FiUserPlus size={17} />
-                    Submit Registration
+                    Create Account & Profile
                   </>
                 )}
               </button>
