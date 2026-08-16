@@ -361,6 +361,9 @@ function Dashboard() {
     { icon: <FiGlobe />, label: "Timezone", value: sessionSettings?.timezone || orgSettings.timezone || "(UTC+08:00) Asia/Manila" },
     { icon: <FiLoader />, label: "Grace Period", value: sessionSettings?.gracePeriod || orgSettings.gracePeriod || "None" },
     { icon: <FiZap />, label: "Attendance Mode", value: sessionSettings?.attendanceMode || orgSettings.attendanceMode || "QR + Manual" },
+    // Academic term (single source of truth from Settings → Academic Configuration)
+    { icon: <FaGraduationCap />, label: "Academic Year", value: orgSettings.academicYear || orgSettings.orgYear || "—" },
+    { icon: <FaMoon />, label: "Semester", value: orgSettings.semester || "—" },
   ];
 
   const activityStatusClass = (status) => {

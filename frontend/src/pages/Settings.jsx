@@ -65,6 +65,7 @@ FaFileImport,
 import "../styles/Settings.css";
 import translations from "../data/translations.js";
 import { useOrgLabels } from "../config/labels";
+import { useSettings } from "../context/SettingsContext";
 import { APP_VERSION } from "../constants";
 import { authFetch } from "../services/apiClient";
 import UserManagement from "./UserManagement";
@@ -257,12 +258,28 @@ function Settings() {
           autoMarkAbsent: data.settings.autoMarkAbsent === "true" || data.settings.autoMarkAbsent === true,
           maintenanceMode: data.settings.maintenanceMode === "true" || data.settings.maintenanceMode === true,
           autoBackup: data.settings.autoBackup === "true" || data.settings.autoBackup === true,
+          // Academic configuration (single source of truth)
+          academicYear: data.settings.academicYear ?? data.settings.orgYear ?? "",
+          semester: data.settings.semester ?? data.settings.semester ?? "1st",
+          defaultDepartments: data.settings.defaultDepartments ?? data.settings.defaultDepartments ?? "",
+          defaultCourses: data.settings.defaultCourses ?? data.settings.defaultCourses ?? "",
+          defaultSections: data.settings.defaultSections ?? data.settings.defaultSections ?? "",
+          positionLevels: data.settings.positionLevels ?? data.settings.positionLevels ?? "",
           theme: mergedTheme,
           primaryColor: mergedColor,
           language: mergedLang,
         };
         setSettings(next);
         setSavedSnapshot(next);
+        // Sync academic config to the global SettingsContext localStorage
+        // so that ALL pages (Participant forms, reports, viewer pages, etc.)
+        // pick up the updated values immediately.
+        try {
+          const storageCopy = { ...next };
+          localStorage.setItem("app_org_settings", JSON.stringify(storageCopy));
+        } catch {
+          // ignore localStorage errors
+        }
         applyLocalPreferences({ theme: mergedTheme, primaryColor: mergedColor, language: mergedLang });
       } else {
         const fallbackTheme = storedTheme || "light";
@@ -322,6 +339,24 @@ function Settings() {
       showToast("success", "Settings saved successfully.");
       setSavedSnapshot(settings);
       await loadSettings();
+      // Also immediately sync the updated academic config to the global
+      // SettingsContext localStorage so that all pages (Participant forms,
+      // reports, viewer pages, etc.) pick up the new values right away,
+      // including after navigating away and back.
+      try {
+        const storageCopy = { ...settings };
+        localStorage.setItem("app_org_settings", JSON.stringify(storageCopy));
+      } catch {
+        // ignore localStorage errors
+      }
+      // Refresh the global SettingsContext so that all pages (Participant forms,
+      // reports, viewer pages, etc.) immediately use the updated configuration.
+      try {
+        const { refreshSettings } = useSettings();
+        refreshSettings();
+      } catch {
+        // ignore refresh errors
+      }
     } catch (err) {
       showToast("error", err?.message || "Failed to save settings.");
       console.error("[Settings Save Error]", err);
