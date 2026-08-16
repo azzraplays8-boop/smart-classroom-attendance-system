@@ -30,7 +30,12 @@ class AppErrorBoundary extends Component {
   }
 
   componentDidCatch(error, info) {
-    console.error("App runtime error:", error, info);
+    console.error("App runtime error:", {
+      message: error?.message,
+      stack: error?.stack,
+      componentStack: info?.componentStack,
+      error,
+    });
   }
 
   render() {
