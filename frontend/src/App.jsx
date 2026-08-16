@@ -1,3 +1,4 @@
+import { Component } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 
 import Layout from "./components/Layout";
@@ -18,31 +19,89 @@ import AccountWorkspace from "./pages/AccountWorkspace";
 import UserManagement from "./pages/UserManagement";
 import Organizations from "./pages/Organizations";
 
+class AppErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error, info) {
+    console.error("App runtime error:", error, info);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div
+          style={{
+            minHeight: "100vh",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 12,
+            fontFamily: "system-ui, sans-serif",
+            color: "#0f172a",
+            background: "#f8fafc",
+            padding: 24,
+            textAlign: "center",
+          }}
+        >
+          <h2 style={{ margin: 0, fontSize: 28 }}>Something went wrong while loading the application.</h2>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            style={{
+              padding: "10px 16px",
+              borderRadius: 8,
+              border: "none",
+              background: "#4f46e5",
+              color: "#fff",
+              cursor: "pointer",
+              fontWeight: 600,
+            }}
+          >
+            Reload
+          </button>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
 function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        {/* Public routes - no auth required */}
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
+    <AppErrorBoundary>
+      <BrowserRouter>
+        <Routes>
+          {/* Public routes - no auth required */}
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
 
-        {/* Protected routes - require authentication */}
-        <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/participants" element={<Participants />} />
-          <Route path="/attendance" element={<Attendance />} />
-          <Route path="/my-attendance" element={<MyAttendance />} />
-          <Route path="/attendance-overview" element={<AttendanceOverview />} />
-          <Route path="/attendance-history" element={<AttendanceHistory />} />
-          <Route path="/qr-management" element={<QRManagement />} />
-          <Route path="/reports" element={<Reports />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="/account" element={<AccountWorkspace />} />
-          <Route path="/user-management" element={<UserManagement />} />
-          <Route path="/organizations" element={<Organizations />} />
-        </Route>
-      </Routes>
-    </BrowserRouter>
+          {/* Protected routes - require authentication */}
+          <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/participants" element={<Participants />} />
+            <Route path="/attendance" element={<Attendance />} />
+            <Route path="/my-attendance" element={<MyAttendance />} />
+            <Route path="/attendance-overview" element={<AttendanceOverview />} />
+            <Route path="/attendance-history" element={<AttendanceHistory />} />
+            <Route path="/qr-management" element={<QRManagement />} />
+            <Route path="/reports" element={<Reports />} />
+            <Route path="/settings" element={<Settings />} />
+            <Route path="/account" element={<AccountWorkspace />} />
+            <Route path="/user-management" element={<UserManagement />} />
+            <Route path="/organizations" element={<Organizations />} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    </AppErrorBoundary>
   );
 }
 
