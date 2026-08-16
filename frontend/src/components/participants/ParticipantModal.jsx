@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import ParticipantInformationSection from "./ParticipantInformationSection";
 import ParticipantAvatar from "./ParticipantAvatar";
 import { useOrgLabels } from "../../config/labels";
+import { useAcademicConfig } from "../../hooks/useAcademicConfig";
 import "../../styles/participants/ParticipantModal.css";
 
 
@@ -250,19 +251,12 @@ const computedErrors = useMemo(() => {
     setValues((prev) => ({ ...prev, [key]: next }));
   };
 
-  const sectionOptionsByYearLevel = useMemo(
-    () => ({
-      "1st": ["A", "B", "C", "D"],
-      "2nd": ["A", "B", "C", "D"],
-      "3rd": ["A", "B", "C", "D"],
-      "4th": ["A", "B", "C", "D"],
-    }),
-    []
-  );
+    // Sections (Team) come from the centralized academic configuration set in
+  // Settings → Academic Configuration (Default Sections), not from a hardcoded
+  // list. They are offered once a year level/category has been chosen.
+  const { sections } = useAcademicConfig();
 
-  const availableSectionOptions = values.yearLevel
-    ? sectionOptionsByYearLevel[values.yearLevel] || []
-    : [];
+  const availableSectionOptions = values.yearLevel ? sections : [];
 
   useEffect(() => {
     if (!isOpen) return;

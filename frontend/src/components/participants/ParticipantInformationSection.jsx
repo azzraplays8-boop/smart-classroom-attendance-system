@@ -1,19 +1,9 @@
 import React from "react";
 
 import "../../styles/participants/ParticipantModal.css";
+import { useAcademicConfig } from "../../hooks/useAcademicConfig";
 
-function DepartmentSelect({ id, label, value, onChange, required, error, showError }) {
-  const options = [
-    "BSIT",
-    "BSCS",
-    "BSECE",
-    "BEED",
-    "BSTM",
-    "BSBA",
-    "ABM",
-    "STEM",
-  ];
-
+function DepartmentSelect({ id, label, value, onChange, required, error, showError, options }) {
   return (
     <div className="sis-field">
       <label className="sis-label" htmlFor={id}>
@@ -55,19 +45,24 @@ export default function ParticipantInformationSection({
   onSectionChange,
   availableSectionOptions,
 }) {
+  // Academic configuration is the single source of truth (set in Settings).
+  // Departments and year levels are read from there instead of being
+  // hardcoded here.
+  const { departments, yearLevels, formatYearLevelLabel } = useAcademicConfig();
+
   const visibleError = (key) => {
     return touched?.[key] || (!touched || Object.keys(touched).length === 0 ? Boolean(errors?.[key]) : false);
   };
 
   return (
-<section
-    className="sis-card"
-    aria-label="DEPARTMENT & GROUPING"
-    style={{
+    <section
+      className="sis-card"
+      aria-label="DEPARTMENT & GROUPING"
+      style={{
         clear: "both",
-    }}
->
-        <header className="sis-card-header">
+      }}
+    >
+      <header className="sis-card-header">
         <div className="sis-card-title">Department &amp; Grouping</div>
       </header>
 
@@ -76,14 +71,16 @@ export default function ParticipantInformationSection({
           id="course"
           label="Department / Group"
           required
+          options={departments}
           value={values.course}
           onChange={(v) =>
             setField("course")({
-            target: {
-            value: v,
-    },
-  })
-}          error={errors.course}
+              target: {
+                value: v,
+              },
+            })
+          }
+          error={errors.course}
           showError={Boolean(visibleError("course"))}
         />
 
@@ -104,10 +101,11 @@ export default function ParticipantInformationSection({
             }
           >
             <option value="">Select category</option>
-            <option value="1st">1st Year</option>
-            <option value="2nd">2nd Year</option>
-            <option value="3rd">3rd Year</option>
-            <option value="4th">4th Year</option>
+            {yearLevels.map((lvl) => (
+              <option key={lvl} value={lvl}>
+                {formatYearLevelLabel(lvl)}
+              </option>
+            ))}
           </select>
 
           {visibleError("yearLevel") && errors.yearLevel ? (
@@ -154,4 +152,3 @@ export default function ParticipantInformationSection({
     </section>
   );
 }
-

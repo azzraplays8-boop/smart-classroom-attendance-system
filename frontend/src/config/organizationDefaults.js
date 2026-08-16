@@ -262,9 +262,20 @@ export const DEFAULT_ORG_SETTINGS = {
   gracePeriod: "None",
   attendanceMode: "QR + Manual",
 
-  // Academic (school-specific) - kept for backward compatibility
-  schoolYear: "",
-  semester: "1st",
+    // Academic (school-specific) - the single source of truth for academic
+  // configuration. These values are written by Settings → Academic
+  // Configuration and consumed everywhere (participant forms, attendance,
+  // reports, viewer pages). Stored as comma-separated strings to stay
+  // compatible with the backend settings table; parsed on read.
+  academicYear: "", // e.g. "2026-2027"
+  schoolYear: "", // legacy alias (back-compat)
+  semester: "1st", // "1st" | "2nd" | "Summer"
+  departmentOptions: "BSIT,BSCS,BSECE,BEED,BSTM,BSBA,ABM,STEM", // department / course list
+  courseOptions: "", // additional course codes (optional)
+  sectionOptions: "A,B,C,D", // section / team list
+  yearLevelOptions: ["1st", "2nd", "3rd", "4th"], // year-level values
+
+  // Academic (legacy fields kept for backward compatibility)
   defaultCourses: "",
 
   // System preferences
