@@ -18,8 +18,7 @@ import {
   FiPlay,
   FiSun,
   FiSunrise,
-FiSunset,
-  FiMoon,
+  FiSunset,
   FiCalendar,
   FiGlobe,
   FiLoader,
@@ -29,6 +28,7 @@ FiSunset,
   FiAlertTriangle,
   FiRefreshCw,
 } from "react-icons/fi";
+import { FaGraduationCap, FaMoon } from "react-icons/fa";
 import {
   Area,
   AreaChart,
