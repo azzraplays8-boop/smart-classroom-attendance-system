@@ -15,6 +15,28 @@ import { useMemo } from "react";
 import { useSettings } from "../context/SettingsContext";
 import { DEFAULT_ORG_SETTINGS } from "../config/organizationDefaults";
 
+export function normalizeAcademicSettings(settings = {}) {
+  const academicYear = settings.academicYear ?? settings.schoolYear ?? settings.orgYear ?? "";
+  const semester = settings.semester ?? settings.academicSemester ?? "1st";
+
+  const departmentValue =
+    settings.departmentOptions ??
+    settings.defaultDepartments ??
+    settings.courseOptions ??
+    settings.defaultCourses ??
+    "";
+  const sectionValue = settings.sectionOptions ?? settings.defaultSections ?? "";
+  const yearValue = settings.yearLevelOptions ?? settings.positionLevels ?? "";
+
+  return {
+    academicYear,
+    semester,
+    departmentValue,
+    sectionValue,
+    yearValue,
+  };
+}
+
 /**
  * Split a comma-separated value (or an array) into a clean list of strings.
  */
@@ -37,10 +59,8 @@ export const SEMESTER_OPTIONS = [
 
 // Fallback defaults kept in ONE place (the centralized config). Used only when
 // no value has been configured yet so forms remain usable.
-const DEFAULT_DEPARTMENTS = parseList(
-  DEFAULT_ORG_SETTINGS.departmentOptions || "BSIT,BSCS,BSECE,BEED,BSTM,BSBA,ABM,STEM"
-);
-const DEFAULT_SECTIONS = parseList(DEFAULT_ORG_SETTINGS.sectionOptions || "A,B,C,D");
+const DEFAULT_DEPARTMENTS = parseList(DEFAULT_ORG_SETTINGS.departmentOptions || "");
+const DEFAULT_SECTIONS = parseList(DEFAULT_ORG_SETTINGS.sectionOptions || "");
 const DEFAULT_YEAR_LEVELS =
   Array.isArray(DEFAULT_ORG_SETTINGS.yearLevelOptions) &&
   DEFAULT_ORG_SETTINGS.yearLevelOptions.length
@@ -73,33 +93,19 @@ export function useAcademicConfig() {
   const { settings = {} } = useSettings();
 
   return useMemo(() => {
-    // Academic year (resolve canonical field name first, then legacy aliases)
-    const academicYear =
-      settings.academicYear ?? settings.schoolYear ?? settings.orgYear ?? "";
+    const { academicYear, semester, departmentValue, sectionValue, yearValue } = normalizeAcademicSettings(settings);
 
-    // Semester
-    const semester =
-      settings.semester ?? settings.academicSemester ?? "1st";
-
-    // Departments / courses — prefer the configured department list, then the
-    // course list, then fall back to the centralized default list.
-    const fromDepartments = parseList(
-      settings.departmentOptions ?? settings.defaultDepartments ?? ""
-    );
-    const fromCourses = parseList(
-      settings.courseOptions ?? settings.defaultCourses ?? ""
-    );
+    const fromDepartments = parseList(departmentValue);
+    const fromCourses = parseList(settings.courseOptions ?? settings.defaultCourses ?? "");
     const departments = fromDepartments.length
       ? fromDepartments
       : fromCourses.length
       ? fromCourses
       : DEFAULT_DEPARTMENTS;
 
-    const sections =
-      parseList(settings.sectionOptions ?? settings.defaultSections ?? "") ||
-      DEFAULT_SECTIONS;
+    const sections = parseList(sectionValue) || DEFAULT_SECTIONS;
 
-    let yearLevels = parseList(settings.yearLevelOptions ?? settings.positionLevels ?? "");
+    let yearLevels = parseList(yearValue);
     if (!yearLevels.length) yearLevels = DEFAULT_YEAR_LEVELS;
 
     return {

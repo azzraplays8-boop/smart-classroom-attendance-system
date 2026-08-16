@@ -270,9 +270,9 @@ export const DEFAULT_ORG_SETTINGS = {
   academicYear: "", // e.g. "2026-2027"
   schoolYear: "", // legacy alias (back-compat)
   semester: "1st", // "1st" | "2nd" | "Summer"
-  departmentOptions: "BSIT,BSCS,BSECE,BEED,BSTM,BSBA,ABM,STEM", // department / course list
+  departmentOptions: "", // department / course list (single source of truth)
   courseOptions: "", // additional course codes (optional)
-  sectionOptions: "A,B,C,D", // section / team list
+  sectionOptions: "", // section / team list (single source of truth)
   yearLevelOptions: ["1st", "2nd", "3rd", "4th"], // year-level values
 
   // Academic (legacy fields kept for backward compatibility)

@@ -68,6 +68,7 @@ import { useOrgLabels } from "../config/labels";
 import { useSettings } from "../context/SettingsContext";
 import { APP_VERSION } from "../constants";
 import { authFetch } from "../services/apiClient";
+import { useSettings } from "../context/SettingsContext";
 import UserManagement from "./UserManagement";
 
 const DEFAULT_PRIMARY_COLOR = "#4f46e5";
@@ -170,8 +171,41 @@ const NOTIF_OPTIONS = [
   { key: "notifPushNotifications", icon: FaBell, title: "Push Notifications", desc: "Deliver real-time alerts to connected devices" },
 ];
 
+function normalizeAcademicSettingsForStorage(rawSettings = {}) {
+  const academicYear = rawSettings.academicYear ?? rawSettings.schoolYear ?? rawSettings.orgYear ?? "";
+  const semester = rawSettings.semester ?? rawSettings.academicSemester ?? "1st";
+  const departmentValue =
+    rawSettings.departmentOptions ??
+    rawSettings.defaultDepartments ??
+    rawSettings.courseOptions ??
+    rawSettings.defaultCourses ??
+    "";
+  const sectionValue = rawSettings.sectionOptions ?? rawSettings.defaultSections ?? "";
+  const yearValue = rawSettings.yearLevelOptions ?? rawSettings.positionLevels ?? "";
+
+  return {
+    ...rawSettings,
+    academicYear,
+    orgYear: academicYear,
+    semester,
+    departmentOptions: departmentValue,
+    defaultDepartments: departmentValue,
+    courseOptions: rawSettings.courseOptions ?? rawSettings.defaultCourses ?? "",
+    defaultCourses: rawSettings.defaultCourses ?? rawSettings.courseOptions ?? "",
+    sectionOptions: sectionValue,
+    defaultSections: sectionValue,
+    yearLevelOptions: Array.isArray(rawSettings.yearLevelOptions)
+      ? rawSettings.yearLevelOptions
+      : typeof yearValue === "string"
+        ? yearValue.split(",").map((v) => v.trim()).filter(Boolean)
+        : [],
+    positionLevels: yearValue,
+  };
+}
+
 function Settings() {
   const orgLabels = useOrgLabels();
+  const { refreshSettings } = useSettings();
 
   // ── State ──────────────────────────────────────────────
   const [settings, setSettings] = useState({ ...DEFAULT_SETTINGS });
@@ -252,19 +286,13 @@ function Settings() {
         const mergedTheme = data.settings.theme || storedTheme || "light";
         const mergedColor = data.settings.primaryColor || storedColor || DEFAULT_PRIMARY_COLOR;
         const mergedLang = data.settings.language || storedLang || "en";
+        const baseSettings = normalizeAcademicSettingsForStorage({ ...settingsRef.current, ...data.settings });
         const next = {
           ...settingsRef.current,
-          ...data.settings,
+          ...baseSettings,
           autoMarkAbsent: data.settings.autoMarkAbsent === "true" || data.settings.autoMarkAbsent === true,
           maintenanceMode: data.settings.maintenanceMode === "true" || data.settings.maintenanceMode === true,
           autoBackup: data.settings.autoBackup === "true" || data.settings.autoBackup === true,
-          // Academic configuration (single source of truth)
-          academicYear: data.settings.academicYear ?? data.settings.orgYear ?? "",
-          semester: data.settings.semester ?? data.settings.semester ?? "1st",
-          defaultDepartments: data.settings.defaultDepartments ?? data.settings.defaultDepartments ?? "",
-          defaultCourses: data.settings.defaultCourses ?? data.settings.defaultCourses ?? "",
-          defaultSections: data.settings.defaultSections ?? data.settings.defaultSections ?? "",
-          positionLevels: data.settings.positionLevels ?? data.settings.positionLevels ?? "",
           theme: mergedTheme,
           primaryColor: mergedColor,
           language: mergedLang,
@@ -321,9 +349,10 @@ function Settings() {
       }
     }
 
+    const normalizedSettings = normalizeAcademicSettingsForStorage(settings);
     const payload = {};
     for (const key of sectionKeys) {
-      payload[key] = settings[key];
+      payload[key] = normalizedSettings[key];
     }
 
     const savingKey = sectionKeys.length >= 10 ? "all" : sectionKeys[0];
@@ -337,22 +366,21 @@ function Settings() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Failed to save");
       showToast("success", "Settings saved successfully.");
-      setSavedSnapshot(settings);
+      const canonicalSettings = normalizeAcademicSettingsForStorage(settings);
+      setSavedSnapshot(canonicalSettings);
       await loadSettings();
       // Also immediately sync the updated academic config to the global
       // SettingsContext localStorage so that all pages (Participant forms,
       // reports, viewer pages, etc.) pick up the new values right away,
       // including after navigating away and back.
       try {
-        const storageCopy = { ...settings };
-        localStorage.setItem("app_org_settings", JSON.stringify(storageCopy));
+        localStorage.setItem("app_org_settings", JSON.stringify(canonicalSettings));
       } catch {
         // ignore localStorage errors
       }
       // Refresh the global SettingsContext so that all pages (Participant forms,
       // reports, viewer pages, etc.) immediately use the updated configuration.
       try {
-        const { refreshSettings } = useSettings();
         refreshSettings();
       } catch {
         // ignore refresh errors
