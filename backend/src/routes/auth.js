@@ -29,6 +29,147 @@ const SALT_ROUNDS = 12;
 // Roles that can be assigned by an administrator (NOT super_admin).
 const ASSIGNABLE_ROLES = ["administrator", "teacher", "moderator", "encoder", "viewer"];
 
+function parseNameParts(fullName) {
+  const clean = String(fullName ?? "").replace(/\s+/g, " ").trim();
+  if (!clean) return { firstName: "", middleName: "", lastName: "" };
+
+  const parts = clean.split(" ").filter(Boolean);
+  if (parts.length === 0) return { firstName: "", middleName: "", lastName: "" };
+  if (parts.length === 1) return { firstName: parts[0], middleName: "", lastName: "" };
+  if (parts.length === 2) return { firstName: parts[0], middleName: "", lastName: parts[1] };
+
+  return {
+    firstName: parts[0],
+    middleName: parts.slice(1, -1).join(" "),
+    lastName: parts[parts.length - 1],
+  };
+}
+
+function buildParticipantIdentifier(userId, username, fullName) {
+  const base = `${String(username || fullName || "member").replace(/[^a-zA-Z0-9]+/g, "").slice(0, 16) || "member"}`.toUpperCase();
+  return `${base}-${String(userId).padStart(6, "0")}`;
+}
+
+async function ensureParticipantLink(connection, userId, email, fullName, username) {
+  const [existingRows] = await connection.query(
+    `SELECT id, participant_identifier AS participantIdentifier, user_id AS userId
+       FROM participants
+      WHERE user_id = ? OR LOWER(email) = LOWER(?)
+      ORDER BY id ASC
+      LIMIT 1`,
+    [userId, String(email || "").trim()]
+  );
+
+  if (existingRows && existingRows.length > 0) {
+    return existingRows[0];
+  }
+
+  const [nameColumnResult] = await connection.query(
+    `SELECT COUNT(*) AS count
+       FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'participants'
+        AND COLUMN_NAME = 'name'`
+  );
+  const hasNameColumn = Number(nameColumnResult?.[0]?.count ?? 0) > 0;
+
+  const nameParts = parseNameParts(fullName);
+  const participantIdentifier = buildParticipantIdentifier(userId, username, fullName);
+  let uniqueIdentifier = participantIdentifier;
+  let suffix = 1;
+
+  while (true) {
+    const [dupRows] = await connection.query(
+      "SELECT id FROM participants WHERE participant_identifier = ? LIMIT 1",
+      [uniqueIdentifier]
+    );
+
+    if (!dupRows || dupRows.length === 0) break;
+
+    uniqueIdentifier = `${participantIdentifier}-${suffix}`;
+    suffix += 1;
+  }
+
+  const insertSql = hasNameColumn
+    ? `INSERT INTO participants (
+          participant_identifier,
+          qr_code,
+          name,
+          last_name,
+          first_name,
+          middle_name,
+          gender,
+          date_of_birth,
+          email,
+          user_id,
+          contact_number,
+          department,
+          level,
+          group_name,
+          status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    : `INSERT INTO participants (
+          participant_identifier,
+          qr_code,
+          last_name,
+          first_name,
+          middle_name,
+          gender,
+          date_of_birth,
+          email,
+          user_id,
+          contact_number,
+          department,
+          level,
+          group_name,
+          status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+
+  const fullNameDisplay = `${nameParts.firstName} ${nameParts.middleName} ${nameParts.lastName}`.replace(/\s+/g, " ").trim();
+  const insertParams = hasNameColumn
+    ? [
+        uniqueIdentifier,
+        uniqueIdentifier,
+        fullNameDisplay,
+        nameParts.lastName || "",
+        nameParts.firstName || "",
+        nameParts.middleName || "",
+        "",
+        null,
+        String(email || "").trim().toLowerCase(),
+        userId,
+        "",
+        "",
+        "",
+        "",
+        "Active",
+      ]
+    : [
+        uniqueIdentifier,
+        uniqueIdentifier,
+        nameParts.lastName || "",
+        nameParts.firstName || "",
+        nameParts.middleName || "",
+        "",
+        null,
+        String(email || "").trim().toLowerCase(),
+        userId,
+        "",
+        "",
+        "",
+        "",
+        "Active",
+      ];
+
+  const [insertResult] = await connection.query(insertSql, insertParams);
+
+  return {
+    id: insertResult.insertId,
+    participantIdentifier: uniqueIdentifier,
+    userId,
+  };
+}
+
 export default function authRouter({ pool }) {
   const router = express.Router();
 
@@ -154,50 +295,78 @@ export default function authRouter({ pool }) {
         accountStatus = "pending";
       }
 
-      // --- Hash password and create user ---
-      const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
-      const [result] = await pool.query(
-        `INSERT INTO users (email, username, password, full_name, role, is_active, account_status, organization_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [normalizedEmail, normalizedUsername, hashedPassword, full_name.trim(), role,
-         isFirstUser ? 1 : 0, accountStatus, organizationId]
-      );
+      const connection = await pool.getConnection();
 
-      const newUserId = result.insertId;
+      try {
+        await connection.beginTransaction();
 
-      // --- If used an invitation code, increment its use count ---
-      if (resolvedInvite) {
-        await pool.query(
-          `UPDATE organization_invitation_codes SET used_count = used_count + 1 WHERE id = ?`,
-          [resolvedInvite.id]
+        // --- Hash password and create user ---
+        const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
+        const [result] = await connection.query(
+          `INSERT INTO users (email, username, password, full_name, role, is_active, account_status, organization_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [normalizedEmail, normalizedUsername, hashedPassword, full_name.trim(), role,
+           isFirstUser ? 1 : 0, accountStatus, organizationId]
         );
 
-        // Create a pending registration record
-        await pool.query(
-          `INSERT INTO pending_registrations (user_id, organization_id, claimed_invitation_code, status, requested_role)
-           VALUES (?, ?, ?, 'pending', 'viewer')`,
-          [newUserId, resolvedInvite.organization_id, resolvedInvite.code]
+        const newUserId = result.insertId;
+
+        // --- Create the linked participant profile atomically to avoid duplicate records.
+        const existingParticipant = await ensureParticipantLink(
+          connection,
+          newUserId,
+          normalizedEmail,
+          full_name.trim(),
+          normalizedUsername
         );
-      }
 
-      // --- Load the created user (with permissions) ---
-      const createdUser = await findUserByIdForAuth(pool, newUserId);
+        // --- If used an invitation code, increment its use count ---
+        if (resolvedInvite) {
+          await connection.query(
+            `UPDATE organization_invitation_codes SET used_count = used_count + 1 WHERE id = ?`,
+            [resolvedInvite.id]
+          );
 
-      if (isFirstUser) {
-        const token = generateToken(createdUser);
+          // Create a pending registration record
+          await connection.query(
+            `INSERT INTO pending_registrations (user_id, organization_id, claimed_invitation_code, status, requested_role)
+             VALUES (?, ?, ?, 'pending', 'viewer')`,
+            [newUserId, resolvedInvite.organization_id, resolvedInvite.code]
+          );
+        }
+
+        await connection.commit();
+
+        // --- Load the created user (with permissions) ---
+        const createdUser = await findUserByIdForAuth(pool, newUserId);
+
+        if (isFirstUser) {
+          const token = generateToken(createdUser);
+          return res.status(201).json({
+            message: "Super Administrator account created successfully. You are now the system Super Admin.",
+            token,
+            user: createdUser,
+            participant: existingParticipant,
+          });
+        }
+
+        // Pending users do NOT get a token (cannot log in until approved).
         return res.status(201).json({
-          message: "Super Administrator account created successfully. You are now the system Super Admin.",
-          token,
-          user: createdUser,
+          message: "Registration submitted. Your account is pending approval. You will be able to log in once an administrator approves your account.",
+          user: null,
+          participant: existingParticipant,
+          pending: true,
         });
+      } catch (err) {
+        if (connection) {
+          await connection.rollback().catch(() => {});
+        }
+        throw err;
+      } finally {
+        if (connection) {
+          connection.release();
+        }
       }
-
-      // Pending users do NOT get a token (cannot log in until approved).
-      return res.status(201).json({
-        message: "Registration submitted. Your account is pending approval. You will be able to log in once an administrator approves your account.",
-        user: null,
-        pending: true,
-      });
     } catch (err) {
       console.error("=== POST /auth/register ERROR ===");
       console.error(err.message);

@@ -102,6 +102,7 @@ export default function participantsRouter({ pool, upload }) {
           participant_identifier AS participantIdentifier,
           qr_code AS qrCode,
           photo,
+          user_id AS userId,
           last_name AS lastName,
           first_name AS firstName,
           middle_name AS middleName,
@@ -172,6 +173,7 @@ export default function participantsRouter({ pool, upload }) {
           participant_identifier AS participantIdentifier,
           qr_code AS qrCode,
           photo,
+          user_id AS userId,
           last_name AS lastName,
           first_name AS firstName,
           middle_name AS middleName,
@@ -283,6 +285,7 @@ export default function participantsRouter({ pool, upload }) {
         groupName,
         status,
         photo,
+        userId,
         // snake_case fallbacks
         participant_identifier,
         last_name,
@@ -291,6 +294,7 @@ export default function participantsRouter({ pool, upload }) {
         date_of_birth,
         contact_number,
         group_name,
+        user_id,
         // Legacy fallbacks for backward compatibility
         studentNumber,
         student_number,
@@ -313,6 +317,7 @@ export default function participantsRouter({ pool, upload }) {
         groupName: groupName ?? group_name ?? section,
         status,
         photo,
+        userId: userId ?? user_id ?? null,
       };
 
       // Basic validation (use resolved values)
@@ -373,6 +378,7 @@ export default function participantsRouter({ pool, upload }) {
         resolved.status && String(resolved.status).trim() ? String(resolved.status).trim() : "Active";
 
       const normalizedPhoto = resolved.photo ? String(resolved.photo).trim() : null;
+      const normalizedUserId = resolved.userId != null && String(resolved.userId).trim() !== "" ? Number(resolved.userId) : null;
 
       const [nameColumnResult] = await pool.query(
         `SELECT COUNT(*) AS count
@@ -396,13 +402,14 @@ export default function participantsRouter({ pool, upload }) {
             gender,
             date_of_birth,
             email,
+            user_id,
             contact_number,
             department,
             level,
             group_name,
             status,
             photo
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         : `INSERT INTO participants (
             participant_identifier,
             qr_code,
@@ -412,13 +419,14 @@ export default function participantsRouter({ pool, upload }) {
             gender,
             date_of_birth,
             email,
+            user_id,
             contact_number,
             department,
             level,
             group_name,
             status,
             photo
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
       const insertParams = hasNameColumn
         ? [
@@ -431,6 +439,7 @@ export default function participantsRouter({ pool, upload }) {
             normalizedGender,
             normalizedDateOfBirth,
             normalizedEmail,
+            normalizedUserId,
             normalizedContactNumber,
             normalizedDepartment,
             normalizedLevel,
@@ -447,6 +456,7 @@ export default function participantsRouter({ pool, upload }) {
             normalizedGender,
             normalizedDateOfBirth,
             normalizedEmail,
+            normalizedUserId,
             normalizedContactNumber,
             normalizedDepartment,
             normalizedLevel,
@@ -496,6 +506,8 @@ export default function participantsRouter({ pool, upload }) {
         groupName,
         status,
         photo,
+        userId,
+        user_id,
         // Legacy fallbacks
         studentNumber,
         course,
@@ -507,6 +519,7 @@ export default function participantsRouter({ pool, upload }) {
       const resolvedDepartment = department ?? course;
       const resolvedLevel = level ?? year;
       const resolvedGroupName = groupName ?? section;
+      const normalizedUserId = userId ?? user_id ?? null;
 
       // Basic validation
       if (!resolvedIdentifier || !String(resolvedIdentifier).trim()) {
@@ -562,6 +575,7 @@ export default function participantsRouter({ pool, upload }) {
       const normalizedStatus = status && String(status).trim() ? String(status).trim() : "Active";
 
       const normalizedPhoto = photo !== undefined ? (photo ? String(photo).trim() : null) : undefined;
+      const parsedUserId = normalizedUserId != null && String(normalizedUserId).trim() !== "" ? Number(normalizedUserId) : null;
 
       const [nameColumnResult] = await pool.query(
         `SELECT COUNT(*) AS count
@@ -582,26 +596,26 @@ export default function participantsRouter({ pool, upload }) {
           updateSql = `UPDATE participants
              SET participant_identifier = ?, qr_code = ?, name = ?, last_name = ?, first_name = ?,
                  middle_name = ?, gender = ?, date_of_birth = ?, email = ?,
-                 contact_number = ?, department = ?, level = ?, group_name = ?, status = ?, photo = ?
+                 user_id = ?, contact_number = ?, department = ?, level = ?, group_name = ?, status = ?, photo = ?
              WHERE id = ?`;
           updateParams = [
             normalizedIdentifier, normalizedIdentifier, resolvedName,
             normalizedLastName, normalizedFirstName, normalizedMiddleName,
             normalizedGender, normalizedDateOfBirth, normalizedEmail,
-            normalizedContactNumber, normalizedDepartment, normalizedLevel,
+            parsedUserId, normalizedContactNumber, normalizedDepartment, normalizedLevel,
             normalizedGroupName, normalizedStatus, normalizedPhoto, id,
           ];
         } else {
           updateSql = `UPDATE participants
              SET participant_identifier = ?, qr_code = ?, name = ?, last_name = ?, first_name = ?,
                  middle_name = ?, gender = ?, date_of_birth = ?, email = ?,
-                 contact_number = ?, department = ?, level = ?, group_name = ?, status = ?
+                 user_id = ?, contact_number = ?, department = ?, level = ?, group_name = ?, status = ?
              WHERE id = ?`;
           updateParams = [
             normalizedIdentifier, normalizedIdentifier, resolvedName,
             normalizedLastName, normalizedFirstName, normalizedMiddleName,
             normalizedGender, normalizedDateOfBirth, normalizedEmail,
-            normalizedContactNumber, normalizedDepartment, normalizedLevel,
+            parsedUserId, normalizedContactNumber, normalizedDepartment, normalizedLevel,
             normalizedGroupName, normalizedStatus, id,
           ];
         }
@@ -610,26 +624,26 @@ export default function participantsRouter({ pool, upload }) {
           updateSql = `UPDATE participants
              SET participant_identifier = ?, qr_code = ?, last_name = ?, first_name = ?,
                  middle_name = ?, gender = ?, date_of_birth = ?, email = ?,
-                 contact_number = ?, department = ?, level = ?, group_name = ?, status = ?, photo = ?
+                 user_id = ?, contact_number = ?, department = ?, level = ?, group_name = ?, status = ?, photo = ?
              WHERE id = ?`;
           updateParams = [
             normalizedIdentifier, normalizedIdentifier,
             normalizedLastName, normalizedFirstName, normalizedMiddleName,
             normalizedGender, normalizedDateOfBirth, normalizedEmail,
-            normalizedContactNumber, normalizedDepartment, normalizedLevel,
+            parsedUserId, normalizedContactNumber, normalizedDepartment, normalizedLevel,
             normalizedGroupName, normalizedStatus, normalizedPhoto, id,
           ];
         } else {
           updateSql = `UPDATE participants
              SET participant_identifier = ?, qr_code = ?, last_name = ?, first_name = ?,
                  middle_name = ?, gender = ?, date_of_birth = ?, email = ?,
-                 contact_number = ?, department = ?, level = ?, group_name = ?, status = ?
+                 user_id = ?, contact_number = ?, department = ?, level = ?, group_name = ?, status = ?
              WHERE id = ?`;
           updateParams = [
             normalizedIdentifier, normalizedIdentifier,
             normalizedLastName, normalizedFirstName, normalizedMiddleName,
             normalizedGender, normalizedDateOfBirth, normalizedEmail,
-            normalizedContactNumber, normalizedDepartment, normalizedLevel,
+            parsedUserId, normalizedContactNumber, normalizedDepartment, normalizedLevel,
             normalizedGroupName, normalizedStatus, id,
           ];
         }

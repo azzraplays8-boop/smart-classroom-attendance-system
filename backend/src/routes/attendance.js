@@ -52,16 +52,19 @@ function getCurrentTimeInTimezone(tzName) {
 }
 
 async function resolveCurrentParticipant(pool, user) {
-  if (!user || !user.email) return null;
+  if (!user) return null;
+
+  const userId = Number(user.id);
+  const email = String(user.email || "").trim();
 
   const [rows] = await pool.query(
     `SELECT id, participant_identifier AS participantIdentifier,
             first_name AS firstName, last_name AS lastName, middle_name AS middleName,
-            photo, department, level AS year, group_name AS section, email
+            photo, department, level AS year, group_name AS section, email, user_id AS userId
      FROM participants
-     WHERE LOWER(email) = LOWER(?)
+     WHERE (? IS NOT NULL AND user_id = ?) OR LOWER(email) = LOWER(?)
      LIMIT 1`,
-    [String(user.email).trim()]
+    [userId || null, userId || null, email]
   );
 
   return rows?.[0] ?? null;

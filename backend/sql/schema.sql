@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS participants (
   gender VARCHAR(32) NOT NULL,
   date_of_birth DATE NULL,
   email VARCHAR(255) NOT NULL,
+  user_id INT NULL,
   contact_number VARCHAR(64) NOT NULL,
 
   -- Organization grouping
@@ -25,7 +26,9 @@ CREATE TABLE IF NOT EXISTS participants (
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
-  UNIQUE KEY uq_participants_identifier (participant_identifier)
+  UNIQUE KEY uq_participants_identifier (participant_identifier),
+  UNIQUE KEY uq_participants_user (user_id),
+  KEY idx_participants_user (user_id)
 );
 
 -- Helpful indexes
