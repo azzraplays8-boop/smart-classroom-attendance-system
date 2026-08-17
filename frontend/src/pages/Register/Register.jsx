@@ -356,25 +356,31 @@ export default function Register() {
               {/* PERSONAL INFORMATION */}
               <div className="register-section">
                 <h3 className="register-section-title">Personal Information</h3>
-                {renderTextInput("First Name", "first_name", "text", "Enter your first name",
-                  { autoFocus: true, autoComplete: "given-name", icon: <FiUser size={15} /> })}
-                {renderTextInput("Middle Name", "middle_name", "text", "Enter your middle name",
-                  { autoComplete: "additional-name" })}
-                {renderTextInput("Last Name", "last_name", "text", "Enter your last name",
-                  { autoComplete: "family-name" })}
+                <div className="register-field-row register-field-row-3">
+                  {renderTextInput("First Name", "first_name", "text", "Enter your first name",
+                    { autoFocus: true, autoComplete: "given-name", icon: <FiUser size={15} /> })}
+                  {renderTextInput("Middle Name", "middle_name", "text", "Enter your middle name",
+                    { autoComplete: "additional-name" })}
+                  {renderTextInput("Last Name", "last_name", "text", "Enter your last name",
+                    { autoComplete: "family-name" })}
+                </div>
               </div>
 
               {/* ACCOUNT INFORMATION */}
               <div className="register-section">
                 <h3 className="register-section-title">Account Information</h3>
-                {renderTextInput("Username", "username", "text", "Choose a username",
-                  { autoComplete: "username", icon: <FiUsers size={15} /> })}
-                {renderTextInput("Email", "email", "email", "Enter your email address",
-                  { autoComplete: "email", icon: <FiMail size={15} /> })}
-                {renderTextInput("Password", "password", "password", "Minimum 8 characters",
-                  { icon: <FiLock size={15} /> })}
-                {renderTextInput("Confirm Password", "confirm_password", "password", "Re-enter your password",
-                  { icon: <FiLock size={15} /> })}
+                <div className="register-field-row register-field-row-2">
+                  {renderTextInput("Username", "username", "text", "Choose a username",
+                    { autoComplete: "username", icon: <FiUsers size={15} /> })}
+                  {renderTextInput("Email", "email", "email", "Enter your email address",
+                    { autoComplete: "email", icon: <FiMail size={15} /> })}
+                </div>
+                <div className="register-field-row register-field-row-2">
+                  {renderTextInput("Password", "password", "password", "Minimum 8 characters",
+                    { icon: <FiLock size={15} /> })}
+                  {renderTextInput("Confirm Password", "confirm_password", "password", "Re-enter your password",
+                    { icon: <FiLock size={15} /> })}
+                </div>
                 {renderTextInput("Invitation Code", "invitation_code", "text",
                   "Required for non-first accounts (optional for first Super Admin)",
                   { icon: <FiKey size={15} /> })}
@@ -383,25 +389,29 @@ export default function Register() {
               {/* PARTICIPANT INFORMATION */}
               <div className="register-section">
                 <h3 className="register-section-title">Participant Information</h3>
-                {renderTextInput("Participant ID", "participant_id", "text", "Enter participant ID (e.g., 2026-0001)",
-                  { icon: <FiUser size={15} /> })}
-                {renderSelect("Gender", "gender", ["Male", "Female", "Other"])}
-                {renderTextInput("Date of Birth", "date_of_birth", "date", "")}
+                <div className="register-field-row register-field-row-3">
+                  {renderTextInput("Participant ID", "participant_id", "text", "Enter participant ID (e.g., 2026-0001)",
+                    { icon: <FiUser size={15} /> })}
+                  {renderSelect("Gender", "gender", ["Male", "Female", "Other"])}
+                  {renderTextInput("Date of Birth", "date_of_birth", "date", "")}
+                </div>
               </div>
 
               {/* ACADEMIC INFORMATION */}
               <div className="register-section">
                 <h3 className="register-section-title">Academic Information</h3>
-                {renderSelect("Department / Group", "department", 
-                  academicConfig.departments && academicConfig.departments.length > 0
-                    ? academicConfig.departments
-                    : ["BS ENTREP", "BS CRIM", "BS ACCOUNTANCY", "BS IT"],
-                  "Select a department")}
-                {renderSelect("Category", "category", 
-                  academicConfig.yearLevels && academicConfig.yearLevels.length > 0
-                    ? academicConfig.yearLevels
-                    : ["1st Year", "2nd Year", "3rd Year", "4th Year"],
-                  "Select a year level")}
+                <div className="register-field-row register-field-row-2">
+                  {renderSelect("Department / Group", "department", 
+                    academicConfig.departments && academicConfig.departments.length > 0
+                      ? academicConfig.departments
+                      : ["BS ENTREP", "BS CRIM", "BS ACCOUNTANCY", "BS IT"],
+                    "Select a department")}
+                  {renderSelect("Category", "category", 
+                    academicConfig.yearLevels && academicConfig.yearLevels.length > 0
+                      ? academicConfig.yearLevels
+                      : ["1st Year", "2nd Year", "3rd Year", "4th Year"],
+                    "Select a year level")}
+                </div>
               </div>
 
               {/* CONTACT INFORMATION */}
