@@ -1,4 +1,4 @@
-/**
+﻿/**
  * KATAGA Portal Register
  *
  * Registration form with automatic participant profile creation.
@@ -179,9 +179,8 @@ export default function Register() {
       navigate("/", { replace: true });
     } catch (err) {
       const message =
-        err?.response?.data?.message ||
-        err?.response?.data?.error ||
-        err?.message ||
+        err.response?.data?.message ||
+        err.message ||
         "Registration failed. Please try again.";
       setError(message);
     } finally {
@@ -264,7 +263,7 @@ export default function Register() {
     );
   };
 
-  // ── Pending approval success screen ─────────────────────
+  // â”€â”€ Pending approval success screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (pending) {
     return (
       <div className="register-page">
@@ -277,7 +276,7 @@ export default function Register() {
                 <p className="register-brandtag">Kapatiran ng Talino at Galing</p>
               </div>
             </div>
-            <p className="register-panelfoot">Secure access · Administrator-managed</p>
+            <p className="register-panelfoot">Secure access Â· Administrator-managed</p>
           </aside>
           <div className="register-main">
             <div className="register-form-inner register-pending-wrap">
@@ -332,7 +331,7 @@ export default function Register() {
             </div>
           </div>
 
-          <p className="register-panelfoot">Secure · Invitation-based · Member Portal</p>
+          <p className="register-panelfoot">Secure Â· Invitation-based Â· Member Portal</p>
         </aside>
 
         <div className="register-main">

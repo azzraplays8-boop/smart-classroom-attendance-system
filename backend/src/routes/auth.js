@@ -424,7 +424,7 @@ export default function authRouter({ pool }) {
               contact_number.trim(),
               department.trim(),
               category.trim(),
-              null, // group_name (Team) is left null/empty per requirements
+              "", // Team is intentionally excluded from registration; keep the field non-null.
               "Active",
             ]
           : [
@@ -440,7 +440,7 @@ export default function authRouter({ pool }) {
               contact_number.trim(),
               department.trim(),
               category.trim(),
-              null, // group_name (Team) is left null/empty per requirements
+              "", // Team is intentionally excluded from registration; keep the field non-null.
               "Active",
             ];
 
@@ -501,8 +501,10 @@ export default function authRouter({ pool }) {
       }
     } catch (err) {
       console.error("=== POST /auth/register ERROR ===");
-      console.error(err.message);
-      return res.status(500).json({ message: "Registration failed. Please try again." });
+      console.error(err);
+      return res.status(500).json({
+        message: err?.message || "Registration failed. Please try again.",
+      });
     }
   });
 

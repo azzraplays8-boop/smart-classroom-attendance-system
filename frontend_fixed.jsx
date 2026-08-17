@@ -179,9 +179,8 @@ export default function Register() {
       navigate("/", { replace: true });
     } catch (err) {
       const message =
-        err?.response?.data?.message ||
-        err?.response?.data?.error ||
-        err?.message ||
+        err.response?.data?.message ||
+        err.message ||
         "Registration failed. Please try again.";
       setError(message);
     } finally {
@@ -447,4 +446,5 @@ export default function Register() {
     </div>
   );
 }
+
 
