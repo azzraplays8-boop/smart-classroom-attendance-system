@@ -996,11 +996,13 @@ export default function authRouter({ pool }) {
   // POST /auth/pending/:id/approve - Approve a pending registration
   // ─────────────────────────────────────────────
   router.post("/pending/:id/approve", authenticate(pool), authorize("super_admin", "administrator"), async (req, res) => {
+    const connection = await pool.getConnection();
+
     try {
       const pendingId = req.params.id;
       const { role, organization_id } = req.body;
 
-      const [pendingRows] = await pool.query(
+      const [pendingRows] = await connection.query(
         `SELECT p.* FROM pending_registrations p WHERE p.id = ? AND p.status = 'pending'`,
         [pendingId]
       );
@@ -1009,37 +1011,62 @@ export default function authRouter({ pool }) {
       }
 
       const pending = pendingRows[0];
-      const assignRole = role && ASSIGNABLE_ROLES.includes(role) ? role : "viewer";
-      const assignOrg = organization_id || pending.organization_id;
+      const assignRole = role && ASSIGNABLE_ROLES.includes(role) ? role : (pending.requested_role && ASSIGNABLE_ROLES.includes(pending.requested_role) ? pending.requested_role : "viewer");
+      const assignOrg = organization_id || pending.organization_id || null;
 
-      // Approve the user
-      await pool.query(
+      const [userRows] = await connection.query(
+        `SELECT id, email, username, full_name, organization_id, role, account_status, is_active
+           FROM users WHERE id = ? LIMIT 1`,
+        [pending.user_id]
+      );
+      if (!userRows || userRows.length === 0) {
+        return res.status(404).json({ message: "User associated with this registration was not found." });
+      }
+
+      const user = userRows[0];
+
+      await connection.beginTransaction();
+
+      // Approve the user and apply the selected role/organization
+      await connection.query(
         `UPDATE users SET account_status = 'approved', is_active = 1, role = ?, organization_id = ?
          WHERE id = ?`,
         [assignRole, assignOrg || null, pending.user_id]
       );
 
-      // Add organization membership
+      // Keep organization membership consistent with the approved user's assigned org.
       if (assignOrg) {
-        await pool.query(
+        await connection.query(
           `INSERT IGNORE INTO organization_members (organization_id, user_id, role, status)
-           VALUES (?, ?, 'active')`,
+           VALUES (?, ?, ?, 'active')`,
           [assignOrg, pending.user_id, assignRole]
         );
       }
 
+      // Ensure the participant linked to this account exists and is not duplicated.
+      await ensureParticipantLink(connection, pending.user_id, user.email, user.full_name, user.username);
+
       // Update pending registration
-      await pool.query(
-        `UPDATE pending_registrations SET status = 'approved', reviewed_by = ?, reviewed_at = NOW()
+      await connection.query(
+        `UPDATE pending_registrations SET status = 'approved', requested_role = ?, reviewed_by = ?, reviewed_at = NOW()
          WHERE id = ?`,
-        [req.user.id, pendingId]
+        [assignRole, req.user.id, pendingId]
       );
 
-      return res.json({ message: "User approved and activated successfully." });
+      await connection.commit();
+
+      return res.json({ message: "Registration approved successfully. Participant profile created." });
     } catch (err) {
+      if (connection) {
+        await connection.rollback().catch(() => {});
+      }
       console.error("=== POST /auth/pending/:id/approve ERROR ===");
-      console.error(err.message);
-      return res.status(500).json({ message: "Failed to approve registration." });
+      console.error(err?.message || err);
+      return res.status(500).json({ message: err?.message || "Failed to approve registration." });
+    } finally {
+      if (connection) {
+        connection.release();
+      }
     }
   });
 

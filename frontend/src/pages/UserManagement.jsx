@@ -103,7 +103,7 @@ function UserManagement() {
         role: approveForm.role,
         organization_id: approveForm.organization_id ? Number(approveForm.organization_id) : undefined,
       });
-      showToast("success", "User approved and activated.");
+      showToast("success", "Registration approved successfully. Participant profile created.");
       setPendingAction(null);
       await loadAll();
     } catch (err) {
