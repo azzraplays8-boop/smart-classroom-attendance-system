@@ -41,6 +41,8 @@ export const PERMISSIONS = {
       "settings",
       "user-management",
       "organizations",
+      "leave-management",
+      "my-leave",
     ],
     canAccess: (route) => true, // Full access
   },
@@ -55,6 +57,8 @@ export const PERMISSIONS = {
       "reports",
       "settings",
       "user-management",
+      "leave-management",
+      "my-leave",
     ],
     canAccess: (route) => !["super_admin", "organizations"].includes(route),
   },
@@ -78,8 +82,8 @@ export const PERMISSIONS = {
   },
   viewer: {
     label: "Viewer",
-    routes: ["dashboard", "my-attendance", "account"],
-    canAccess: (route) => ["dashboard", "my-attendance", "account"].includes(route),
+    routes: ["dashboard", "my-attendance", "my-leave", "account"],
+    canAccess: (route) => ["dashboard", "my-attendance", "my-leave", "account"].includes(route),
   },
 };
 

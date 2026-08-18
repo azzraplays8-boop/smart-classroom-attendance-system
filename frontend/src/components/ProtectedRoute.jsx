@@ -23,6 +23,8 @@ const ROUTE_PERMISSION_MAP = {
   "/settings": "settings",
   "/user-management": "user-management",
   "/organizations": "organizations",
+  "/leave-management": "leave-management",
+  "/my-leave": "my-leave",
   "/account": "account",
 };
 

@@ -18,6 +18,8 @@ import Settings from "./pages/Settings";
 import AccountWorkspace from "./pages/AccountWorkspace";
 import UserManagement from "./pages/UserManagement";
 import Organizations from "./pages/Organizations";
+import LeaveManagement from "./pages/LeaveManagement";
+import MyLeave from "./pages/MyLeave";
 
 class AppErrorBoundary extends Component {
   constructor(props) {
@@ -103,6 +105,8 @@ function App() {
             <Route path="/account" element={<AccountWorkspace />} />
             <Route path="/user-management" element={<UserManagement />} />
             <Route path="/organizations" element={<Organizations />} />
+            <Route path="/leave-management" element={<LeaveManagement />} />
+            <Route path="/my-leave" element={<MyLeave />} />
           </Route>
         </Routes>
       </BrowserRouter>

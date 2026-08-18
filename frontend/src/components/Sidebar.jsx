@@ -12,6 +12,7 @@ import {
   FaClipboardList,
   FaUser,
   FaEye,
+  FaCalendarCheck,
 } from "react-icons/fa";
 
 import "../styles/Sidebar.css";
@@ -38,7 +39,7 @@ function Sidebar() {
       return ["dashboard", "participants", "attendance", "attendance-history", "account"].includes(route);
     }
     if (role === "viewer") {
-      return ["dashboard", "my-attendance", "account"].includes(route);
+      return ["dashboard", "my-attendance", "my-leave", "account"].includes(route);
     }
     return false;
   };
@@ -74,6 +75,20 @@ function Sidebar() {
           <NavLink to="/my-attendance" className="nav-item">
             <FaEye />
             <span>My Attendance</span>
+          </NavLink>
+        )}
+
+        {hasRoute("leave-management") && (
+          <NavLink to="/leave-management" className="nav-item">
+            <FaCalendarCheck />
+            <span>Leave Management</span>
+          </NavLink>
+        )}
+
+        {hasRoute("my-leave") && (
+          <NavLink to="/my-leave" className="nav-item">
+            <FaCalendarCheck />
+            <span>My Leave</span>
           </NavLink>
         )}
 
