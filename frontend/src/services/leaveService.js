@@ -1,9 +1,9 @@
 export const LEAVE_TYPES = [
-  { key: "sick_leave", label: "Sick Leave", allocation: 15, monthlyRequestCap: 2, maxDaysPerRequest: 5 },
-  { key: "personal_leave", label: "Personal Leave", allocation: 10, monthlyRequestCap: 1, maxDaysPerRequest: 2 },
-  { key: "emergency_leave", label: "Emergency Leave", allocation: 5, monthlyRequestCap: null, maxDaysPerRequest: 5 },
-  { key: "mental_health_leave", label: "Mental Health Leave", allocation: 7, monthlyRequestCap: 1, maxDaysPerRequest: 1 },
-  { key: "academic_leave", label: "Academic Leave", allocation: 10, monthlyRequestCap: 2, maxDaysPerRequest: 3 },
+  { key: "sick_leave", label: "Sick Leave", allocation: 5 },
+  { key: "personal_leave", label: "Personal Leave", allocation: 3 },
+  { key: "emergency_leave", label: "Emergency Leave", allocation: 3 },
+  { key: "mental_health_leave", label: "Mental Health Leave", allocation: 3 },
+  { key: "academic_leave", label: "Academic Leave", allocation: 5 },
 ];
 
 export const LEAVE_ALLOCATION_MAP = Object.fromEntries(LEAVE_TYPES.map((type) => [type.key, type.allocation]));
