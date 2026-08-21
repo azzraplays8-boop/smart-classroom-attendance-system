@@ -49,7 +49,8 @@ export default function MyLeave() {
   };
 
   useEffect(() => {
-    loadData();
+    const timer = setTimeout(() => loadData(), 0);
+    return () => clearTimeout(timer);
   }, []);
 
   const currentParticipant = useMemo(

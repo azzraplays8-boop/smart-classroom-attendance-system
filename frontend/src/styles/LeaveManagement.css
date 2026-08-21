@@ -29,6 +29,7 @@
 .leave-count { padding: .35rem .65rem; border-radius: 99px; color: #2563eb; background: #edf4ff; font-size: .72rem; font-weight: 750; white-space: nowrap; }
 .leave-count--amber { color: #a16207; background: #fff6df; }
 .leave-table-wrap { overflow-x: auto; }
+.leave-viewer-table-wrap .leave-table { min-width: 720px; }
 .leave-table { width: 100%; min-width: 950px; border-collapse: collapse; }
 .leave-table th, .leave-table td { padding: .9rem .65rem; border-bottom: 1px solid #edf0f5; text-align: left; vertical-align: middle; font-size: .8rem; }
 .leave-table th { color: #64748b; background: #f8fafc; font-size: .7rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
