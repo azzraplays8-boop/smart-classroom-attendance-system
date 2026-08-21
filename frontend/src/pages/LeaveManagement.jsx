@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { FiCalendar, FiCheck, FiClock, FiEdit3, FiFileText, FiPlus, FiUsers, FiX, FiXCircle } from "react-icons/fi";
 import { useAuth } from "../hooks/useAuth";
 import { authFetch } from "../services/apiClient";
 import {
@@ -36,6 +37,7 @@ export default function LeaveManagement() {
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
   const [selectedRequestId, setSelectedRequestId] = useState("");
+  const [activeModal, setActiveModal] = useState("");
   const [form, setForm] = useState({
     participantId: "",
     leaveType: "sick_leave",
@@ -196,43 +198,87 @@ export default function LeaveManagement() {
     }
   };
 
+  const participantName = (participant) => participant
+    ? `${participant.firstName || ""} ${participant.lastName || ""}`.trim() || participant.participantIdentifier || participant.studentNumber || `Participant ${participant.id}`
+    : "Unknown";
+
+  const renderForm = (type) => (
+    <form className="leave-form" onSubmit={(event) => {
+      if (type === "adjustment") handleAdjustmentSubmit(event);
+      else handleRequestSubmit(event);
+      setActiveModal("");
+    }}>
+      <label>
+        Participant
+        <select value={form.participantId} onChange={(event) => setForm((prev) => ({ ...prev, participantId: event.target.value }))}>
+          <option value="">Select participant</option>
+          {participants.map((participant) => <option key={participant.id} value={participant.id}>{participantName(participant)}</option>)}
+        </select>
+      </label>
+      <label>
+        Leave Type
+        <select value={form.leaveType} onChange={(event) => setForm((prev) => ({ ...prev, leaveType: event.target.value }))}>
+          {LEAVE_TYPES.map((leaveType) => <option key={leaveType.key} value={leaveType.key}>{leaveType.label}</option>)}
+        </select>
+      </label>
+      <label>
+        Number of Days
+        <input type="number" min="1" value={form.days} onChange={(event) => setForm((prev) => ({ ...prev, days: event.target.value }))} />
+      </label>
+      <label>
+        Date
+        <input type="date" value={form.date} onChange={(event) => setForm((prev) => ({ ...prev, date: event.target.value }))} />
+      </label>
+      {type === "adjustment" && <label>
+        Adjustment Type
+        <select value={form.adjustmentType} onChange={(event) => setForm((prev) => ({ ...prev, adjustmentType: event.target.value }))}>
+          <option value="ADD">ADD</option><option value="DEDUCT">DEDUCT</option>
+        </select>
+      </label>}
+      <label>
+        {type === "adjustment" ? "Reason / Adjustment Note" : "Reason"}
+        <textarea rows="3" value={form.reason} onChange={(event) => setForm((prev) => ({ ...prev, reason: event.target.value }))} />
+      </label>
+      <button type="submit" className="leave-primary-btn"><FiCheck /> {type === "adjustment" ? "Save Adjustment" : "Submit Request"}</button>
+    </form>
+  );
+
   return (
     <div className="leave-page">
       <header className="leave-header">
-        <div>
-          <p className="leave-eyebrow">Leave Management</p>
-          <h1>Leave Dashboard</h1>
-        </div>
+        <div><p className="leave-eyebrow">Leave Management</p><h1>Leave Dashboard</h1><p className="leave-subtitle">Keep every participant's time away organized and visible.</p></div>
       </header>
-
       {toast && <div className="leave-toast">{toast}</div>}
-
       {error && <div className="leave-alert leave-alert--error">{error}</div>}
 
-      {!loading && (
-        <>
-          <section className="leave-summary-grid">
-            <div className="leave-stat-card">
-              <span>Total Participants</span>
-              <strong>{stats.totalParticipants}</strong>
-            </div>
-            <div className="leave-stat-card">
-              <span>Pending Requests</span>
-              <strong>{stats.pendingRequests}</strong>
-            </div>
-            <div className="leave-stat-card">
-              <span>Approved Leave Days</span>
-              <strong>{stats.approvedLeaveDays}</strong>
-            </div>
-            <div className="leave-stat-card">
-              <span>Remaining Leave Days</span>
-              <strong>{stats.remainingLeaveDays}</strong>
-            </div>
-          </section>
+      {!loading && <>
+        <section className="leave-summary-grid">
+          {[{ label: "Total Participants", value: stats.totalParticipants, icon: FiUsers, tone: "blue" }, { label: "Pending Requests", value: stats.pendingRequests, icon: FiClock, tone: "amber" }, { label: "Approved Leave Days", value: stats.approvedLeaveDays, icon: FiCheck, tone: "green" }, { label: "Remaining Leave Days", value: stats.remainingLeaveDays, icon: FiCalendar, tone: "purple" }].map(({ label, value, icon: Icon, tone }) => (
+            <div className="leave-stat-card" key={label}><span className={`leave-stat-icon leave-stat-icon--${tone}`}><Icon /></span><div><span>{label}</span><strong>{value}</strong></div></div>
+          ))}
+        </section>
 
-          <section className="leave-grid">
-            <div className="leave-panel">
-              <h2>Adjust Balance</h2>
+        <section className="leave-panel leave-balances-panel">
+          <div className="leave-section-heading"><div><p className="leave-kicker">Overview</p><h2>Participant Leave Balances</h2></div><span className="leave-count">{allSummaries.length} participants</span></div>
+          <div className="leave-table-wrap"><table className="leave-table"><thead><tr><th>Participant</th><th>Organization</th><th>Department / Group</th>{LEAVE_TYPES.map((type) => <th key={type.key}>{type.label}</th>)}<th>Total Remaining</th></tr></thead><tbody>
+            {allSummaries.length === 0 ? <tr><td colSpan="9" className="leave-empty">No participants found</td></tr> : allSummaries.map((summary) => <tr key={summary.participantId ?? summary.participantName}><td><strong>{summary.participantName}</strong><small className="leave-muted">ID: {summary.participantId ?? "—"}</small></td><td>{summary.organization}</td><td>{summary.department}</td>{summary.typeSummaries.map((item) => <td key={`${summary.participantId}-${item.typeKey}`}><span className={`leave-balance-pill leave-balance-pill--${getLowBalanceTone(item.remaining, item.allocation)} leave-type--${item.typeKey}`}>{item.remaining} / {item.allocation}</span></td>)}<td><strong className="leave-total-days">{summary.totalRemaining}</strong></td></tr>)}
+          </tbody></table></div>
+        </section>
+
+        <section className="leave-panel">
+          <div className="leave-section-heading"><div><p className="leave-kicker">Needs attention</p><h2>Pending Leave Requests</h2></div><span className="leave-count leave-count--amber">{pendingRequests.length} pending</span></div>
+          <div className="leave-request-list">{pendingRequests.length === 0 ? <div className="leave-empty leave-empty--block"><FiCheck /><span>No pending requests right now</span></div> : pendingRequests.map((record) => { const participant = participants.find((item) => String(item.id) === String(record.participantId)); const leaveType = LEAVE_TYPES.find((type) => type.key === record.leaveType); return <article className="leave-request-row" key={record.id}><div className="leave-request-person"><span className="leave-avatar">{participantName(participant).charAt(0)}</span><div><strong>{participantName(participant)}</strong><small>ID: {record.participantId}</small></div></div><div><span className={`leave-type-badge leave-type-badge--${record.leaveType}`}>{leaveType?.label || record.leaveType}</span></div><div className="leave-request-meta"><span><FiFileText /> {formatDays(record.days)}</span><span><FiCalendar /> {formatDate(record.startDate)}</span></div><span className={`leave-status leave-status--${getStatusTone(record.status)}`}>{record.status}</span><div className="leave-actions"><button type="button" className="leave-action-btn leave-action-btn--approve" onClick={() => handleApprove(record.id)}><FiCheck /> Approve</button><button type="button" className="leave-action-btn leave-action-btn--reject" onClick={() => handleReject(record.id)}><FiXCircle /> Reject</button><button type="button" className="leave-action-btn leave-action-btn--details" onClick={() => setSelectedRequestId(selectedRequestId === record.id ? "" : record.id)}>Details</button></div>{selectedRequestId === record.id && <div className="leave-request-detail"><strong>Detail</strong><p>{record.reason || "No reason provided"}</p><p>{formatDate(record.startDate)} to {formatDate(record.endDate)} · {formatDays(record.days)}</p></div>}</article>; })}</div>
+        </section>
+
+        <section className="leave-quick-actions"><div><p className="leave-kicker">Shortcuts</p><h2>Quick Actions</h2><p>Update balances or send a request without leaving this overview.</p></div><div className="leave-quick-action-buttons"><button type="button" className="leave-primary-btn" onClick={() => setActiveModal("request")}><FiPlus /> New Leave Request</button><button type="button" className="leave-secondary-btn" onClick={() => setActiveModal("adjustment")}><FiEdit3 /> Adjust Leave Balance</button></div></section>
+      </>}
+      {loading && <div className="leave-loader">Loading leave data…</div>}
+
+      {activeModal && <div className="leave-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setActiveModal(""); }}><div className="leave-modal" role="dialog" aria-modal="true" aria-labelledby="leave-modal-title"><div className="leave-modal-header"><div><p className="leave-kicker">Leave Management</p><h2 id="leave-modal-title">{activeModal === "adjustment" ? "Adjust Leave Balance" : "New Leave Request"}</h2></div><button type="button" className="leave-close-btn" onClick={() => setActiveModal("")} aria-label="Close modal"><FiX /></button></div>{renderForm(activeModal)}</div></div>}
+    </div>
+  );
+}
+/*
               <form className="leave-form" onSubmit={handleAdjustmentSubmit}>
                 <label>
                   Participant
@@ -438,3 +484,4 @@ export default function LeaveManagement() {
     </div>
   );
 }
+*/
