@@ -9,6 +9,27 @@ export const LEAVE_TYPES = [
 export const LEAVE_ALLOCATION_MAP = Object.fromEntries(LEAVE_TYPES.map((type) => [type.key, type.allocation]));
 export const LEAVE_STORAGE_KEY = "kataga_leave_records_v1";
 
+const LEAVE_TIME_ZONE = "Asia/Manila";
+
+export function getLeaveMonthKey(value = new Date()) {
+  if (typeof value === "string") {
+    const dateOnlyMatch = value.trim().match(/^(\d{4})-(\d{2})/);
+    if (dateOnlyMatch) return `${dateOnlyMatch[1]}-${dateOnlyMatch[2]}`;
+  }
+
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: LEAVE_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+  }).formatToParts(date);
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  return year && month ? `${year}-${month}` : "";
+}
+
 export function normalizeLeaveType(value) {
   if (!value && value !== 0) return "sick_leave";
   const raw = String(value).trim().toLowerCase().replace(/[_\-\s]+/g, "_");
@@ -43,6 +64,7 @@ export function getRequestForParticipant(records, participantId) {
 export function calculateTypeBalance(records = [], participantId, typeKey) {
   const normalizedType = normalizeLeaveType(typeKey);
   const typeMetadata = LEAVE_TYPES.find((type) => type.key === normalizedType) || LEAVE_TYPES[0];
+  const currentMonth = getLeaveMonthKey();
 
   const filtered = (records || []).filter((record) => {
     if (!record) return false;
@@ -52,7 +74,8 @@ export function calculateTypeBalance(records = [], participantId, typeKey) {
       String(record.userId ?? "") === String(participantId) ||
       String(record.participant_id ?? "") === String(participantId);
 
-    return recordType === normalizedType && participantMatch;
+    const recordMonth = getLeaveMonthKey(record.startDate || record.date || record.submittedAt);
+    return recordType === normalizedType && participantMatch && recordMonth === currentMonth;
   });
 
   let approvedDays = 0;

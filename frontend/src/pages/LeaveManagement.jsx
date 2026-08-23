@@ -8,6 +8,7 @@ import {
   addLeaveRequest,
   getAllParticipantLeaveSummaries,
   getCurrentParticipantForUser,
+  getLeaveMonthKey,
   getLeaveRequests,
   getLeaveSummaryForCurrentUser,
   getLowBalanceTone,
@@ -84,6 +85,7 @@ export default function LeaveManagement() {
   const stats = useMemo(() => {
     const approvedDays = records
       .filter((record) => String(record.status || "").toLowerCase() === "approved" && !record.isAdjustment)
+      .filter((record) => getLeaveMonthKey(record.startDate || record.date || record.submittedAt) === getLeaveMonthKey())
       .reduce((sum, record) => sum + Number(record.days || 0), 0);
 
     const totalRemaining = allSummaries.reduce((sum, item) => sum + Number(item.totalRemaining || 0), 0);
