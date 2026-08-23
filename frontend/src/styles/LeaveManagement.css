@@ -42,6 +42,7 @@
 .leave-balance-pill--danger { color: #b91c1c; background: #feeceb; }
 .leave-balance-pill--muted { color: #475569; background: #eef2f7; }
 .leave-total-days { font-size: 1rem; }
+.leave-balance-used { display: block; margin-top: .3rem; color: #94a3b8; font-size: .68rem; white-space: nowrap; }
 .leave-request-list { display: flex; flex-direction: column; }
 .leave-request-row { display: grid; grid-template-columns: minmax(180px, 1.3fr) minmax(145px, 1fr) minmax(160px, 1fr) auto minmax(220px, 1.25fr); align-items: center; gap: 1rem; padding: 1rem 0; border-bottom: 1px solid #edf0f5; }
 .leave-request-row:last-child { border-bottom: 0; padding-bottom: 0; }

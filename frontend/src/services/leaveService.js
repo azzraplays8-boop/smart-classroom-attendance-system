@@ -1,9 +1,9 @@
 export const LEAVE_TYPES = [
-  { key: "sick_leave", label: "Sick Leave", allocation: 5 },
-  { key: "personal_leave", label: "Personal Leave", allocation: 3 },
-  { key: "emergency_leave", label: "Emergency Leave", allocation: 3 },
-  { key: "mental_health_leave", label: "Mental Health Leave", allocation: 3 },
-  { key: "academic_leave", label: "Academic Leave", allocation: 5 },
+  { key: "sick_leave", label: "Sick Leave", allocation: 5, maxDaysPerRequest: 5 },
+  { key: "personal_leave", label: "Personal Leave", allocation: 3, maxDaysPerRequest: 2 },
+  { key: "emergency_leave", label: "Emergency Leave", allocation: 3, maxDaysPerRequest: 5 },
+  { key: "mental_health_leave", label: "Mental Health Leave", allocation: 3, maxDaysPerRequest: 1 },
+  { key: "academic_leave", label: "Academic Leave", allocation: 5, maxDaysPerRequest: 3 },
 ];
 
 export const LEAVE_ALLOCATION_MAP = Object.fromEntries(LEAVE_TYPES.map((type) => [type.key, type.allocation]));
@@ -80,7 +80,7 @@ export function calculateTypeBalance(records = [], participantId, typeKey) {
 
   let approvedDays = 0;
   let pendingDays = 0;
-  let adjustmentDelta = 0;
+  let adjustmentUsedDelta = 0;
 
   filtered.forEach((record) => {
     const days = Number(record.days) || 0;
@@ -91,7 +91,7 @@ export function calculateTypeBalance(records = [], participantId, typeKey) {
 
     if (isAdjustment) {
       const type = String(record.adjustmentType || "ADD").toUpperCase();
-      adjustmentDelta += type === "DEDUCT" ? -days : days;
+      adjustmentUsedDelta += type === "DEDUCT" ? days : -days;
       return;
     }
 
@@ -102,17 +102,18 @@ export function calculateTypeBalance(records = [], participantId, typeKey) {
     }
   });
 
-  const effectiveAllocation = Math.max(0, typeMetadata.allocation + adjustmentDelta);
-  const remaining = Math.max(0, effectiveAllocation - approvedDays);
+  const allocation = typeMetadata.allocation;
+  const used = Math.min(allocation, Math.max(0, approvedDays + adjustmentUsedDelta));
+  const remaining = Math.min(allocation, Math.max(0, allocation - used));
 
   return {
     typeKey: normalizedType,
     label: typeMetadata.label,
-    allocation: effectiveAllocation,
+    allocation,
     approved: approvedDays,
     pending: pendingDays,
-    adjustment: adjustmentDelta,
-    used: approvedDays,
+    adjustment: adjustmentUsedDelta,
+    used,
     remaining,
   };
 }
@@ -242,7 +243,27 @@ export function addLeaveRequest({ participantId, userId, organizationId, leaveTy
     throw new Error("End date cannot be before start date.");
   }
 
+  const typeMetadata = getLeaveTypeByKey(leaveType);
+  if (cleanedDays > typeMetadata.maxDaysPerRequest) {
+    throw new Error(`${typeMetadata.label} requests are limited to ${typeMetadata.maxDaysPerRequest} days.`);
+  }
+
   const records = getStoredLeaveRecords();
+  const balance = calculateTypeBalance(records, participantId, typeMetadata.key);
+  if (cleanedDays > balance.remaining) {
+    throw new Error(`Only ${balance.remaining} ${typeMetadata.label} days remain.`);
+  }
+  const start = new Date(normalizedStart).getTime();
+  const end = new Date(normalizedEnd).getTime();
+  const overlapsExisting = records.some((record) => {
+    if (record.isAdjustment || String(record.status).toLowerCase() === "rejected") return false;
+    if (String(record.participantId ?? "") !== String(participantId)) return false;
+    const existingStart = new Date(record.startDate).getTime();
+    const existingEnd = new Date(record.endDate || record.startDate).getTime();
+    return Number.isFinite(start) && Number.isFinite(end) && Number.isFinite(existingStart) && Number.isFinite(existingEnd) && start <= existingEnd && end >= existingStart;
+  });
+  if (overlapsExisting) throw new Error("This leave request overlaps an existing request.");
+
   const nextRecord = {
     id: `leave-request-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
     participantId: Number(participantId),

@@ -163,7 +163,7 @@ export default function MyLeave() {
       {notice.message && <div className={`leave-alert leave-alert--${notice.type}`}>{notice.message}</div>}
 
       <section className="leave-summary-grid">
-        <div className="leave-stat-card"><span className="leave-stat-icon leave-stat-icon--blue"><FiCalendar /></span><div><span>Total Available</span><strong>{summary.totalRemaining}</strong><small>days remaining</small></div></div>
+        <div className="leave-stat-card"><span className="leave-stat-icon leave-stat-icon--blue"><FiCalendar /></span><div><span>Total Remaining</span><strong>{summary.totalRemaining}</strong><small>days remaining</small></div></div>
         <div className="leave-stat-card"><span className="leave-stat-icon leave-stat-icon--green"><FiCheck /></span><div><span>Total Used</span><strong>{summary.totalUsed}</strong><small>approved days</small></div></div>
         <div className="leave-stat-card"><span className="leave-stat-icon leave-stat-icon--amber"><FiClock /></span><div><span>Pending Requests</span><strong>{history.filter((record) => record.status === "pending").length}</strong><small>awaiting review</small></div></div>
       </section>
