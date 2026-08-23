@@ -13,7 +13,7 @@ const LEAVE_TIME_ZONE = "Asia/Manila";
 
 export function getLeaveMonthKey(value = new Date()) {
   if (typeof value === "string") {
-    const dateOnlyMatch = value.trim().match(/^(\d{4})-(\d{2})/);
+    const dateOnlyMatch = value.trim().match(/^(\d{4})-(\d{2})-\d{2}$/);
     if (dateOnlyMatch) return `${dateOnlyMatch[1]}-${dateOnlyMatch[2]}`;
   }
 
