@@ -79,12 +79,13 @@ export function calculateTypeBalance(records = [], participantId, typeKey) {
     }
   });
 
-  const remaining = Math.max(0, typeMetadata.allocation + adjustmentDelta - approvedDays);
+  const effectiveAllocation = Math.max(0, typeMetadata.allocation + adjustmentDelta);
+  const remaining = Math.max(0, effectiveAllocation - approvedDays);
 
   return {
     typeKey: normalizedType,
     label: typeMetadata.label,
-    allocation: typeMetadata.allocation,
+    allocation: effectiveAllocation,
     approved: approvedDays,
     pending: pendingDays,
     adjustment: adjustmentDelta,
