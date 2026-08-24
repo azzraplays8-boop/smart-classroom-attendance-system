@@ -33,6 +33,8 @@ function formatDays(value) {
 
 export default function LeaveManagement() {
   const { user } = useAuth();
+  const currentPeriod = getLeaveMonthKey();
+  const currentPeriodLabel = new Date(`${currentPeriod}-01T00:00:00`).toLocaleDateString(undefined, { year: "numeric", month: "long" });
   const canManageLeave = user?.role === "super_admin" || user?.role === "administrator" || hasPermission(user, "manage_leave");
   const [participants, setParticipants] = useState([]);
   const [records, setRecords] = useState([]);
@@ -148,18 +150,13 @@ export default function LeaveManagement() {
     const record = records.find((item) => String(item.id) === String(recordId));
     if (!record) return;
 
-    const participant = participants.find((item) => String(item.id) === String(record.participantId));
-    const summary = participant ? getLeaveSummaryForCurrentUser({ id: participant.userId || participant.user_id }, participants, records) : null;
-    const typeSummary = summary?.typeSummaries?.find((item) => item.typeKey === record.leaveType);
-
-    if (typeSummary && Number(record.days) > Number(typeSummary.remaining || 0)) {
-      setToast("Approval would exceed the participant's remaining balance.");
-      return;
+    try {
+      updateLeaveRequestStatus(recordId, "approved", user?.id);
+      setToast("Leave request approved.");
+      loadData();
+    } catch (err) {
+      setToast(err?.message || "Unable to approve leave request.");
     }
-
-    updateLeaveRequestStatus(recordId, "approved", user?.id);
-    setToast("Leave request approved.");
-    loadData();
   };
 
   const handleReject = (recordId) => {
@@ -252,7 +249,7 @@ export default function LeaveManagement() {
   return (
     <div className="leave-page">
       <header className="leave-header">
-        <div><p className="leave-eyebrow">Leave Management</p><h1>Leave Dashboard</h1><p className="leave-subtitle">Keep every participant's time away organized and visible.</p></div>
+          <div><p className="leave-eyebrow">Leave Management</p><h1>Leave Dashboard</h1><p className="leave-subtitle">{currentPeriodLabel} · Keep every participant's time away organized and visible.</p></div>
       </header>
       {toast && <div className="leave-toast">{toast}</div>}
       {error && <div className="leave-alert leave-alert--error">{error}</div>}

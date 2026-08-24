@@ -61,10 +61,9 @@ export function getRequestForParticipant(records, participantId) {
   return (records || []).filter((record) => String(record.participantId ?? "") === String(participantId));
 }
 
-export function calculateTypeBalance(records = [], participantId, typeKey) {
+export function calculateTypeBalance(records = [], participantId, typeKey, period = getLeaveMonthKey()) {
   const normalizedType = normalizeLeaveType(typeKey);
   const typeMetadata = LEAVE_TYPES.find((type) => type.key === normalizedType) || LEAVE_TYPES[0];
-  const currentMonth = getLeaveMonthKey();
 
   const filtered = (records || []).filter((record) => {
     if (!record) return false;
@@ -75,7 +74,7 @@ export function calculateTypeBalance(records = [], participantId, typeKey) {
       String(record.participant_id ?? "") === String(participantId);
 
     const recordMonth = getLeaveMonthKey(record.startDate || record.date || record.submittedAt);
-    return recordType === normalizedType && participantMatch && recordMonth === currentMonth;
+    return recordType === normalizedType && participantMatch && recordMonth === period;
   });
 
   let approvedDays = 0;
@@ -242,6 +241,10 @@ export function addLeaveRequest({ participantId, userId, organizationId, leaveTy
   if (new Date(normalizedEnd) < new Date(normalizedStart)) {
     throw new Error("End date cannot be before start date.");
   }
+  const requestMonth = getLeaveMonthKey(normalizedStart);
+  if (!requestMonth || requestMonth !== getLeaveMonthKey(normalizedEnd)) {
+    throw new Error("Leave requests must stay within one calendar month.");
+  }
 
   const typeMetadata = getLeaveTypeByKey(leaveType);
   if (cleanedDays > typeMetadata.maxDaysPerRequest) {
@@ -249,7 +252,7 @@ export function addLeaveRequest({ participantId, userId, organizationId, leaveTy
   }
 
   const records = getStoredLeaveRecords();
-  const balance = calculateTypeBalance(records, participantId, typeMetadata.key);
+  const balance = calculateTypeBalance(records, participantId, typeMetadata.key, requestMonth);
   if (cleanedDays > balance.remaining) {
     throw new Error(`Only ${balance.remaining} ${typeMetadata.label} days remain.`);
   }
@@ -290,11 +293,20 @@ export function addLeaveRequest({ participantId, userId, organizationId, leaveTy
 
 export function updateLeaveRequestStatus(recordId, status, reviewedBy) {
   const records = getStoredLeaveRecords();
+  const targetStatus = String(status || "pending").toLowerCase();
+  const targetRecord = records.find((record) => String(record.id) === String(recordId));
+  if (targetRecord && targetStatus === "approved" && String(targetRecord.status || "").toLowerCase() !== "approved") {
+    const period = getLeaveMonthKey(targetRecord.startDate || targetRecord.date || targetRecord.submittedAt);
+    const balance = calculateTypeBalance(records, targetRecord.participantId, targetRecord.leaveType, period);
+    if (Number(targetRecord.days) > balance.remaining) {
+      throw new Error(`Only ${balance.remaining} ${balance.label} days remain for ${period}.`);
+    }
+  }
   const nextRecords = records.map((record) => {
     if (String(record.id) !== String(recordId)) return record;
     return {
       ...record,
-      status: String(status || "pending").toLowerCase(),
+      status: targetStatus,
       reviewedAt: new Date().toISOString(),
       reviewedBy: reviewedBy != null ? Number(reviewedBy) : record.reviewedBy,
     };
