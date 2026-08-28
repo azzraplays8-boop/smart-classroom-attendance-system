@@ -112,7 +112,10 @@ export default function ParticipantInformationSection({
             }
           >
             <option value="">Select category</option>
-            {yearLevels.map((lvl) => (
+            {/* Include the participant's currently saved category as a valid
+                option even if it no longer exists in Settings, so legacy
+                records remain editable without being forced to change it. */}
+            {[...new Set([...yearLevels, ...[String(values.yearLevel || "").trim()].filter(Boolean)])].map((lvl) => (
               <option key={lvl} value={lvl}>
                 {formatYearLevelLabel(lvl)}
               </option>

@@ -138,12 +138,27 @@ const [query, setQuery] = useState("");
           responseData = await participantsService.createParticipant(payload);
         }
       } catch (err) {
+        // Log the real error for debugging instead of hiding it behind a
+        // generic message.
+        console.error(
+          "Participant save failed:",
+          err?.response?.status,
+          err?.response?.data || err?.message,
+          err
+        );
         const backendMessage = err.response?.data?.message || err.message || "";
-        const message = backendMessage === "Participant identifier must be unique."
-          ? `${labels.primaryIdLabel} already exists.`
-          : editMode
+        const backendDetail = err.response?.data?.detail || "";
+        let message;
+        if (backendMessage === "Participant identifier must be unique.") {
+          message = `${labels.primaryIdLabel} already exists.`;
+        } else if (backendMessage) {
+          // Show the actual validation/backend reason (e.g. "level is required")
+          message = backendMessage + (backendDetail ? ` (${backendDetail})` : "");
+        } else {
+          message = editMode
             ? `Failed to update ${labels.entityName?.toLowerCase() || "entity"}.`
             : `Failed to add ${labels.entityName?.toLowerCase() || "entity"}.`;
+        }
         showToast("error", message);
         return false;
       }

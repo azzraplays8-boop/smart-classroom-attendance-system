@@ -256,7 +256,13 @@ const computedErrors = useMemo(() => {
   // list. They are offered once a year level/category has been chosen.
   const { sections } = useAcademicConfig();
 
-  const availableSectionOptions = values.yearLevel ? sections : [];
+  const baseSections = values.yearLevel ? sections : [];
+  // Keep the participant's currently saved section selectable even if it is
+  // no longer present in the Settings → Academic Configuration list.
+  const availableSectionOptions =
+    normalizeText(values.section) && !baseSections.includes(values.section)
+      ? [...baseSections, values.section]
+      : baseSections;
 
   useEffect(() => {
     if (!isOpen) return;
@@ -345,10 +351,15 @@ const nextErrors = validateForm({
     if (Object.keys(nextErrors).length > 0) return;
 
     const yearLevelRaw = normalizeText(values.yearLevel);
+    // Prefer the numeric part for the backend `level`/`year` column, but if the
+    // category is a legacy/non-numeric value (e.g. "Freshman", "Faculty" or an
+    // old Settings value no longer in the list), keep it as-is instead of
+    // silently sending "" — an empty `level` makes the backend reject the
+    // update with a generic "Failed to update participant".
     const year = (() => {
       const m = yearLevelRaw.match(/^(\d+)(st|nd|rd|th)?$/i);
-      if (!m) return "";
-      return String(m[1]);
+      if (m) return String(m[1]);
+      return yearLevelRaw;
     })();
 
     const newParticipant = {

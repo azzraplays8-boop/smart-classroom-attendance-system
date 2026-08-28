@@ -658,10 +658,19 @@ export default function participantsRouter({ pool, upload }) {
 
       return res.json({ message: "Participant updated" });
     } catch (err) {
+      // Log the REAL error so update failures are diagnosable (do not swallow).
+      console.error(`PUT /participants/${req.params.id} error:`, err);
+      console.error("Request body:", req.body);
+
       if (err && err.code === "ER_DUP_ENTRY") {
         return res.status(409).json({ message: "Participant identifier must be unique." });
       }
-      return res.status(500).json({ message: "Failed to update participant" });
+      // Surface the original error info to the client for debugging while the
+      // generic message stays user-facing.
+      return res.status(500).json({
+        message: "Failed to update participant",
+        detail: err?.sqlMessage || err?.message || String(err),
+      });
     }
   });
 
