@@ -27,14 +27,16 @@ export function normalizeAcademicSettings(settings = {}) {
   const academicYear = settings.academicYear ?? settings.schoolYear ?? settings.orgYear ?? "";
   const semester = settings.semester ?? settings.academicSemester ?? "1st";
 
+  // Edited form fields (defaultDepartments/defaultSections/positionLevels)
+  // take priority over their mirror fields — mirror fields are only fallbacks.
   const departmentList = firstConfiguredList(
-    settings.departmentOptions,
     settings.defaultDepartments,
-    settings.courseOptions,
-    settings.defaultCourses
+    settings.departmentOptions,
+    settings.defaultCourses,
+    settings.courseOptions
   );
-  const sectionList = firstConfiguredList(settings.sectionOptions, settings.defaultSections);
-  const yearList = firstConfiguredList(settings.yearLevelOptions, settings.positionLevels);
+  const sectionList = firstConfiguredList(settings.defaultSections, settings.sectionOptions);
+  const yearList = firstConfiguredList(settings.positionLevels, settings.yearLevelOptions);
 
   return {
     academicYear,

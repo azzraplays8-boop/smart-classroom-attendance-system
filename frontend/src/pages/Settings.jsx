@@ -185,14 +185,19 @@ function normalizeAcademicSettingsForStorage(rawSettings = {}) {
 
   const academicYear = rawSettings.academicYear ?? rawSettings.schoolYear ?? rawSettings.orgYear ?? "";
   const semester = rawSettings.semester ?? rawSettings.academicSemester ?? "1st";
+  // IMPORTANT: the fields the Settings form actually edits (defaultDepartments,
+  // defaultSections, positionLevels, defaultCourses) MUST take priority over
+  // their mirror fields (departmentOptions, sectionOptions, yearLevelOptions).
+  // The mirror fields are only fallbacks for legacy saved data — otherwise the
+  // stale mirror value silently overwrites the user's new edits on save.
   const departmentValue = readListValue(
-    rawSettings.departmentOptions,
     rawSettings.defaultDepartments,
-    rawSettings.courseOptions,
-    rawSettings.defaultCourses
+    rawSettings.departmentOptions,
+    rawSettings.defaultCourses,
+    rawSettings.courseOptions
   );
-  const sectionValue = readListValue(rawSettings.sectionOptions, rawSettings.defaultSections);
-  const yearValue = readListValue(rawSettings.yearLevelOptions, rawSettings.positionLevels);
+  const sectionValue = readListValue(rawSettings.defaultSections, rawSettings.sectionOptions);
+  const yearValue = readListValue(rawSettings.positionLevels, rawSettings.yearLevelOptions);
 
   return {
     ...rawSettings,
@@ -201,20 +206,14 @@ function normalizeAcademicSettingsForStorage(rawSettings = {}) {
     semester,
     departmentOptions: departmentValue,
     defaultDepartments: departmentValue,
-    courseOptions: readListValue(rawSettings.courseOptions, rawSettings.defaultCourses),
+    courseOptions: readListValue(rawSettings.defaultCourses, rawSettings.courseOptions),
     defaultCourses: readListValue(rawSettings.defaultCourses, rawSettings.courseOptions),
     sectionOptions: sectionValue,
     defaultSections: sectionValue,
-    yearLevelOptions: Array.isArray(rawSettings.yearLevelOptions)
-      ? rawSettings.yearLevelOptions
-          .map((v) => String(v).trim())
-          .filter(Boolean)
-      : typeof yearValue === "string"
-        ? yearValue
-            .split(",")
-            .map((v) => v.trim())
-            .filter(Boolean)
-        : [],
+    // Keep yearLevelOptions as a plain comma-separated STRING so it round-trips
+    // through the backend settings table (which stores values as strings)
+    // without losing data.
+    yearLevelOptions: yearValue,
     positionLevels: yearValue,
   };
 }
