@@ -11,8 +11,13 @@ const STATUS_OPTIONS = ["Present", "Late", "Absent"];
  * Dedicated report generator panel.
  * Filters: Date Range, Course, Year Level, Section, Status.
  * Actions: Generate Report, Export PDF, Export Excel, Print Report.
+ *
+ * Branding comes from the shared organization settings (SettingsContext — the
+ * SAME source used by Settings → System Configuration). No hardcoded names.
  */
-function ReportGenerator({ records, schoolSettings, labels }) {
+function ReportGenerator({ records, organizationSettings, labels }) {
+  const orgName = organizationSettings?.orgName || organizationSettings?.organizationName || "";
+  const orgLogo = organizationSettings?.orgLogo || organizationSettings?.organizationLogo || "";
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [course, setCourse] = useState("");
@@ -87,6 +92,47 @@ function ReportGenerator({ records, schoolSettings, labels }) {
       r.status || "-",
     ]);
 
+  /**
+   * Draw the organization logo (and name) onto the PDF page.
+   * Handles PNG (incl. transparent) / JPEG data URIs, preserves aspect ratio,
+   * and never throws — a broken logo just skips the image.
+   */
+  const drawPdfHeader = (doc) => {
+    let textX = 14;
+    const baseY = 20;
+    if (orgLogo) {
+      try {
+        const isPng = String(orgLogo).startsWith("data:image/png");
+        const isWebp = String(orgLogo).startsWith("data:image/webp");
+        const format = isPng ? "PNG" : isWebp ? "WEBP" : "JPEG";
+        const props = doc.getImageProperties(orgLogo);
+        const maxW = 30;
+        const maxH = 25;
+        const ratio = Math.min(maxW / props.width, maxH / props.height);
+        const w = Math.max(5, props.width * ratio);
+        const h = Math.max(5, props.height * ratio);
+        doc.addImage(orgLogo, format, 14, 8, w, h);
+        textX = 14 + w + 6;
+      } catch {
+        // Invalid/unsupported image — skip the logo, keep the report working.
+        textX = 14;
+      }
+    }
+    if (orgName) {
+      doc.setFontSize(16);
+      doc.setFont("helvetica", "bold");
+      doc.text(orgName, textX, baseY - 6);
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "normal");
+      doc.text("Attendance Analytics Report", textX, baseY + 2);
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "italic");
+      const now = new Date();
+      const dateStr = now.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" });
+      doc.text(`Generated: ${dateStr}`, textX, baseY + 8);
+    }
+  };
+
   const handleExportPDF = () => {
     if (filteredRecords.length === 0) {
       showToast("error", "No records available to export.");
@@ -96,27 +142,7 @@ function ReportGenerator({ records, schoolSettings, labels }) {
     try {
       const doc = new jsPDF("landscape", "mm", "a4");
 
-      if (schoolSettings?.schoolLogo) {
-        try {
-          doc.addImage(schoolSettings.schoolLogo, "JPEG", 14, 10, 25, 25);
-        } catch {
-          // Skip logo if image loading fails
-        }
-      }
-
-      doc.setFontSize(16);
-      doc.setFont("helvetica", "bold");
-      doc.text(schoolSettings?.schoolName || "Organization Name", 45, 20);
-
-      doc.setFontSize(14);
-      doc.setFont("helvetica", "normal");
-      doc.text("Attendance Analytics Report", 45, 30);
-
-      doc.setFontSize(9);
-      doc.setFont("helvetica", "italic");
-      const now = new Date();
-      const dateStr = now.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" });
-      doc.text(`Generated: ${dateStr}`, 45, 36);
+      drawPdfHeader(doc);
 
       doc.setFontSize(9);
       doc.setFont("helvetica", "normal");
@@ -161,7 +187,7 @@ function ReportGenerator({ records, schoolSettings, labels }) {
     try {
       const wb = XLSX.utils.book_new();
       const wsData = [
-        [`${schoolSettings?.schoolName || "Organization"} — Attendance Analytics Report`],
+        [`${orgName || "Organization"} — Attendance Analytics Report`],
         [`Generated: ${new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" })}`],
         [`Filters: ${getFiltersLabel()}`],
         [],

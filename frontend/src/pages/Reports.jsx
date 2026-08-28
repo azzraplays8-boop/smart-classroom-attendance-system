@@ -11,37 +11,23 @@ import AttendanceTimeline from "../components/analytics/AttendanceTimeline";
 import QuickInsights from "../components/analytics/QuickInsights";
 import ReportGenerator from "../components/analytics/ReportGenerator";
 import { useOrgLabels } from "../config/labels";
+import { useSettings } from "../context/SettingsContext";
 import { formatHourLabel, getHour, normalizeStatus } from "../components/analytics/analyticsUtils";
 import "../styles/Reports.css";
 import { authFetch } from "../services/apiClient";
 
 /**
- * KATAGA Portal Reports — True Analytics Dashboard (frontend-only redesign).
+ * Analytics & Reports — True Analytics Dashboard (frontend-only redesign).
+ * Branding (org name/logo) comes from the shared SettingsContext.
  * Reuses existing attendance API endpoints. No CRUD, no duplicate table.
  */
 function Reports() {
   const labels = useOrgLabels();
+  const { settings: organizationSettings } = useSettings();
   const [records, setRecords] = useState([]);
   const [dashboardStats, setDashboardStats] = useState({ totalParticipants: 0, presentToday: 0, lateToday: 0, absentToday: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [organizationSettings, setSchoolSettings] = useState({ schoolName: "", schoolLogo: "" });
-
-  // Fetch school settings (name/logo) for report exports.
-  const fetchSettings = async () => {
-    try {
-      const res = await authFetch("/settings");
-      const data = await res.json();
-      if (res.ok && data.settings) {
-        setSchoolSettings({
-          schoolName: data.settings.schoolName || "",
-          schoolLogo: data.settings.schoolLogo || "",
-        });
-      }
-    } catch {
-      // Silently fail — settings not critical for app functionality
-    }
-  };
 
   // Fetch all attendance records (single request, existing endpoint).
   const fetchAllRecords = async () => {
@@ -82,7 +68,6 @@ function Reports() {
   };
 
   useEffect(() => {
-    fetchSettings();
     fetchAllRecords();
     fetchDashboardStats();
 
@@ -139,8 +124,8 @@ function Reports() {
       {error ? <div className="an-message an-message--error">{error}</div> : null}
 
       <AnalyticsHeader
-        title="KATAGA Portal Reports"
-        subtitle="Monitor KATAGA Portal activities, generate reports, and gain meaningful insights from member records."
+        title={`${organizationSettings?.orgName || "Analytics"} — Reports`}
+        subtitle={`Monitor ${organizationSettings?.orgName || "organization"} activities, generate reports, and gain meaningful insights from member records.`}
       />
 
       {loading ? (
