@@ -5,10 +5,10 @@
  * First registered user becomes Super Administrator (auto-approved, no org required).
  * Subsequent registrations require a valid invitation code and become Pending Approval.
  */
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
-import { useAcademicConfig } from "../../hooks/useAcademicConfig";
+import { useAcademicConfig, formatYearLevelLabel } from "../../hooks/useAcademicConfig";
 import {
   FiEye,
   FiEyeOff,
@@ -51,7 +51,7 @@ export default function Register() {
     // Contact Information
     contact_number: "",
   });
-  
+
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -402,15 +402,11 @@ export default function Register() {
               <div className="register-section">
                 <h3 className="register-section-title">Academic Information</h3>
                 <div className="register-field-row register-field-row-2">
-                  {renderSelect("Department / Group", "department", 
-                    academicConfig.departments && academicConfig.departments.length > 0
-                      ? academicConfig.departments
-                      : ["BS ENTREP", "BS CRIM", "BS ACCOUNTANCY", "BS IT"],
+                  {renderSelect("Department / Group", "department",
+                    academicConfig.departments,
                     "Select a department")}
-                  {renderSelect("Category", "category", 
-                    academicConfig.yearLevels && academicConfig.yearLevels.length > 0
-                      ? academicConfig.yearLevels
-                      : ["1st Year", "2nd Year", "3rd Year", "4th Year"],
+                  {renderSelect("Category", "category",
+                    academicConfig.yearLevels.map(formatYearLevelLabel),
                     "Select a year level")}
                 </div>
               </div>

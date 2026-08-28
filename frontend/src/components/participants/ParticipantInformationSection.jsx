@@ -1,7 +1,6 @@
-import React from "react";
-
 import "../../styles/participants/ParticipantModal.css";
 import { useAcademicConfig } from "../../hooks/useAcademicConfig";
+import { useOrgLabels } from "../../config/labels";
 
 function DepartmentSelect({ id, label, value, onChange, required, error, showError, options }) {
   const normalizedValue = String(value ?? "").trim();
@@ -58,6 +57,9 @@ export default function ParticipantInformationSection({
   // Departments and year levels are read from there instead of being
   // hardcoded here.
   const { departments, yearLevels, formatYearLevelLabel } = useAcademicConfig();
+  // Group/Team label follows the org-type terminology (e.g. "Section" for
+  // school/university, "Team" for company) resolved from Settings.
+  const { groupLabel } = useOrgLabels();
 
   const visibleError = (key) => {
     return touched?.[key] || (!touched || Object.keys(touched).length === 0 ? Boolean(errors?.[key]) : false);
@@ -126,7 +128,7 @@ export default function ParticipantInformationSection({
 
         <div className="sis-field">
           <label className="sis-label" htmlFor="section">
-            Team <span className="sis-req">*</span>
+            {groupLabel} <span className="sis-req">*</span>
           </label>
 
           <select
@@ -142,7 +144,7 @@ export default function ParticipantInformationSection({
             }
           >
             <option value="">
-              {values.yearLevel ? "Select team" : "Select category first"}
+              {values.yearLevel ? `Select ${groupLabel.toLowerCase()}` : "Select category first"}
             </option>
             {availableSectionOptions.map((sec) => (
               <option key={sec} value={sec}>

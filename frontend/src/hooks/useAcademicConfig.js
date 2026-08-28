@@ -70,7 +70,6 @@ export const SEMESTER_OPTIONS = [
 
 // Fallback defaults kept in ONE place (the centralized config). Used only when
 // no value has been configured yet so forms remain usable.
-const DEFAULT_DEPARTMENTS = parseList(DEFAULT_ORG_SETTINGS.departmentOptions || "");
 const DEFAULT_SECTIONS = parseList(DEFAULT_ORG_SETTINGS.sectionOptions || "");
 const DEFAULT_YEAR_LEVELS =
   Array.isArray(DEFAULT_ORG_SETTINGS.yearLevelOptions) &&
