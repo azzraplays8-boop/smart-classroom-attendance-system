@@ -9,7 +9,6 @@ import {
   FaQrcode,
   FaUsersCog,
   FaBuilding,
-  FaClipboardList,
   FaUser,
   FaEye,
   FaCalendarCheck,

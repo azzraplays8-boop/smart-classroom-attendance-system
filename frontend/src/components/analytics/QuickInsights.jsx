@@ -6,9 +6,8 @@ import {
   FiAlertTriangle,
   FiPercent,
   FiClock,
-  FiStar,
 } from "react-icons/fi";
-import { formatFullDate, formatHourLabel, formatTime, getHour, normalizeStatus } from "./analyticsUtils";
+import { formatFullDate, formatHourLabel, getHour, normalizeStatus } from "./analyticsUtils";
 
 function InsightCard({ icon, label, value, tone }) {
   return (

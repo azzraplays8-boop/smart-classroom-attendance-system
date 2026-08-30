@@ -19,14 +19,6 @@ function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeText(email));
 }
 
-function buildParticipantName({ lastName, firstName, middleName }) {
-  const last = normalizeText(lastName);
-  const first = normalizeText(firstName);
-  const middle = normalizeText(middleName);
-  const middlePart = middle ? ` ${middle}` : "";
-  return `${last}, ${first}${middlePart}`.trim();
-}
-
 function validateForm({ values, existingIdentifiers, ignoreIdentifier, labels }) {
   const errors = {};
 
@@ -269,6 +261,9 @@ const computedErrors = useMemo(() => {
 
     // When switching between participants, the parent updates `initialParticipant`.
     // Ensure we always map ALL modal fields from the selected record.
+    // Deferred via queueMicrotask so setState is not called synchronously
+    // inside the effect (react-hooks/set-state-in-effect).
+    queueMicrotask(() => {
     if (editMode && initialParticipant) {
       const toISODate = (v) => {
         const s = String(v ?? "").trim();
@@ -330,6 +325,7 @@ const computedErrors = useMemo(() => {
     setOriginalIdentifier("");
     setErrors({});
     setTouched({});
+    });
   }, [isOpen, editMode, initialParticipant, initialValues]);
 
   const handleSubmit = async () => {

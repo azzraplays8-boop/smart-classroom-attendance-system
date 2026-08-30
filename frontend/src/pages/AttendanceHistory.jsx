@@ -8,6 +8,7 @@ import { FiEdit2, FiTrash2, FiChevronLeft, FiChevronRight } from "react-icons/fi
 import ConfirmDialog from "../components/participants/ConfirmDialog";
 import "../styles/attendance/AttendanceHistory.css";
 import { authFetch } from "../services/apiClient";
+import { getCurrentMonthLocal, buildMonthLabel } from "../config/attendancePolicy";
 
 function formatDate(value) {
   if (!value) return "-";
@@ -54,10 +55,14 @@ function getStatusBadgeClass(status) {
       return "ah-badge ah-badge--late";
     case "absent":
       return "ah-badge ah-badge--absent";
+    case "excused":
+      return "ah-badge ah-badge--excused";
     default:
       return "ah-badge ah-badge--muted";
   }
 }
+
+const MONTH_STATUSES = ["Present", "Late", "Absent", "Excused"];
 
 function AttendanceHistory() {
   const [records, setRecords] = useState([]);
@@ -67,6 +72,12 @@ function AttendanceHistory() {
   const [dateFilter, setDateFilter] = useState("");
   const [courseFilter, setCourseFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  // Period filter: current month by default; month | date | range | all
+  const initialMonth = getCurrentMonthLocal();
+  const [periodMode, setPeriodMode] = useState("month"); // month | date | range | all
+  const [periodMonth, setPeriodMonth] = useState(`${initialMonth.year}-${String(initialMonth.month).padStart(2, "0")}`);
+  const [rangeFrom, setRangeFrom] = useState("");
+  const [rangeTo, setRangeTo] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [exportMessage, setExportMessage] = useState("");
@@ -74,7 +85,7 @@ function AttendanceHistory() {
   const [toastVisible, setToastVisible] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
-  const [editForm, setEditForm] = useState({ attendanceDate: "", timeIn: "", status: "Present" });
+  const [editForm, setEditForm] = useState({ attendanceDate: "", timeIn: "", status: "Present", remarks: "" });
   const [isSavingRecord, setIsSavingRecord] = useState(false);
   const [pendingDeleteRecord, setPendingDeleteRecord] = useState(null);
   const [isDeletingRecord, setIsDeletingRecord] = useState(false);
@@ -97,6 +108,23 @@ function AttendanceHistory() {
     record.status || "-",
   ]);
 
+  const buildPeriodParams = (params) => {
+    if (periodMode === "month" && periodMonth) {
+      const [y, m] = periodMonth.split("-").map(Number);
+      if (y && m) {
+        params.set("period", "month");
+        params.set("month", String(m));
+        params.set("year", String(y));
+      }
+    } else if (periodMode === "date" && dateFilter) {
+      params.set("date", dateFilter);
+    } else if (periodMode === "range") {
+      if (rangeFrom) params.set("from", rangeFrom);
+      if (rangeTo) params.set("to", rangeTo);
+    }
+    // periodMode === "all" → no date params sent
+  };
+
   const fetchHistory = async (nextPage = 1) => {
     setLoading(true);
     setError("");
@@ -109,9 +137,9 @@ function AttendanceHistory() {
       });
 
       if (search.trim()) params.set("search", search.trim());
-      if (dateFilter) params.set("date", dateFilter);
       if (courseFilter) params.set("course", courseFilter);
       if (statusFilter) params.set("status", statusFilter);
+      buildPeriodParams(params);
 
       const res = await authFetch(`/attendance/history?${params.toString()}`);
       const data = await res.json();
@@ -138,15 +166,15 @@ function AttendanceHistory() {
     });
 
     if (search.trim()) params.set("search", search.trim());
-    if (dateFilter) params.set("date", dateFilter);
     if (courseFilter) params.set("course", courseFilter);
     if (statusFilter) params.set("status", statusFilter);
+    buildPeriodParams(params);
 
     const res = await authFetch(`/attendance/history?${params.toString()}`);
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
 
     if (!res.ok) {
-      throw new Error(data.message || "Unable to export attendance history.");
+      throw new Error(data?.message || "Unable to export attendance history.");
     }
 
     return Array.isArray(data.records) ? data.records : [];
@@ -192,7 +220,7 @@ function AttendanceHistory() {
         headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255] },
         alternateRowStyles: { fillColor: [248, 250, 252] },
         margin: { left: 40, right: 40 },
-        didDrawPage: (data) => {
+        didDrawPage: () => {
           const footerText = `Page ${doc.internal.getNumberOfPages()}`;
           doc.setFontSize(8);
           doc.text(footerText, pageWidth - 60, pageHeight - 20);
@@ -262,18 +290,24 @@ function AttendanceHistory() {
     return Array.from(values).sort();
   }, [records]);
 
-  const statusOptions = useMemo(() => {
-    const values = new Set(records.map((record) => record.status).filter(Boolean));
-    return Array.from(values).sort();
-  }, [records]);
-
   const summary = useMemo(() => {
     const total = records.length;
     const present = records.filter((record) => String(record.status || "").toLowerCase() === "present").length;
     const late = records.filter((record) => String(record.status || "").toLowerCase() === "late").length;
     const absent = records.filter((record) => String(record.status || "").toLowerCase() === "absent").length;
-    return { total, present, late, absent };
+    const excused = records.filter((record) => String(record.status || "").toLowerCase() === "excused").length;
+    return { total, present, late, absent, excused };
   }, [records]);
+
+  const periodLabel = useMemo(() => {
+    if (periodMode === "month" && periodMonth) {
+      const [y, m] = periodMonth.split("-").map(Number);
+      return buildMonthLabel(y, m);
+    }
+    if (periodMode === "date" && dateFilter) return dateFilter;
+    if (periodMode === "range" && (rangeFrom || rangeTo)) return `${rangeFrom || "…"} → ${rangeTo || "…"}`;
+    return "All Time";
+  }, [periodMode, periodMonth, dateFilter, rangeFrom, rangeTo]);
 
   const handleApplyFilters = () => {
     fetchHistory(1);
@@ -284,6 +318,11 @@ function AttendanceHistory() {
     setDateFilter("");
     setCourseFilter("");
     setStatusFilter("");
+    setRangeFrom("");
+    setRangeTo("");
+    const now = getCurrentMonthLocal();
+    setPeriodMode("month");
+    setPeriodMonth(`${now.year}-${String(now.month).padStart(2, "0")}`);
     setTimeout(() => fetchHistory(1), 0);
   };
 
@@ -293,6 +332,7 @@ function AttendanceHistory() {
       attendanceDate: formatDate(record.attendanceDate),
       timeIn: record.timeIn ? new Date(record.timeIn).toISOString().slice(0, 16) : "",
       status: record.status || "Present",
+      remarks: record.remarks || "",
     });
     setIsEditModalOpen(true);
   };
@@ -300,7 +340,7 @@ function AttendanceHistory() {
   const handleCloseEditModal = () => {
     setIsEditModalOpen(false);
     setEditingRecord(null);
-    setEditForm({ attendanceDate: "", timeIn: "", status: "Present" });
+    setEditForm({ attendanceDate: "", timeIn: "", status: "Present", remarks: "" });
   };
 
   const handleSaveEdit = async (event) => {
@@ -313,6 +353,7 @@ function AttendanceHistory() {
         attendanceDate: editForm.attendanceDate,
         timeIn: editForm.timeIn ? new Date(editForm.timeIn).toISOString() : null,
         status: editForm.status,
+        remarks: editForm.status === "Excused" ? (editForm.remarks || "Excused by admin") : undefined,
       };
 
       const res = await authFetch(`/attendance/${editingRecord.id}`, {
@@ -415,6 +456,19 @@ function AttendanceHistory() {
             <div className="ah-stat-value">{summary.total}</div>
           </div>
         </div>
+        <div className="ah-stat-card ah-stat-card--excused">
+          <div className="ah-stat-icon ah-stat-icon--excused">📝</div>
+          <div className="ah-stat-meta">
+            <div className="ah-stat-label">Excused</div>
+            <div className="ah-stat-value">{summary.excused}</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Period indicator */}
+      <div className="ah-period-indicator">
+        <span className="ah-period-label">Attendance Period</span>
+        <span className="ah-period-value">{periodLabel}</span>
       </div>
 
       {/* Filters */}
@@ -433,15 +487,66 @@ function AttendanceHistory() {
           </div>
 
           <div className="ah-filter-item">
-            <label className="ah-label" htmlFor="ah-date">Date</label>
-            <input
-              id="ah-date"
-              type="date"
-              value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value)}
+            <label className="ah-label" htmlFor="ah-period-mode">Period</label>
+            <select
+              id="ah-period-mode"
+              value={periodMode}
+              onChange={(e) => setPeriodMode(e.target.value)}
               className="ah-control"
-            />
+            >
+              <option value="month">Current / Specific Month</option>
+              <option value="date">Specific Date</option>
+              <option value="range">Custom Date Range</option>
+              <option value="all">All Time</option>
+            </select>
           </div>
+
+          {periodMode === "month" ? (
+            <div className="ah-filter-item">
+              <label className="ah-label" htmlFor="ah-period-month">Month</label>
+              <input
+                id="ah-period-month"
+                type="month"
+                value={periodMonth}
+                onChange={(e) => setPeriodMonth(e.target.value)}
+                className="ah-control"
+              />
+            </div>
+          ) : periodMode === "date" ? (
+            <div className="ah-filter-item">
+              <label className="ah-label" htmlFor="ah-date">Date</label>
+              <input
+                id="ah-date"
+                type="date"
+                value={dateFilter}
+                onChange={(e) => setDateFilter(e.target.value)}
+                className="ah-control"
+              />
+            </div>
+          ) : periodMode === "range" ? (
+            <>
+              <div className="ah-filter-item">
+                <label className="ah-label" htmlFor="ah-range-from">From</label>
+                <input
+                  id="ah-range-from"
+                  type="date"
+                  value={rangeFrom}
+                  onChange={(e) => setRangeFrom(e.target.value)}
+                  className="ah-control"
+                />
+              </div>
+              <div className="ah-filter-item">
+                <label className="ah-label" htmlFor="ah-range-to">To</label>
+                <input
+                  id="ah-range-to"
+                  type="date"
+                  value={rangeTo}
+                  onChange={(e) => setRangeTo(e.target.value)}
+                  className="ah-control"
+                />
+              </div>
+            </>
+          ) : null}
 
           <div className="ah-filter-item">
             <label className="ah-label" htmlFor="ah-course">Course</label>
@@ -467,7 +572,7 @@ function AttendanceHistory() {
               className="ah-control"
             >
               <option value="">All</option>
-              {statusOptions.map((status) => (
+              {MONTH_STATUSES.map((status) => (
                 <option key={status} value={status}>{status}</option>
               ))}
             </select>
@@ -682,7 +787,18 @@ function AttendanceHistory() {
                     <option value="Present">Present</option>
                     <option value="Late">Late</option>
                     <option value="Absent">Absent</option>
+                    <option value="Excused">Excused</option>
                   </select>
+                </div>
+                <div className="ah-field">
+                  <label className="ah-field-label">Reason / Remarks (required when Excused)</label>
+                  <input
+                    type="text"
+                    className="ah-field-control"
+                    value={editForm.remarks || ""}
+                    onChange={(event) => setEditForm((current) => ({ ...current, remarks: event.target.value }))}
+                    placeholder="e.g. Medical appointment (approved excuse)"
+                  />
                 </div>
               </div>
               <div className="ah-modal-actions">

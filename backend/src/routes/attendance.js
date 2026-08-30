@@ -5,6 +5,25 @@ import {
   authorizeAnyPermission,
   PERMISSION_KEYS,
 } from "../auth/authMiddleware.js";
+import {
+  ATTENDANCE_POLICY,
+  buildStandingBreakdown,
+  getLateAbsenceEquivalent,
+  computeEffectiveAbsences,
+  getAttendanceStanding,
+} from "../config/attendancePolicy.js";
+import {
+  getCurrentMonthWindow,
+  buildMonthWindow,
+  summarizeParticipantMonthly,
+  summarizeMonthlyTotals,
+  closeSessionAndNotifyAbsences,
+} from "../services/attendanceAnalytics.js";
+import {
+  sendCheckInConfirmationEmail,
+  sendAbsenceNoticeEmail,
+  isValidEmail,
+} from "../services/emailService.js";
 
 // ── Attendance settings helpers ────────────────────────────
 
@@ -70,6 +89,18 @@ async function resolveCurrentParticipant(pool, user) {
   return rows?.[0] ?? null;
 }
 
+/** Load org timezone from settings (single consistent timezone strategy). */
+async function getOrgTimezone(pool) {
+  try {
+    const [rows] = await pool.query(
+      "SELECT setting_value FROM settings WHERE setting_key = 'timezone' LIMIT 1"
+    );
+    return extractTimezone(rows?.[0]?.setting_value);
+  } catch {
+    return "Asia/Manila";
+  }
+}
+
 async function buildMemberAttendanceSummary(pool, user) {
   const member = await resolveCurrentParticipant(pool, user);
   if (!member) {
@@ -81,9 +112,11 @@ async function buildMemberAttendanceSummary(pool, user) {
         present: 0,
         late: 0,
         absent: 0,
+        excused: 0,
         attendanceRate: 0,
       },
       monthly: {},
+      monthlySummary: null,
     };
   }
 
@@ -110,12 +143,23 @@ async function buildMemberAttendanceSummary(pool, user) {
   for (const record of records) {
     const mk = String(record.attendanceDate || "").slice(0, 7);
     if (!mk) continue;
-    if (!byMonth[mk]) byMonth[mk] = { present: 0, late: 0, absent: 0 };
+    if (!byMonth[mk]) byMonth[mk] = { present: 0, late: 0, absent: 0, excused: 0 };
     const s = String(record.status || "").toLowerCase();
     if (s === "present") byMonth[mk].present += 1;
     else if (s === "late") byMonth[mk].late += 1;
     else if (s === "absent") byMonth[mk].absent += 1;
+    else if (s === "excused") byMonth[mk].excused += 1;
   }
+
+  // ── Current-month summary (date-based filtering, nothing is deleted) ──
+  const tz = await getOrgTimezone(pool);
+  const { year, month, startDate, endDate, label } = {
+    ...getCurrentMonthWindow(tz),
+  };
+  const monthKey = `${year}-${String(month).padStart(2, "0")}`;
+  const monthCounts = byMonth[monthKey] || { present: 0, late: 0, absent: 0, excused: 0 };
+  const monthlyBreakdown = buildStandingBreakdown(monthCounts);
+  const counted = monthCounts.present + monthCounts.late + monthCounts.absent;
 
   return {
     member,
@@ -125,9 +169,20 @@ async function buildMemberAttendanceSummary(pool, user) {
       present,
       late,
       absent,
+      excused: records.filter((r) => String(r.status || "").toLowerCase() === "excused").length,
       attendanceRate: total > 0 ? Math.round((present / total) * 100) : 0,
     },
-    monthly: byMonth,
+    monthly,
+    // Current-month tracking block consumed by My Attendance page
+    monthlySummary: {
+      year,
+      month,
+      label,
+      startDate,
+      endDate,
+      ...monthlyBreakdown,
+      attendanceRate: counted > 0 ? Math.round((monthCounts.present / counted) * 100) : 0,
+    },
   };
 }
 
@@ -232,7 +287,7 @@ export default function attendanceRouter({ pool }) {
 
   router.get("/history", auth, async (req, res) => {
     try {
-      const { page = 1, limit = 50, search = "", date = "", course = "", status = "", from = "", to = "", participantId = "" } = req.query || {};
+      const { page = 1, limit = 50, search = "", date = "", course = "", status = "", from = "", to = "", participantId = "", period = "", month = "", year = "" } = req.query || {};
       const offset = (Number(page) - 1) * Number(limit);
       const searchTerm = String(search || "").trim();
       const dateFilter = String(date || "").trim();
@@ -276,6 +331,18 @@ export default function attendanceRouter({ pool }) {
       if (!dateFilter && toFilter) {
         whereClauses.push(`a.attendance_date <= ?`);
         params.push(toFilter);
+      }
+
+      // Month/year period filter (date-based filtering — never deletes history).
+      if (!dateFilter && !fromFilter && !toFilter && String(period).toLowerCase() === "month") {
+        const m = Number(month);
+        const y = Number(year);
+        if (m >= 1 && m <= 12 && y >= 1900) {
+          const win = buildMonthWindow(y, m);
+          whereClauses.push("a.attendance_date >= ?");
+          whereClauses.push("a.attendance_date <= ?");
+          params.push(win.startDate, win.endDate);
+        }
       }
 
       // Optional per-member filter
@@ -341,16 +408,22 @@ const [rows] = await pool.query(
       const attendanceDate = String(req.body?.attendanceDate || req.body?.attendance_date || "").trim();
       const timeIn = req.body?.timeIn ?? req.body?.time_in ?? null;
       const status = String(req.body?.status || "").trim();
+      const remarks = req.body?.remarks ?? req.body?.excuseReason ?? null;
 
       if (!attendanceDate || !status) {
         return res.status(400).json({ message: "attendanceDate and status are required" });
       }
+      if (!ATTENDANCE_POLICY.STATUSES.includes(status)) {
+        return res.status(400).json({
+          message: `Invalid status. Allowed: ${ATTENDANCE_POLICY.STATUSES.join(", ")}`,
+        });
+      }
 
       const [result] = await pool.query(
         `UPDATE attendance
-         SET attendance_date = ?, time_in = ?, status = ?
+         SET attendance_date = ?, time_in = ?, status = ?, remarks = COALESCE(?, remarks)
          WHERE id = ?`,
-        [attendanceDate, timeIn, status, id]
+        [attendanceDate, timeIn, status, status === "Excused" ? remarks : null, id]
       );
 
       if (!result?.affectedRows) {
@@ -569,17 +642,29 @@ const [rows] = await pool.query(
       for (const record of records) {
         const mk = String(record.attendanceDate || "").slice(0, 7);
         if (!mk) continue;
-        if (!byMonth[mk]) byMonth[mk] = { present: 0, late: 0, absent: 0 };
+        if (!byMonth[mk]) byMonth[mk] = { present: 0, late: 0, absent: 0, excused: 0 };
         const s = String(record.status || "").toLowerCase();
         if (s === "present") byMonth[mk].present += 1;
         else if (s === "late") byMonth[mk].late += 1;
         else if (s === "absent") byMonth[mk].absent += 1;
+        else if (s === "excused") byMonth[mk].excused += 1;
       }
+      // Current-month standing for this participant
+      const tz = await getOrgTimezone(pool);
+      const window = getCurrentMonthWindow(tz);
+      const monthKey = `${window.year}-${String(window.month).padStart(2, "0")}`;
+      const monthCounts = byMonth[monthKey] || { present: 0, late: 0, absent: 0, excused: 0 };
+      const monthlySummary = {
+        ...window,
+        ...buildStandingBreakdown(monthCounts),
+      };
       res.json({
         member, records,
         summary: { totalRecords: total, present, late, absent,
+          excused: records.filter((r) => String(r.status || "").toLowerCase() === "excused").length,
           attendanceRate: total > 0 ? Math.round((present / total) * 100) : 0 },
         monthly: byMonth,
+        monthlySummary,
       });
     } catch (err) {
       console.error("GET /attendance/member/:id error:", err);
@@ -757,6 +842,46 @@ router.post("/", auth, authorizeAnyPermission(PERMISSION_KEYS.MANAGE_ATTENDANCE,
         [result.insertId]
       );
 
+      // ── Check-in confirmation email (Part 8 / Part 11) ────────────────
+      // Attendance is ALREADY persisted above. Email failure must never
+      // affect the saved record — all errors are caught inside the service.
+      let emailNotification = { attempted: false, sent: false, reason: null };
+      try {
+        const [emailRows] = await pool.query(
+          "SELECT email FROM participants WHERE id = ? LIMIT 1",
+          [participant.id]
+        );
+        const recipientEmail = emailRows?.[0]?.email || null;
+        if (isValidEmail(recipientEmail)) {
+          emailNotification.attempted = true;
+          const tz = await getOrgTimezone(pool);
+          const dateStr = new Intl.DateTimeFormat("en-US", {
+            timeZone: tz, year: "numeric", month: "long", day: "numeric",
+          }).format(new Date());
+          const timeStr = new Intl.DateTimeFormat("en-US", {
+            timeZone: tz, hour: "numeric", minute: "2-digit", hour12: true,
+          }).format(new Date());
+          const outcome = await sendCheckInConfirmationEmail({
+            to: recipientEmail,
+            participantName: [participant.firstName, participant.lastName].filter(Boolean).join(" "),
+            date: dateStr,
+            timeIn: newRow?.[0]?.timeIn
+              ? new Date(newRow[0].timeIn).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })
+              : timeStr,
+            status: computedStatus,
+          });
+          emailNotification.sent = outcome.sent;
+          emailNotification.reason = outcome.error || null;
+        } else {
+          emailNotification.reason = "no-valid-email";
+          console.warn(`[email] Check-in confirmation skipped for participant ${participant.id}: no valid email on file.`);
+        }
+      } catch (emailErr) {
+        // Never fail attendance because of email problems.
+        console.error("[email] Unexpected error sending check-in confirmation:", emailErr?.message);
+        emailNotification.reason = emailErr?.message || "unknown-email-error";
+      }
+
       return res.status(201).json({
         message: "Attendance recorded",
         attendance: newRow?.[0] ?? null,
@@ -772,10 +897,76 @@ router.post("/", auth, authorizeAnyPermission(PERMISSION_KEYS.MANAGE_ATTENDANCE,
               photo: participant.photo ?? null,
             }
           : null,
+        emailNotification,
       });
     } catch (err) {
       console.error("POST /attendance error:", err);
       return res.status(500).json({ message: "Failed to record attendance" });
+    }
+  });
+
+  // ── Session close: mark absences + send absence notices (Part 9) ─────
+  // Only an admin/super-admin can officially close a session. Absence
+  // emails are sent ONLY here — never while a session is still open — and
+  // attendance_email_log guarantees one notice per participant per session.
+  router.post("/close-session", auth, authorizePermission(PERMISSION_KEYS.MANAGE_ATTENDANCE), async (req, res) => {
+    try {
+      const tz = await getOrgTimezone(pool);
+      const date = String(req.body?.date || "").trim() ||
+        new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(new Date());
+      const activity = String(req.body?.activity || "").trim() || null;
+
+      const results = await closeSessionAndNotifyAbsences({
+        pool,
+        date,
+        activity,
+        timezone: tz,
+        sendEmail: (args) => sendAbsenceNoticeEmail(args),
+      });
+
+      res.json({
+        message: "Session closed. Absences recorded and notifications processed.",
+        date,
+        activity,
+        ...results,
+      });
+    } catch (err) {
+      console.error("POST /attendance/close-session error:", err);
+      res.status(500).json({ message: "Failed to close attendance session." });
+    }
+  });
+
+  // ── Monthly standings / warnings (Part 4 / Part 12) ───────────────────
+  router.get("/monthly-standings", auth, async (req, res) => {
+    try {
+      const tz = await getOrgTimezone(pool);
+      const m = Number(req.query.month);
+      const y = Number(req.query.year);
+      const window = (m >= 1 && m <= 12 && y >= 1900)
+        ? buildMonthWindow(y, m)
+        : getCurrentMonthWindow(tz);
+
+      const [rows] = await pool.query(
+        `SELECT a.participant_id, a.status,
+                p.participant_identifier, p.first_name, p.last_name,
+                p.department, p.level, p.group_name
+         FROM attendance a
+         LEFT JOIN participants p ON p.id = a.participant_id
+         WHERE a.attendance_date >= ? AND a.attendance_date <= ?`,
+        [window.startDate, window.endDate]
+      );
+
+      const participants = summarizeParticipantMonthly(rows || []);
+      const totals = summarizeMonthlyTotals(participants);
+
+      res.json({
+        ...window,
+        totals,
+        participants,
+      });
+    } catch (err) {
+      console.error("GET /attendance/monthly-standings error:", err);
+      res.status(500).json({ message: "Failed to fetch monthly standings." });
     }
   });
 

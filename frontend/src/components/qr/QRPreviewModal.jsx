@@ -1,7 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
 import ParticipantAvatar from "../participants/ParticipantAvatar";
-import { API_BASE_URL } from "../../config/api";
 
 function formatDate(val) {
   if (!val) return "-";
@@ -17,21 +16,30 @@ function formatDate(val) {
 }
 
 function QRPreviewModal({ isOpen, participant, onClose, onDownloadPng, onDownloadPdf, onPrint }) {
-  const [dataUrl, setDataUrl] = useState("");
+  const [qr, setQr] = useState({ code: null, url: "" });
 
   useEffect(() => {
-    if (!isOpen || !participant?.qrCode) {
-      setDataUrl("");
-      return;
-    }
-    QRCode.toDataURL(String(participant.qrCode), {
+    const code = isOpen ? participant?.qrCode : null;
+    if (!code) return;
+    let cancelled = false;
+    QRCode.toDataURL(String(code), {
       errorCorrectionLevel: "H",
       margin: 2,
       width: 512,
     })
-      .then((url) => setDataUrl(url))
-      .catch(() => setDataUrl(""));
+      .then((url) => {
+        if (!cancelled) setQr({ code, url });
+      })
+      .catch(() => {
+        if (!cancelled) setQr({ code, url: "" });
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [isOpen, participant?.qrCode]);
+
+  const dataUrl =
+    isOpen && qr.code === (participant?.qrCode ?? null) ? qr.url : "";
 
   const fullName = useMemo(() => {
     if (!participant) return "";

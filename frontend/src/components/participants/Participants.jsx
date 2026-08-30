@@ -30,7 +30,7 @@ const [query, setQuery] = useState("");
     try {
       const data = await participantsService.getParticipants();
       setParticipants(Array.isArray(data.participants) ? data.participants : []);
-    } catch (err) {
+    } catch {
       setLoadError("Failed to load participants.");
     } finally {
       setIsLoading(false);

@@ -49,7 +49,7 @@ function AttendanceTrendChart({ records }) {
   const [startDate, setStartDate] = useState(addDays(todayString(), -6));
   const [endDate, setEndDate] = useState(todayString());
 
-  const { days, data } = useMemo(() => {
+  const { data } = useMemo(() => {
     let days = [];
     if (range === "today") {
       days = [todayString()];

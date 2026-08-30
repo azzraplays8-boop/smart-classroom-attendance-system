@@ -3,9 +3,9 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 import { FiDownload, FiFileText, FiPrinter, FiRefreshCw, FiSearch } from "react-icons/fi";
-import { formatDate, formatTime, todayString } from "./analyticsUtils";
+import { formatDate, formatTime } from "./analyticsUtils";
 
-const STATUS_OPTIONS = ["Present", "Late", "Absent"];
+const STATUS_OPTIONS = ["Present", "Late", "Absent", "Excused"];
 
 /**
  * Dedicated report generator panel.
@@ -242,8 +242,6 @@ function ReportGenerator({ records, organizationSettings, labels }) {
     setStatus("");
     setGeneratedAt(null);
   };
-
-  const isFiltered = Boolean(startDate || endDate || course || year || section || status);
 
   return (
     <div className="an-card">

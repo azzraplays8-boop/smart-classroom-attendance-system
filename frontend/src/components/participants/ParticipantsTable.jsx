@@ -17,7 +17,7 @@ function formatDateOnly(value) {
   return String(value);
 }
 
-function EmptyState({ hasQuery, onAddClick }) {
+function EmptyState({ hasQuery }) {
   return (
     <div className="participants-empty-state" role="status">
       <div className="participants-empty-icon">

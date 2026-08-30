@@ -27,6 +27,7 @@ function statusClass(status) {
   if (normalized === "present") return "ma-status ma-status--present";
   if (normalized === "late") return "ma-status ma-status--late";
   if (normalized === "absent") return "ma-status ma-status--absent";
+  if (normalized === "excused") return "ma-status ma-status--excused";
   return "ma-status ma-status--muted";
 }
 
@@ -35,7 +36,18 @@ function statusIcon(status) {
   if (normalized === "present") return <FiCheckCircle />;
   if (normalized === "late") return <FiClock />;
   if (normalized === "absent") return <FiXCircle />;
+  if (normalized === "excused") return <FiTag />;
   return <FiTag />;
+}
+
+function standingToneClass(tone) {
+  switch (tone) {
+    case "good": return "ma-standing--good";
+    case "warning": return "ma-standing--warning";
+    case "final-warning": return "ma-standing--final";
+    case "admin-review": return "ma-standing--admin";
+    default: return "ma-standing--muted";
+  }
 }
 
 function rateFromSummary(summary) {
@@ -57,12 +69,14 @@ export default function MyAttendance() {
   const [loading, setLoading] = useState(true);
   const [member, setMember] = useState(null);
   const [records, setRecords] = useState([]);
-  const [summary, setSummary] = useState({ totalRecords: 0, present: 0, late: 0, absent: 0, attendanceRate: 0 });
+  const [summary, setSummary] = useState({ totalRecords: 0, present: 0, late: 0, absent: 0, excused: 0, attendanceRate: 0 });
+  const [monthlySummary, setMonthlySummary] = useState(null);
   const [error, setError] = useState("");
 
   // Preserved API logic: fetches the authenticated viewer's OWN attendance.
   const loadAttendance = async (opts = {}) => {
     const aborted = opts?.aborted;
+    await Promise.resolve(); // defer sync setState out of the effect body
     setLoading(true);
     setError("");
     try {
@@ -72,7 +86,8 @@ export default function MyAttendance() {
       if (aborted) return;
       setMember(data?.member || null);
       setRecords(Array.isArray(data?.records) ? data.records : []);
-      setSummary(data?.summary || { totalRecords: 0, present: 0, late: 0, absent: 0, attendanceRate: 0 });
+      setSummary(data?.summary || { totalRecords: 0, present: 0, late: 0, absent: 0, excused: 0, attendanceRate: 0 });
+      setMonthlySummary(data?.monthlySummary || null);
     } catch (err) {
       if (!aborted) setError(err?.message || "Unable to load your attendance.");
     } finally {
@@ -173,6 +188,53 @@ export default function MyAttendance() {
                   <div className={`ma-rate-interp ma-rate-interp--${rateInfo.tone}`}>{rateInfo.text}</div>
                 </div>
               </div>
+            </section>
+
+            <section className="ma-section">
+              <h3 className="ma-section-title">
+                Monthly Attendance Summary — {monthlySummary?.label || "Current Month"}
+              </h3>
+              {monthlySummary ? (
+                <div className="ma-card" style={{ padding: "18px 20px" }}>
+                  <div className="ma-stats ma-stats-grid">
+                    {[
+                      { key: "m-total", label: "Total Attendance", value: monthlySummary.present + monthlySummary.late + monthlySummary.absent + monthlySummary.excused, tone: "indigo" },
+                      { key: "m-present", label: "Present", value: monthlySummary.present, tone: "green" },
+                      { key: "m-late", label: "Late", value: monthlySummary.late, tone: "amber" },
+                      { key: "m-absent", label: "Actual Absent", value: monthlySummary.absent, tone: "red" },
+                      { key: "m-excused", label: "Excused", value: monthlySummary.excused, tone: "violet" },
+                      { key: "m-rate", label: "Attendance Rate", value: `${monthlySummary.attendanceRate || 0}%`, tone: "indigo" },
+                    ].map((s) => (
+                      <div key={s.key} className={`ma-stat ma-stat--${s.tone} ma-card`}>
+                        <div className="ma-stat-body">
+                          <span className="ma-stat-label">{s.label}</span>
+                          <span className="ma-stat-value">{s.value}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className={`ma-standing ${standingToneClass(monthlySummary.standingTone)}`}>
+                    <span className="ma-standing-label">Attendance Standing</span>
+                    <span className="ma-standing-value">{monthlySummary.standing || "Good Standing"}</span>
+                  </div>
+
+                  {(monthlySummary.absent > 0 || monthlySummary.late > 0) && (
+                    <div className="ma-breakdown">
+                      <div className="ma-breakdown-row"><span>Actual Absences:</span><strong>{monthlySummary.absent}</strong></div>
+                      <div className="ma-breakdown-row"><span>Late Records:</span><strong>{monthlySummary.late}</strong></div>
+                      <div className="ma-breakdown-row"><span>Late Equivalent ({Math.floor(3)} lates = 1 absence):</span><strong>{monthlySummary.lateEquivalentAbsences} Absence{monthlySummary.lateEquivalentAbsences === 1 ? "" : "s"}</strong></div>
+                      <div className="ma-breakdown-row"><span>Effective Absences:</span><strong>{monthlySummary.effectiveAbsences}</strong></div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="ma-card" style={{ padding: "18px 20px" }}>
+                  <p style={{ margin: 0, color: "var(--muted-2)" }}>
+                    This month's summary starts fresh on the 1st. Previous months remain in your history below.
+                  </p>
+                </div>
+              )}
             </section>
 
             <section className="ma-section">

@@ -611,8 +611,12 @@ function Attendance() {
         return;
       }
 
-      const successMessage = "✓ Attendance recorded successfully";
       const timeIn = data.attendance?.timeIn ? formatTime(data.attendance.timeIn) : formatTime(new Date().toISOString());
+      const recordedStatus = data.attendance?.status || "Present";
+      // Honest success message — reflect the ACTUAL status, not always Present.
+      const successMessage = recordedStatus.toLowerCase() === "late"
+        ? "Attendance Recorded — Status: Late"
+        : "✓ Attendance Recorded Successfully!";
 
       const matchedParticipant = data.participant || null;
       const displayIdentifier = matchedParticipant?.participantIdentifier || rawValue;
@@ -629,7 +633,9 @@ function Attendance() {
         year: matchedParticipant?.year || "-",
         section: matchedParticipant?.section || "-",
         timeIn,
-        status: data.attendance?.status || "Present",
+        date: new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }),
+        status: recordedStatus,
+        emailNotification: data.emailNotification || null,
         photo: matchedParticipant?.photo || null,
       });
 
@@ -684,7 +690,7 @@ function Attendance() {
     }
   }, [activeDeviceId]);
 
-  // Cleap up highlight timer on unmount.
+  // Clean up the highlight timer on unmount.
   useEffect(() => {
     return () => {
       if (highlightTimerRef.current) window.clearTimeout(highlightTimerRef.current);
@@ -1108,6 +1114,17 @@ function Attendance() {
               <div style={{ color: "var(--muted-2)" }}>Time Recorded</div>
               <div style={{ fontWeight: 650, color: "var(--text)" }}>{attendanceResult.timeIn}</div>
             </div>
+            <div>
+              <div style={{ color: "var(--muted-2)" }}>Date</div>
+              <div style={{ fontWeight: 650, color: "var(--text)" }}>{attendanceResult.date || "-"}</div>
+            </div>
+          </div>
+          <div style={{ marginTop: 14, padding: "10px 14px", borderRadius: 10, background: "var(--surface-2, #f8fafc)", border: "1px solid var(--border-2, #e2e8f0)", fontSize: 13, color: "var(--muted-2)" }}>
+            Thank you for checking in, {attendanceResult.participantName}. Your attendance for this session has been recorded.
+            {attendanceResult.status?.toLowerCase() === "late" ? " Please note: you were checked in as LATE based on the attendance time rules." : ""}
+            {attendanceResult.emailNotification && !attendanceResult.emailNotification.sent
+              ? " (Note: confirmation email could not be sent — your attendance is still safely recorded.)"
+              : ""}
           </div>
         </div>
       ) : null}

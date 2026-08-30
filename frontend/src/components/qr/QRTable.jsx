@@ -1,30 +1,26 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
-import ParticipantAvatar from "../participants/ParticipantAvatar";
 import ConfirmDialog from "../participants/ConfirmDialog";
 
 function QRPreviewThumb({ qrCode, size = 40 }) {
   const [dataUrl, setDataUrl] = useState("");
-  const mountedRef = useRef(true);
 
-  useMemo(() => {
-    if (!qrCode) {
-      setDataUrl("");
-      return;
-    }
+  useEffect(() => {
+    if (!qrCode) return;
+    let cancelled = false;
     QRCode.toDataURL(String(qrCode), {
       errorCorrectionLevel: "H",
       margin: 1,
       width: 128,
     })
       .then((url) => {
-        if (mountedRef.current) setDataUrl(url);
+        if (!cancelled) setDataUrl(url);
       })
       .catch(() => {
-        if (mountedRef.current) setDataUrl("");
+        if (!cancelled) setDataUrl("");
       });
     return () => {
-      mountedRef.current = false;
+      cancelled = true;
     };
   }, [qrCode]);
 
@@ -99,19 +95,6 @@ function QRTable({
       setPendingDelete(null);
     }
   }, [pendingDelete, onDelete]);
-
-  const formatDate = (val) => {
-    if (!val) return "-";
-    const d = new Date(val);
-    if (isNaN(d.getTime())) return String(val).slice(0, 10);
-    return d.toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
 
   const getStatusBadge = (status) => {
     if (status === "generated")
