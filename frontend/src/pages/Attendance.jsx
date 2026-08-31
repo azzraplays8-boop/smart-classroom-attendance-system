@@ -25,6 +25,7 @@ import ParticipantAvatar from "../components/participants/ParticipantAvatar";
 import { useOrgLabels } from "../config/labels";
 import "../styles/attendance/Attendance.css";
 import { authFetch } from "../services/apiClient";
+import { API_BASE_URL } from "../config/api";
 
 // Key used to remember the user's chosen camera across visits.
 const CAMERA_STORAGE_KEY = "attendance-selected-camera";
