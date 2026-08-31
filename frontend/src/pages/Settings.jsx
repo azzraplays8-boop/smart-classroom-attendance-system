@@ -44,16 +44,6 @@ FaFileImport,
   FaIdCard,
   FaLayerGroup,
   FaBolt,
-  FaLock,
-  FaUnlock,
-  FaCloudUploadAlt,
-  FaCloudDownloadAlt,
-  FaFileArchive,
-  FaRedo,
-  FaAngleDoubleUp,
-  FaUserFriends,
-  FaKey,
-  FaQuestionCircle,
   FaInfoCircle,
 } from "react-icons/fa";
 import "../styles/Settings.css";
@@ -233,12 +223,6 @@ function Settings() {
   const fileInputRef = useRef(null);
   const settingsRef = useRef(settings);
   useEffect(() => { settingsRef.current = settings; }, [settings]);
-
-  // ── Translation helper ────────────────────────────────
-  const t = useCallback((key) => {
-    const lang = settings.language || "en";
-    return translations[lang]?.[key] ?? translations.en[key] ?? key;
-  }, [settings.language]);
 
   // ── Dirty tracking ────────────────────────────────────
   const isDirty = useMemo(() => {

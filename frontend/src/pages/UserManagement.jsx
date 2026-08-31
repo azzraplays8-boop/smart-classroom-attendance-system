@@ -13,7 +13,6 @@ import {
   FaUserLock,
   FaTrash,
   FaKey,
-  FaSyncAlt,
   FaClock,
   FaBuilding,
   FaShieldAlt,

@@ -342,10 +342,6 @@ function Dashboard() {
       { to: "/settings", label: "Settings", icon: <FiSettings />, tone: "slate", desc: "Configure organization and system" },
     ];
 
-  const viewerOnly = user?.role === "viewer";
-
-
-
   const sessionInfoRows = [
     { icon: <FiClock />, label: "Attendance Start", value: sessionSettings?.attendanceStartTime ? formatTime(sessionSettings.attendanceStartTime) : "07:30 AM" },
     { icon: <FiAlertTriangle />, label: "Late Cutoff", value: sessionSettings?.lateCutoffTime ? formatTime(sessionSettings.lateCutoffTime) : "08:00 AM" },
