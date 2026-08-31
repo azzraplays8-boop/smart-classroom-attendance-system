@@ -45,9 +45,11 @@ FaFileImport,
   FaLayerGroup,
   FaBolt,
   FaInfoCircle,
+  FaShieldAlt,
+  FaTools,
+  FaTrashAlt,
 } from "react-icons/fa";
 import "../styles/Settings.css";
-import translations from "../data/translations.js";
 import { useOrgLabels } from "../config/labels";
 import { useSettings } from "../context/SettingsContext";
 import { APP_VERSION } from "../constants";
@@ -218,6 +220,7 @@ function Settings() {
   });
   const [activeSection, setActiveSection] = useState("organization");
   const [saving, setSaving] = useState({});
+  const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState({ kind: "success", message: "", visible: false });
 
   const fileInputRef = useRef(null);

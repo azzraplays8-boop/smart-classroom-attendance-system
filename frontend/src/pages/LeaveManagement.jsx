@@ -27,6 +27,23 @@ function formatDays(value) {
   return `${numeric} day${numeric === 1 ? "" : "s"}`;
 }
 
+
+function getLowBalanceTone(remaining, allocation) {
+  const alloc = Number(allocation) || 0;
+  const rem = Number(remaining) || 0;
+  if (alloc > 0 && rem <= 0) return "danger";
+  if (alloc > 0 && rem / alloc <= 0.25) return "warning";
+  return "good";
+}
+
+function getStatusTone(status) {
+  switch (String(status || "").toLowerCase()) {
+    case "approved": return "green";
+    case "rejected": return "red";
+    case "pending": return "amber";
+    default: return "gray";
+  }
+}
 export default function LeaveManagement() {
   const { user } = useAuth();
   const currentPeriod = getLeaveMonthKey();

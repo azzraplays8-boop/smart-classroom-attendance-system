@@ -119,6 +119,7 @@ function Dashboard() {
   const [participantCount, setParticipantCount] = useState(0);
   const [sessionSettings, setSessionSettings] = useState(null);
   const [health, setHealth] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   const { greeting, Icon, time, date } = GreetingClock();
