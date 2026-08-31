@@ -10,8 +10,7 @@
  */
 
 import * as XLSX from "xlsx";
-import { API_BASE_URL, buildApiUrl } from "../config/api";
-import { getStoredAuthToken } from "./apiClient";
+import { buildApiUrl } from "../config/api";
 
 const ACCEPTED_EXTENSIONS = [".xlsx", ".xls", ".csv"];
 

@@ -44,7 +44,7 @@ export const PERMISSIONS = {
       "leave-management",
       "my-leave",
     ],
-    canAccess: (route) => true, // Full access
+    canAccess: () => true, // Full access
   },
   administrator: {
     label: "Administrator",

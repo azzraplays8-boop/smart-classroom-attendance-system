@@ -119,7 +119,6 @@ function Dashboard() {
   const [participantCount, setParticipantCount] = useState(0);
   const [sessionSettings, setSessionSettings] = useState(null);
   const [health, setHealth] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   const { greeting, Icon, time, date } = GreetingClock();
@@ -345,15 +344,7 @@ function Dashboard() {
 
   const viewerOnly = user?.role === "viewer";
 
-  const topRecentTitle = viewerOnly ? "Recent Attendance" : "Recent Activity";
 
-  const topRecentSubtitle = viewerOnly ? "Your latest attendance records" : "Latest attendance records";
-
-  const recentEmptyText = viewerOnly ? "No attendance records yet." : "No attendance records yet.";
-
-  const recentLinkTarget = viewerOnly ? "/my-attendance" : "/attendance-history";
-
-  const recentLinkLabel = viewerOnly ? "View my attendance" : "View all";
 
   const sessionInfoRows = [
     { icon: <FiClock />, label: "Attendance Start", value: sessionSettings?.attendanceStartTime ? formatTime(sessionSettings.attendanceStartTime) : "07:30 AM" },

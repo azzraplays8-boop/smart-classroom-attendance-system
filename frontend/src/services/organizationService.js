@@ -4,7 +4,7 @@
  */
 import axios from "axios";
 import { API_BASE_URL } from "../config/api";
-import { clearStoredAuth, getStoredAuthToken } from "./apiClient";
+import { getStoredAuthToken } from "./apiClient";
 
 const api = axios.create({
   baseURL: API_BASE_URL,

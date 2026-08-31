@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { FiActivity, FiCalendar, FiCheckCircle, FiClock, FiLoader, FiPercent, FiUserCheck, FiUsers, FiXCircle } from "react-icons/fi";
+import { FiActivity, FiCheckCircle, FiClock, FiLoader, FiPercent, FiUserCheck, FiUsers, FiXCircle } from "react-icons/fi";
 
 import { useAuth } from "../hooks/useAuth";
 import "../styles/AttendanceOverview.css";

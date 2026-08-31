@@ -17,7 +17,7 @@ import {
   FaSyncAlt,
 } from "react-icons/fa";
 import organizationService from "../services/organizationService";
-import { getRoleLabel } from "../constants/roles";
+
 import "../styles/Organizations.css";
 
 const EMPTY_FORM = { name: "", department: "", description: "" };

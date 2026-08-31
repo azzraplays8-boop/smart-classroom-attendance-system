@@ -11,7 +11,6 @@ import {
   FaTimes,
   FaUserCheck,
   FaUserLock,
-  FaUserEdit,
   FaTrash,
   FaKey,
   FaSyncAlt,
@@ -48,7 +47,6 @@ function UserManagement() {
   const [statusFilter, setStatusFilter] = useState("");
 
   // Modal state
-  const [editingUser, setEditingUser] = useState(null);
   const [pendingAction, setPendingAction] = useState(null);
   const [approveForm, setApproveForm] = useState({ role: "viewer", organization_id: "" });
   const [saving, setSaving] = useState(false);

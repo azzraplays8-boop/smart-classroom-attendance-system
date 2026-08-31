@@ -60,9 +60,6 @@ export function SettingsProvider({ children }) {
     return { ...DEFAULT_ORG_SETTINGS, ...stored };
   });
 
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
   // Apply theme and primary color on load and when they change
   useEffect(() => {
     applyTheme(settings.theme);
@@ -101,8 +98,6 @@ export function SettingsProvider({ children }) {
 
   const value = {
     settings,
-    loading,
-    error,
     updateSettings,
     resetSettings,
     refreshSettings,

@@ -295,7 +295,7 @@ function Attendance() {
           videoRef.current.srcObject = stream;
           try {
             await videoRef.current.play();
-          } catch (playErr) {
+          } catch {
             // iOS Safari may block autoplay — retry once with a small delay
             await new Promise((resolve) => window.setTimeout(resolve, 200));
             if (videoRef.current) {

@@ -23,8 +23,6 @@ import {
   FiUsers,
   FiLayers,
   FiZap,
-  FiRefreshCw,
-  FiTerminal,
   FiVolume2,
 } from "react-icons/fi";
 import "../styles/AccountWorkspace.css";

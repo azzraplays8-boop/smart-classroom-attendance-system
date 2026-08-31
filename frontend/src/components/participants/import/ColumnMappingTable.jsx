@@ -18,7 +18,7 @@ export default function ColumnMappingTable({ headers, mapping, onChange }) {
       next[fieldKey] = header;
     } else {
       // Unmap: remove any mapping pointing to this header
-      for (const [h, f] of Object.entries(next)) {
+      for (const [h] of Object.entries(next)) {
         if (h === fieldKey) delete next[h];
       }
       delete next[header];

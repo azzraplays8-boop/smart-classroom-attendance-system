@@ -44,12 +44,6 @@ FaFileImport,
   FaIdCard,
   FaLayerGroup,
   FaBolt,
-  FaCogs,
-  FaHistory,
-  FaTrashAlt,
-  FaWrench,
-  FaShieldAlt,
-  FaTools,
   FaLock,
   FaUnlock,
   FaCloudUploadAlt,
@@ -233,7 +227,6 @@ function Settings() {
     return { ...DEFAULT_LOCAL_PREFS };
   });
   const [activeSection, setActiveSection] = useState("organization");
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState({});
   const [toast, setToast] = useState({ kind: "success", message: "", visible: false });
 
@@ -333,7 +326,7 @@ function Settings() {
         setSettings(next);
         setSavedSnapshot(next);
       }
-    } catch (err) {
+    } catch {
       const fallbackTheme = storedTheme || "light";
       const fallbackColor = storedColor || DEFAULT_PRIMARY_COLOR;
       const fallbackLang = storedLang || "en";
