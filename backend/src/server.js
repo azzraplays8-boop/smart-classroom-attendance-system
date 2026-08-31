@@ -1,6 +1,6 @@
+import "./env.js"; // must be first so JWT_SECRET etc. are loaded before other imports evaluate
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -13,8 +13,6 @@ import settingsRouter from "./routes/settings.js";
 import qrRouter from "./routes/qr.js";
 import authRouter from "./routes/auth.js";
 import organizationsRouter from "./routes/organizations.js";
-
-dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 

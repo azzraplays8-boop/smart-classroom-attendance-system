@@ -1,0 +1,11 @@
+file:///C:/Users/Ronel%20Pesalbon/(VS%20CODE)/backend/src/auth/authMiddleware.js:21
+  throw new Error("JWT_SECRET environment variable is required. Set it before starting the server.");
+        ^
+
+Error: JWT_SECRET environment variable is required. Set it before starting the server.
+    at file:///C:/Users/Ronel%20Pesalbon/(VS%20CODE)/backend/src/auth/authMiddleware.js:21:9
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.0
