@@ -94,12 +94,12 @@ async function resolveCurrentParticipant(pool, user) {
             first_name AS firstName, last_name AS lastName, middle_name AS middleName,
             photo, department, level AS year, group_name AS section, email, user_id AS userId
      FROM participants
-     WHERE (user_id = ?)
-        OR LOWER(TRIM(COALESCE(email, ''))) = LOWER(TRIM(?))
+     WHERE (? IS NOT NULL AND user_id = ?)
+        OR LOWER(email) = LOWER(?)
         OR LOWER(TRIM(COALESCE(email, ''))) = LOWER(TRIM(?))
      ORDER BY CASE WHEN user_id = ? THEN 0 ELSE 1 END, id ASC
      LIMIT 1`,
-    [userId || null, normalizedEmail || "", email || "", userId || null]
+    [userId || null, userId || null, normalizedEmail || "", email || "", userId || null]
   );
 
   return rows?.[0] ?? null;
