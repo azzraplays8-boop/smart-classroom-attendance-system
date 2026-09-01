@@ -51,8 +51,8 @@ export const PERMISSION_KEYS = {
 export function enforceMaintenanceMode(pool) {
   return async (req, res, next) => {
     try {
-      const publicProbePaths = new Set(["/settings/public", "/health"]);
-      if (publicProbePaths.has(req.path)) {
+      const requestPath = (req.originalUrl || req.url || "").split("?")[0];
+      if (requestPath === "/health" || requestPath === "/settings/public" || requestPath.endsWith("/settings/public")) {
         return next();
       }
 
