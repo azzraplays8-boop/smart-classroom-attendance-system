@@ -102,6 +102,14 @@ async function start() {
     ssl: db.ssl,
   });
 
+  if (!process.env.NODE_ENV || process.env.NODE_ENV === "development") {
+    await pool.query(
+      `INSERT INTO settings (setting_key, setting_value)
+       VALUES ('maintenanceMode', 'false')
+       ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)`
+    );
+  }
+
   const maintenanceGuard = enforceMaintenanceMode(pool);
 
   // Run schema + migrations on startup (idempotent SQL, safe to run repeatedly).
