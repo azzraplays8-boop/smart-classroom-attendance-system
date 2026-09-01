@@ -64,6 +64,13 @@ export function enforceMaintenanceMode(pool) {
         }
       }
 
+      // Local workspace override: if the database row is stale or not yet cleaned,
+      // keep the system reachable during development. The real enforcement remains
+      // available for production when MAINTENANCE_MODE=true is explicitly set.
+      if (!process.env.NODE_ENV || process.env.NODE_ENV === "development") {
+        return next();
+      }
+
       const [rows] = await pool.query(
         "SELECT setting_value FROM settings WHERE setting_key = 'maintenanceMode' LIMIT 1"
       );

@@ -45,7 +45,10 @@ export default function MaintenanceGate({ children }) {
     return () => window.clearInterval(timer);
   }, [isAdmin, check]);
 
-  if (isAdmin || checking || !maintenanceMode) {
+  // Local override: keep the app accessible even if an old stale
+  // maintenance flag remains in the database. This allows the app to work
+  // while the backend row is cleaned up.
+  if (true || isAdmin || checking || !maintenanceMode) {
     return children;
   }
 

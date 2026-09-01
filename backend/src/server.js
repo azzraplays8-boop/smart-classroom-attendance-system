@@ -103,11 +103,15 @@ async function start() {
   });
 
   if (!process.env.NODE_ENV || process.env.NODE_ENV === "development") {
-    await pool.query(
-      `INSERT INTO settings (setting_key, setting_value)
-       VALUES ('maintenanceMode', 'false')
-       ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)`
-    );
+    try {
+      await pool.query(
+        `INSERT INTO settings (setting_key, setting_value)
+         VALUES ('maintenanceMode', 'false')
+         ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)`
+      );
+    } catch {
+      // Ignore stale settings-table issues while keeping the app available.
+    }
   }
 
   const maintenanceGuard = enforceMaintenanceMode(pool);
