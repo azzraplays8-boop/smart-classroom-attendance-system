@@ -20,6 +20,7 @@ import {
   summarizeMonthlyTotals,
   closeSessionAndNotifyAbsences,
   getAttendanceParticipantPopulation,
+  countAttendanceParticipants,
   ATTENDANCE_PARTICIPANT_FILTER_SQL,
 } from "../services/attendanceAnalytics.js";
 import {
@@ -521,12 +522,7 @@ const [rows] = await pool.query(
         });
       }
 
-      const [participantRows] = await pool.query(
-        `SELECT p.id
-         FROM participants p
-         LEFT JOIN users u ON u.id = p.user_id
-         WHERE ${ATTENDANCE_PARTICIPANT_FILTER_SQL}`
-      );
+      const totalParticipants = await countAttendanceParticipants(pool);
 
       const [presentRows] = await pool.query(
         `SELECT COUNT(*) AS total
@@ -545,7 +541,6 @@ const [rows] = await pool.query(
         ['Late']
       );
 
-      const totalParticipants = Array.isArray(participantRows) ? participantRows.length : Number(participantRows?.[0]?.total ?? 0) || 0;
       const presentToday = Number(presentRows?.[0]?.total ?? 0) || 0;
       const lateToday = Number(lateRows?.[0]?.total ?? 0) || 0;
       const absentToday = Math.max(0, totalParticipants - presentToday - lateToday);

@@ -9,19 +9,13 @@ import { buildStandingBreakdown } from "../config/attendancePolicy.js";
 
 export const ATTENDANCE_PARTICIPANT_FILTER_SQL = `
   (p.status IS NULL OR TRIM(COALESCE(p.status, '')) = '' OR LOWER(p.status) = 'active')
+  AND TRIM(COALESCE(p.participant_identifier, '')) <> ''
+  AND TRIM(COALESCE(p.first_name, '')) <> ''
+  AND TRIM(COALESCE(p.last_name, '')) <> ''
   AND (
     TRIM(COALESCE(p.department, '')) <> ''
     OR TRIM(COALESCE(p.level, '')) <> ''
     OR TRIM(COALESCE(p.group_name, '')) <> ''
-  )
-  AND NOT (
-    u.id IS NOT NULL
-    AND LOWER(u.role) IN ('super_admin', 'administrator')
-    AND (
-      TRIM(COALESCE(p.department, '')) = ''
-      OR TRIM(COALESCE(p.level, '')) = ''
-      OR TRIM(COALESCE(p.group_name, '')) = ''
-    )
   )
 `;
 
@@ -160,13 +154,23 @@ export async function getAttendanceParticipantPopulation(pool) {
     `SELECT p.id, p.participant_identifier AS participantIdentifier,
             p.first_name AS firstName, p.last_name AS lastName,
             p.email, p.status, p.department, p.level, p.group_name AS section,
-            p.user_id AS userId, u.role AS userRole
+            p.user_id AS userId
      FROM participants p
      LEFT JOIN users u ON u.id = p.user_id
      WHERE ${ATTENDANCE_PARTICIPANT_FILTER_SQL}
      ORDER BY p.id ASC`
   );
   return rows || [];
+}
+
+export async function countAttendanceParticipants(pool) {
+  const [rows] = await pool.query(
+    `SELECT COUNT(*) AS total
+     FROM participants p
+     LEFT JOIN users u ON u.id = p.user_id
+     WHERE ${ATTENDANCE_PARTICIPANT_FILTER_SQL}`
+  );
+  return Number(rows?.[0]?.total ?? 0) || 0;
 }
 
 export async function closeSessionAndNotifyAbsences({ pool, date, activity, timezone, sendEmail }) {

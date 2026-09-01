@@ -8,17 +8,17 @@ import { makeToken, wrapPoolForAuth } from './rbacTestHelpers.js';
 function createStubPool() {
   return {
     async query(sql, params) {
-      if (String(sql).includes('COUNT(*) AS total FROM participants')) {
-        return [{ total: 3 }];
+      if (String(sql).includes('COUNT(*) AS total') && String(sql).includes('FROM participants p')) {
+        return [[{ total: 3 }]];
       }
 
-      if (String(sql).includes("attendance_date = CURDATE() AND status = ?")) {
+      if (String(sql).includes("attendance_date = CURDATE() AND a.status = ?")) {
         const status = Array.isArray(params) ? params[0] : params;
         if (status === 'Present') {
-          return [{ total: 1 }];
+          return [[{ total: 1 }]];
         }
         if (status === 'Late') {
-          return [{ total: 1 }];
+          return [[{ total: 1 }]];
         }
       }
 
@@ -55,17 +55,14 @@ test('dashboard endpoint returns absent count from participants without today at
 
 test('dashboard excludes system-only admin accounts from participant totals', async () => {
   const pool = wrapPoolForAuth({
-    async query(sql) {
-      if (String(sql).includes('LEFT JOIN users u ON u.id = p.user_id')) {
-        return [{ total: 17 }];
+    async query(sql, params) {
+      if (String(sql).includes('COUNT(*) AS total') && String(sql).includes('FROM participants p')) {
+        return [[{ total: 17 }]];
       }
-      if (String(sql).includes('COUNT(*) AS total FROM participants')) {
-        return [{ total: 20 }];
-      }
-      if (String(sql).includes("attendance_date = CURDATE() AND status = ?")) {
-        const statusQuery = String(sql).toLowerCase();
-        if (statusQuery.includes("'present'")) return [{ total: 14 }];
-        if (statusQuery.includes("'late'")) return [{ total: 2 }];
+      if (String(sql).includes("attendance_date = CURDATE() AND a.status = ?")) {
+        const status = Array.isArray(params) ? params[0] : params;
+        if (status === 'Present') return [[{ total: 14 }]];
+        if (status === 'Late') return [[{ total: 2 }]];
       }
       return [[]];
     },
