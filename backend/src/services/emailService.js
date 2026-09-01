@@ -24,6 +24,10 @@ const ORG_SIGNATURE = "Thank you,\nKATAGA\nKapatiran ng Talino at Galing";
 let transporter = null;
 let transporterAttempted = false;
 
+function resolveFromAddress() {
+  return process.env.EMAIL_FROM || process.env.MAIL_FROM || process.env.SMTP_USER || "noreply@localhost";
+}
+
 function isMailConfigured() {
   if (String(process.env.MAIL_ENABLED || "").toLowerCase() === "false") return false;
   return Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
@@ -74,7 +78,7 @@ async function safeSend({ to, subject, text }) {
   }
   try {
     const info = await mailer.sendMail({
-      from: process.env.MAIL_FROM || process.env.SMTP_USER,
+      from: resolveFromAddress(),
       to,
       subject,
       text,

@@ -19,6 +19,8 @@ import {
   summarizeParticipantMonthly,
   summarizeMonthlyTotals,
   closeSessionAndNotifyAbsences,
+  getAttendanceParticipantPopulation,
+  ATTENDANCE_PARTICIPANT_FILTER_SQL,
 } from "../services/attendanceAnalytics.js";
 import {
   sendCheckInConfirmationEmail,
@@ -519,22 +521,31 @@ const [rows] = await pool.query(
         });
       }
 
-      const [{ total }] = await pool.query(`SELECT COUNT(*) AS total FROM participants`);
+      const [participantRows] = await pool.query(
+        `SELECT p.id
+         FROM participants p
+         LEFT JOIN users u ON u.id = p.user_id
+         WHERE ${ATTENDANCE_PARTICIPANT_FILTER_SQL}`
+      );
 
       const [presentRows] = await pool.query(
         `SELECT COUNT(*) AS total
-         FROM attendance
-         WHERE attendance_date = CURDATE() AND status = ?`,
+         FROM attendance a
+         INNER JOIN participants p ON p.id = a.participant_id
+         LEFT JOIN users u ON u.id = p.user_id
+         WHERE a.attendance_date = CURDATE() AND a.status = ? AND ${ATTENDANCE_PARTICIPANT_FILTER_SQL}`,
         ['Present']
       );
       const [lateRows] = await pool.query(
         `SELECT COUNT(*) AS total
-         FROM attendance
-         WHERE attendance_date = CURDATE() AND status = ?`,
+         FROM attendance a
+         INNER JOIN participants p ON p.id = a.participant_id
+         LEFT JOIN users u ON u.id = p.user_id
+         WHERE a.attendance_date = CURDATE() AND a.status = ? AND ${ATTENDANCE_PARTICIPANT_FILTER_SQL}`,
         ['Late']
       );
 
-      const totalParticipants = Number(total ?? 0) || 0;
+      const totalParticipants = Array.isArray(participantRows) ? participantRows.length : Number(participantRows?.[0]?.total ?? 0) || 0;
       const presentToday = Number(presentRows?.[0]?.total ?? 0) || 0;
       const lateToday = Number(lateRows?.[0]?.total ?? 0) || 0;
       const absentToday = Math.max(0, totalParticipants - presentToday - lateToday);
@@ -914,8 +925,13 @@ router.post("/", auth, authorizeAnyPermission(PERMISSION_KEYS.MANAGE_ATTENDANCE,
         emailNotification.reason = emailErr?.message || "unknown-email-error";
       }
 
+      const attendanceRecorded = Boolean(newRow?.[0] || result?.insertId);
+      const emailSent = Boolean(emailNotification?.sent);
+
       return res.status(201).json({
         message: "Attendance recorded",
+        attendanceRecorded,
+        emailSent,
         attendance: newRow?.[0] ?? null,
         participant: participant
           ? {

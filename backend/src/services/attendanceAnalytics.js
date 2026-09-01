@@ -7,6 +7,24 @@
  */
 import { buildStandingBreakdown } from "../config/attendancePolicy.js";
 
+export const ATTENDANCE_PARTICIPANT_FILTER_SQL = `
+  (p.status IS NULL OR TRIM(COALESCE(p.status, '')) = '' OR LOWER(p.status) = 'active')
+  AND (
+    TRIM(COALESCE(p.department, '')) <> ''
+    OR TRIM(COALESCE(p.level, '')) <> ''
+    OR TRIM(COALESCE(p.group_name, '')) <> ''
+  )
+  AND NOT (
+    u.id IS NOT NULL
+    AND LOWER(u.role) IN ('super_admin', 'administrator')
+    AND (
+      TRIM(COALESCE(p.department, '')) = ''
+      OR TRIM(COALESCE(p.level, '')) = ''
+      OR TRIM(COALESCE(p.group_name, '')) = ''
+    )
+  )
+`;
+
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
@@ -137,11 +155,27 @@ export function summarizeMonthlyTotals(participants) {
  * participant per session (duplicate prevention via attendance_email_log).
  * Email failures never affect the inserted records.
  */
+export async function getAttendanceParticipantPopulation(pool) {
+  const [rows] = await pool.query(
+    `SELECT p.id, p.participant_identifier AS participantIdentifier,
+            p.first_name AS firstName, p.last_name AS lastName,
+            p.email, p.status, p.department, p.level, p.group_name AS section,
+            p.user_id AS userId, u.role AS userRole
+     FROM participants p
+     LEFT JOIN users u ON u.id = p.user_id
+     WHERE ${ATTENDANCE_PARTICIPANT_FILTER_SQL}
+     ORDER BY p.id ASC`
+  );
+  return rows || [];
+}
+
 export async function closeSessionAndNotifyAbsences({ pool, date, activity, timezone, sendEmail }) {
   const [participants] = await pool.query(
-    `SELECT id, participant_identifier, first_name, last_name, email
-     FROM participants
-     WHERE status = 'Active' OR status IS NULL OR status = ''`
+    `SELECT p.id, p.participant_identifier, p.first_name, p.last_name, p.email,
+            p.department, p.level, p.group_name, u.role AS userRole
+     FROM participants p
+     LEFT JOIN users u ON u.id = p.user_id
+     WHERE ${ATTENDANCE_PARTICIPANT_FILTER_SQL}`
   );
 
   const [existing] = await pool.query(
