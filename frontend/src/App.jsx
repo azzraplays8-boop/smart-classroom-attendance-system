@@ -20,6 +20,7 @@ import UserManagement from "./pages/UserManagement";
 import Organizations from "./pages/Organizations";
 import LeaveManagement from "./pages/LeaveManagement";
 import MyLeave from "./pages/MyLeave";
+import MaintenancePage from "./pages/MaintenancePage";
 
 class AppErrorBoundary extends Component {
   constructor(props) {
@@ -90,6 +91,7 @@ function App() {
           {/* Public routes - no auth required */}
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/maintenance" element={<MaintenancePage />} />
 
           {/* Protected routes - require authentication */}
           <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>

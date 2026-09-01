@@ -4,9 +4,11 @@
  * If the user is not authenticated, they are redirected to /login.
  * If the user lacks the required role(s), they see a 403 "Access Denied" page.
  */
+import { useEffect, useState } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { canAccessRoute } from "../context/AuthContext";
+import { authFetch } from "../services/apiClient";
 import MaintenanceGate from "./MaintenanceGate";
 
 /**

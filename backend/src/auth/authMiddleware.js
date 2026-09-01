@@ -261,6 +261,20 @@ export function authorizeAnyPermission(...required) {
  * @param {Object} user - User object from database
  * @returns {string} Signed JWT
  */
+export async function isMaintenanceModeEnabled(pool) {
+  try {
+    const [rows] = await pool.query(
+      "SELECT setting_value FROM settings WHERE setting_key = 'maintenanceMode' LIMIT 1"
+    );
+    const value = rows?.[0]?.setting_value;
+    if (value === undefined || value === null || value === "") return false;
+    const normalized = String(value).trim().toLowerCase();
+    return normalized === "true" || normalized === "1" || normalized === "yes";
+  } catch {
+    return false;
+  }
+}
+
 export function generateToken(user) {
   const payload = {
     id: user.id,
