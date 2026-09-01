@@ -432,6 +432,38 @@ const [rows] = await pool.query(
     }
   });
 
+  router.post("/bulk-delete", auth, authorizePermission(PERMISSION_KEYS.MANAGE_ATTENDANCE), async (req, res) => {
+    try {
+      const ids = Array.isArray(req.body?.ids) ? req.body.ids : [];
+      const numericIds = ids
+        .map((id) => Number(id))
+        .filter((id) => !Number.isNaN(id) && id > 0);
+
+      if (!numericIds.length) {
+        return res.status(400).json({ message: "A non-empty ids array is required." });
+      }
+
+      const placeholders = numericIds.map(() => "?").join(",");
+      const [result] = await pool.query(
+        `DELETE FROM attendance WHERE id IN (${placeholders})`,
+        numericIds
+      );
+
+      if (!result?.affectedRows) {
+        return res.status(404).json({ message: "No attendance records were found to delete." });
+      }
+
+      return res.json({
+        message: `${result.affectedRows} attendance records deleted successfully.`,
+        deleted: result.affectedRows,
+        ids: numericIds,
+      });
+    } catch (err) {
+      console.error("POST /attendance/bulk-delete error:", err);
+      return res.status(500).json({ message: "Failed to delete selected attendance records." });
+    }
+  });
+
   router.put("/:id", auth, authorizePermission(PERMISSION_KEYS.MANAGE_ATTENDANCE), async (req, res) => {
     try {
       const id = Number(req.params.id);
@@ -529,21 +561,26 @@ const [rows] = await pool.query(
          FROM attendance a
          INNER JOIN participants p ON p.id = a.participant_id
          LEFT JOIN users u ON u.id = p.user_id
-         WHERE a.attendance_date = CURDATE() AND a.status = ? AND ${ATTENDANCE_PARTICIPANT_FILTER_SQL}`,
-        ['Present']
+         WHERE a.attendance_date = CURDATE() AND LOWER(a.status) = 'present' AND ${ATTENDANCE_PARTICIPANT_FILTER_SQL}`
       );
       const [lateRows] = await pool.query(
         `SELECT COUNT(*) AS total
          FROM attendance a
          INNER JOIN participants p ON p.id = a.participant_id
          LEFT JOIN users u ON u.id = p.user_id
-         WHERE a.attendance_date = CURDATE() AND a.status = ? AND ${ATTENDANCE_PARTICIPANT_FILTER_SQL}`,
-        ['Late']
+         WHERE a.attendance_date = CURDATE() AND LOWER(a.status) = 'late' AND ${ATTENDANCE_PARTICIPANT_FILTER_SQL}`
+      );
+      const [absentRows] = await pool.query(
+        `SELECT COUNT(*) AS total
+         FROM attendance a
+         INNER JOIN participants p ON p.id = a.participant_id
+         LEFT JOIN users u ON u.id = p.user_id
+         WHERE a.attendance_date = CURDATE() AND LOWER(a.status) = 'absent' AND ${ATTENDANCE_PARTICIPANT_FILTER_SQL}`
       );
 
       const presentToday = Number(presentRows?.[0]?.total ?? 0) || 0;
       const lateToday = Number(lateRows?.[0]?.total ?? 0) || 0;
-      const absentToday = Math.max(0, totalParticipants - presentToday - lateToday);
+      const absentToday = Number(absentRows?.[0]?.total ?? 0) || 0;
 
       res.json({
         totalParticipants,

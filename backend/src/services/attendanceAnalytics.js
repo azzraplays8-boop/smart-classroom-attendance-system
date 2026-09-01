@@ -201,9 +201,13 @@ export async function closeSessionAndNotifyAbsences({ pool, date, activity, time
     if (presentIds.has(p.id)) continue; // has a record (Present/Late/Absent/Excused)
 
     await pool.query(
-      `INSERT INTO attendance (participant_id, attendance_date, time_in, status, activity)
-       VALUES (?, ?, NULL, 'Absent', ?)
-       ON DUPLICATE KEY UPDATE activity = COALESCE(activity, VALUES(activity))`,
+      `INSERT INTO attendance (participant_id, attendance_date, time_in, status, source, auto_generated, activity)
+       VALUES (?, ?, NULL, 'Absent', 'auto_absent', 1, ?)
+       ON DUPLICATE KEY UPDATE
+         status = COALESCE(status, VALUES(status)),
+         source = COALESCE(source, VALUES(source)),
+         auto_generated = COALESCE(auto_generated, VALUES(auto_generated)),
+         activity = COALESCE(activity, VALUES(activity))`,
       [p.id, date, activity || null]
     );
     results.marked += 1;

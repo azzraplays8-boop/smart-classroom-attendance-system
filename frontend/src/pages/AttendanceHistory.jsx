@@ -8,6 +8,7 @@ import { FiEdit2, FiTrash2, FiChevronLeft, FiChevronRight } from "react-icons/fi
 import ConfirmDialog from "../components/participants/ConfirmDialog";
 import "../styles/attendance/AttendanceHistory.css";
 import { authFetch } from "../services/apiClient";
+import { useAuth } from "../hooks/useAuth";
 import { getCurrentMonthLocal, buildMonthLabel } from "../config/attendancePolicy";
 
 function formatDate(value) {
@@ -65,6 +66,7 @@ function getStatusBadgeClass(status) {
 const MONTH_STATUSES = ["Present", "Late", "Absent", "Excused"];
 
 function AttendanceHistory() {
+  const { user } = useAuth();
   const [records, setRecords] = useState([]);
   const [printRecords, setPrintRecords] = useState([]);
   const [pagination, setPagination] = useState({ page: 1, limit: 25, total: 0, pages: 1 });
@@ -89,6 +91,13 @@ function AttendanceHistory() {
   const [isSavingRecord, setIsSavingRecord] = useState(false);
   const [pendingDeleteRecord, setPendingDeleteRecord] = useState(null);
   const [isDeletingRecord, setIsDeletingRecord] = useState(false);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [pendingBulkDelete, setPendingBulkDelete] = useState(false);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  const canBulkDelete = user?.role === "super_admin" || user?.role === "administrator";
+  const selectedCount = selectedIds.length;
+  const allCurrentSelected = records.length > 0 && selectedCount === records.length;
+  const someSelected = selectedCount > 0 && selectedCount < records.length;
 
   const showToast = (kind, message) => {
     setToast({ kind, message });
@@ -484,6 +493,58 @@ function AttendanceHistory() {
     }
   };
 
+  const handleToggleSelect = (id) => {
+    setSelectedIds((current) => {
+      if (!id) return current;
+      return current.includes(id)
+        ? current.filter((value) => value !== id)
+        : [...current, id];
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (!records.length) return;
+    const ids = records.map((record) => record.id).filter(Boolean);
+    setSelectedIds((current) => (
+      current.length === ids.length && ids.every((id) => current.includes(id))
+        ? []
+        : ids
+    ));
+  };
+
+  const handleBulkDelete = async () => {
+    if (!selectedCount || !canBulkDelete) return;
+    setPendingBulkDelete(true);
+  };
+
+  const handleConfirmBulkDelete = async () => {
+    if (!selectedCount || !canBulkDelete) return;
+
+    try {
+      setIsBulkDeleting(true);
+      const res = await authFetch("/attendance/bulk-delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: selectedIds }),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(data?.message || "Failed to delete selected attendance records.");
+      }
+
+      setSelectedIds([]);
+      setPendingBulkDelete(false);
+      showToast("success", data?.message || `${selectedCount} attendance records deleted successfully.`);
+      dispatchAttendanceChange();
+      await fetchHistory(pagination.page);
+    } catch (err) {
+      showToast("error", err?.message || "Failed to delete selected attendance records.");
+    } finally {
+      setIsBulkDeleting(false);
+    }
+  };
+
   const handleRequestDelete = (record) => {
     setPendingDeleteRecord(record);
   };
@@ -698,6 +759,22 @@ function AttendanceHistory() {
       {error ? <div className="ah-message ah-message--error">{error}</div> : null}
       {exportMessage ? <div className="ah-message ah-message--success">{exportMessage}</div> : null}
 
+      {canBulkDelete ? (
+        <div className="ah-bulk-toolbar">
+          <div className="ah-bulk-selection">
+            <strong>{selectedCount}</strong> selected
+          </div>
+          <button
+            type="button"
+            className="ah-btn ah-btn--danger"
+            disabled={selectedCount === 0 || isBulkDeleting}
+            onClick={handleBulkDelete}
+          >
+            {isBulkDeleting ? "Deleting..." : `Delete Selected (${selectedCount})`}
+          </button>
+        </div>
+      ) : null}
+
       {/* Export Toolbar */}
       <div className="ah-export-bar">
         <button type="button" className="ah-export-btn ah-export-btn--pdf" onClick={handleExportPdf}>
@@ -767,6 +844,19 @@ function AttendanceHistory() {
           <table className="ah-table">
             <thead>
               <tr>
+                {canBulkDelete ? (
+                  <th className="ah-select-col">
+                    <input
+                      type="checkbox"
+                      checked={allCurrentSelected}
+                      ref={(node) => {
+                        if (node) node.indeterminate = someSelected;
+                      }}
+                      onChange={handleSelectAll}
+                      aria-label="Select all attendance records"
+                    />
+                  </th>
+                ) : null}
                 <th>#</th>
                 <th>Date</th>
                 <th>Participant Number</th>
@@ -782,15 +872,25 @@ function AttendanceHistory() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={10} className="ah-table-state">Loading attendance records...</td>
+                  <td colSpan={canBulkDelete ? 11 : 10} className="ah-table-state">Loading attendance records...</td>
                 </tr>
               ) : records.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="ah-table-state">No attendance records found.</td>
+                  <td colSpan={canBulkDelete ? 11 : 10} className="ah-table-state">No attendance records found.</td>
                 </tr>
               ) : (
                 records.map((record, index) => (
                   <tr key={record.id}>
+                    {canBulkDelete ? (
+                      <td className="ah-select-col">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.includes(record.id)}
+                          onChange={() => handleToggleSelect(record.id)}
+                          aria-label={`Select attendance record ${record.participantIdentifier || record.id}`}
+                        />
+                      </td>
+                    ) : null}
                     <td className="ah-cell-strong">{(pagination.page - 1) * pagination.limit + index + 1}</td>
                     <td>{formatDate(record.attendanceDate)}</td>
                     <td className="ah-cell-strong">{record.participantIdentifier || "-"}</td>
@@ -930,6 +1030,18 @@ function AttendanceHistory() {
         onPrimary={handleConfirmDelete}
         onCancel={() => setPendingDeleteRecord(null)}
         details={pendingDeleteRecord ? `${pendingDeleteRecord.participantIdentifier || "-"} • ${pendingDeleteRecord.status || "-"}` : null}
+      />
+
+      <ConfirmDialog
+        isOpen={pendingBulkDelete}
+        title="Delete Selected Attendance Records"
+        message="This action permanently removes the selected attendance records from the system."
+        primaryLabel={isBulkDeleting ? "Deleting..." : `Delete ${selectedCount}`}
+        primaryVariant="danger"
+        primaryDisabled={selectedCount === 0 || isBulkDeleting}
+        onPrimary={handleConfirmBulkDelete}
+        onCancel={() => setPendingBulkDelete(false)}
+        details={selectedCount > 0 ? `${selectedCount} attendance record${selectedCount === 1 ? "" : "s"} will be deleted.` : null}
       />
     </div>
   );
