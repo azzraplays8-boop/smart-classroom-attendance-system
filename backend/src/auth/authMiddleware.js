@@ -51,6 +51,11 @@ export const PERMISSION_KEYS = {
 export function enforceMaintenanceMode(pool) {
   return async (req, res, next) => {
     try {
+      const publicProbePaths = new Set(["/settings/public", "/health"]);
+      if (publicProbePaths.has(req.path)) {
+        return next();
+      }
+
       const [rows] = await pool.query(
         "SELECT setting_value FROM settings WHERE setting_key = 'maintenanceMode' LIMIT 1"
       );
