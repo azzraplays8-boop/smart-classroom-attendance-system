@@ -4,3 +4,7 @@
 import dotenv from "dotenv";
 
 dotenv.config();
+
+if (!process.env.NODE_ENV || process.env.NODE_ENV === "development") {
+  process.env.MAINTENANCE_MODE = "false";
+}

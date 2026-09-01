@@ -56,6 +56,14 @@ export function enforceMaintenanceMode(pool) {
         return next();
       }
 
+      const envOverride = process.env.MAINTENANCE_MODE;
+      if (envOverride !== undefined) {
+        const normalized = String(envOverride).trim().toLowerCase();
+        if (normalized === "false" || normalized === "0" || normalized === "no") {
+          return next();
+        }
+      }
+
       const [rows] = await pool.query(
         "SELECT setting_value FROM settings WHERE setting_key = 'maintenanceMode' LIMIT 1"
       );
@@ -268,6 +276,13 @@ export function authorizeAnyPermission(...required) {
  */
 export async function isMaintenanceModeEnabled(pool) {
   try {
+    const envOverride = process.env.MAINTENANCE_MODE;
+    if (envOverride !== undefined) {
+      const normalized = String(envOverride).trim().toLowerCase();
+      if (normalized === "true" || normalized === "1" || normalized === "yes") return true;
+      if (normalized === "false" || normalized === "0" || normalized === "no") return false;
+    }
+
     const [rows] = await pool.query(
       "SELECT setting_value FROM settings WHERE setting_key = 'maintenanceMode' LIMIT 1"
     );
