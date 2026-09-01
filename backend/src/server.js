@@ -102,8 +102,9 @@ async function start() {
     ssl: db.ssl,
   });
 
+  const maintenanceGuard = enforceMaintenanceMode(pool);
 
-// Run schema + migrations on startup (idempotent SQL, safe to run repeatedly).
+  // Run schema + migrations on startup (idempotent SQL, safe to run repeatedly).
   // Set DB_AUTO_MIGRATE=false to disable, e.g. when you provision the schema
   // manually or via a separate migration step.
   const autoMigrate = process.env.DB_AUTO_MIGRATE !== "false";
