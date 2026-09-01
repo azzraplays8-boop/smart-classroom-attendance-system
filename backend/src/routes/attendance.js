@@ -86,19 +86,20 @@ async function resolveCurrentParticipant(pool, user) {
   if (!user) return null;
 
   const userId = Number(user.id);
-  const email = String(user.email || "").trim().toLowerCase();
+  const email = String(user.email || "").trim();
+  const normalizedEmail = email.toLowerCase();
 
   const [rows] = await pool.query(
     `SELECT id, participant_identifier AS participantIdentifier,
             first_name AS firstName, last_name AS lastName, middle_name AS middleName,
             photo, department, level AS year, group_name AS section, email, user_id AS userId
      FROM participants
-     WHERE (user_id IS NOT NULL AND user_id = ?)
-        OR (LOWER(TRIM(COALESCE(email, ''))) = LOWER(TRIM(?)))
-        OR (LOWER(TRIM(COALESCE(email, ''))) = LOWER(TRIM(?)))
+     WHERE (? IS NOT NULL AND user_id = ?)
+        OR LOWER(TRIM(COALESCE(email, ''))) = LOWER(TRIM(?))
+        OR LOWER(TRIM(COALESCE(email, ''))) = LOWER(TRIM(?))
      ORDER BY CASE WHEN user_id = ? THEN 0 ELSE 1 END, id ASC
      LIMIT 1`,
-    [userId || null, email || "", email || "", userId || null]
+    [userId || null, userId || null, normalizedEmail || "", email || "", userId || null]
   );
 
   return rows?.[0] ?? null;
