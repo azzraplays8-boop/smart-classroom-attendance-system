@@ -29,6 +29,24 @@ export default function settingsRouter({ pool }) {
   // Reading settings requires login; changing them requires MANAGE_SETTINGS.
   const auth = authenticate(pool);
 
+  // GET /settings/public — unauthenticated maintenance-mode status probe.
+  // Exposes ONLY the maintenance flag (no other settings) so the frontend can
+  // show/refresh the Maintenance page before/while logging in.
+  router.get("/public", async (req, res) => {
+    try {
+      await ensureTable(pool);
+      const [rows] = await pool.query(
+        "SELECT setting_value FROM settings WHERE setting_key = 'maintenanceMode' LIMIT 1"
+      );
+      const raw = rows?.[0]?.setting_value;
+      return res.json({ maintenanceMode: raw === "true" || raw === true || raw === 1 || raw === "1" });
+    } catch (err) {
+      console.error("GET /settings/public error:", err?.message || err);
+      // Fail open: if the probe fails, do not lock everyone out.
+      return res.json({ maintenanceMode: false });
+    }
+  });
+
   // GET /settings — return all settings as a flat object
   router.get("/", auth, async (req, res) => {
     try {

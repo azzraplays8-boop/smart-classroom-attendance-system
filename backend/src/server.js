@@ -13,6 +13,7 @@ import settingsRouter from "./routes/settings.js";
 import qrRouter from "./routes/qr.js";
 import authRouter from "./routes/auth.js";
 import organizationsRouter from "./routes/organizations.js";
+import { enforceMaintenanceMode } from "./auth/authMiddleware.js";
 
 const __filename = fileURLToPath(import.meta.url);
 
@@ -144,11 +145,11 @@ async function start() {
 
   // Routes
 app.use("/auth", authRouter({ pool }));
-  app.use("/participants", participantsRouter({ pool, upload }));
-  app.use("/attendance", attendanceRouter({ pool }));
-  app.use("/settings", settingsRouter({ pool }));
-  app.use("/qr", qrRouter({ pool }));
-  app.use("/organizations", organizationsRouter({ pool }));
+  app.use("/participants", maintenanceGuard, participantsRouter({ pool, upload }));
+  app.use("/attendance", maintenanceGuard, attendanceRouter({ pool }));
+  app.use("/settings", maintenanceGuard, settingsRouter({ pool }));
+  app.use("/qr", maintenanceGuard, qrRouter({ pool }));
+  app.use("/organizations", maintenanceGuard, organizationsRouter({ pool }));
 
   app.use((req, res) => {
     res.status(404).json({ message: "Not found" });

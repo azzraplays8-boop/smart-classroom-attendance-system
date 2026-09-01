@@ -38,6 +38,55 @@ export const PERMISSION_KEYS = {
 };
 
 /**
+ * Maintenance-mode enforcement middleware factory.
+ *
+ * When the persisted `maintenanceMode` setting is enabled, only Super Admin
+ * and Administrator accounts may access protected API routes. All other roles
+ * (including Viewer) receive 503 so the frontend shows the Maintenance page.
+ * The setting is read from the database on every request — no client-side
+ * bypass is possible, and turning it off restores access immediately.
+ *
+ * @param {import('mysql2/promise').Pool} pool
+ */
+export function enforceMaintenanceMode(pool) {
+  return async (req, res, next) => {
+    try {
+      const [rows] = await pool.query(
+        "SELECT setting_value FROM settings WHERE setting_key = 'maintenanceMode' LIMIT 1"
+      );
+      const raw = rows?.[0]?.setting_value;
+      const enabled = raw === "true" || raw === true || raw === 1 || raw === "1";
+      if (!enabled) return next();
+
+      // This guard runs BEFORE each router's strict `authenticate`, so the
+      // role is read from the JWT payload (if any). Admins continue on to
+      // full authentication inside the router; every other role is blocked.
+      let role = req.user?.role;
+      if (!role) {
+        const header = req.headers.authorization || "";
+        if (header.startsWith("Bearer ")) {
+          try {
+            role = jwt.decode(header.slice(1).trim())?.role;
+          } catch {
+            role = undefined;
+          }
+        }
+      }
+      if (role === "super_admin" || role === "administrator") return next();
+
+      return res.status(503).json({
+        message: "System is under maintenance. Please try again later.",
+        maintenanceMode: true,
+      });
+    } catch (err) {
+      // Fail open: do not lock the whole system out if the check errors.
+      console.error("[maintenance] check failed, allowing request:", err?.message || err);
+      return next();
+    }
+  };
+}
+
+/**
  * Verify that a valid JWT is present in the Authorization header AND that the
  * corresponding user still exists and is active in the database.
  *

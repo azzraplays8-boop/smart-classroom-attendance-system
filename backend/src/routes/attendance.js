@@ -70,6 +70,17 @@ function getCurrentTimeInTimezone(tzName) {
   return { hours, minutes, seconds };
 }
 
+/**
+ * Normalize a value that may be a JS Date (mysql2) or a date string into
+ * "YYYY-MM-DD". String(Date) gives e.g. "Fri Aug 01 2026 ..." which breaks
+ * month-key slicing, so Date objects must be converted properly.
+ */
+function toDateKey(value) {
+  if (!value) return "";
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  return String(value).slice(0, 10);
+}
+
 async function resolveCurrentParticipant(pool, user) {
   if (!user) return null;
 
@@ -141,7 +152,7 @@ async function buildMemberAttendanceSummary(pool, user) {
   const byMonth = {};
 
   for (const record of records) {
-    const mk = String(record.attendanceDate || "").slice(0, 7);
+    const mk = toDateKey(record.attendanceDate).slice(0, 7);
     if (!mk) continue;
     if (!byMonth[mk]) byMonth[mk] = { present: 0, late: 0, absent: 0, excused: 0 };
     const s = String(record.status || "").toLowerCase();
@@ -172,7 +183,7 @@ async function buildMemberAttendanceSummary(pool, user) {
       excused: records.filter((r) => String(r.status || "").toLowerCase() === "excused").length,
       attendanceRate: total > 0 ? Math.round((present / total) * 100) : 0,
     },
-    monthly,
+    monthly: byMonth,
     // Current-month tracking block consumed by My Attendance page
     monthlySummary: {
       year,
@@ -471,9 +482,10 @@ const [rows] = await pool.query(
       if (req.user.role === "viewer") {
         const summary = await buildMemberAttendanceSummary(pool, req.user);
         const totalRecords = summary.summary.totalRecords;
-        const presentToday = summary.records.filter((row) => String(row.attendanceDate || "").slice(0, 10) === new Date().toISOString().slice(0, 10)).filter((row) => String(row.status || "").toLowerCase() === "present").length;
-        const lateToday = summary.records.filter((row) => String(row.attendanceDate || "").slice(0, 10) === new Date().toISOString().slice(0, 10)).filter((row) => String(row.status || "").toLowerCase() === "late").length;
-        const absentToday = summary.records.filter((row) => String(row.attendanceDate || "").slice(0, 10) === new Date().toISOString().slice(0, 10)).filter((row) => String(row.status || "").toLowerCase() === "absent").length;
+        const today = toDateKey(new Date());
+        const presentToday = summary.records.filter((row) => toDateKey(row.attendanceDate) === today && String(row.status || "").toLowerCase() === "present").length;
+        const lateToday = summary.records.filter((row) => toDateKey(row.attendanceDate) === today && String(row.status || "").toLowerCase() === "late").length;
+        const absentToday = summary.records.filter((row) => toDateKey(row.attendanceDate) === today && String(row.status || "").toLowerCase() === "absent").length;
 
         return res.json({
           totalParticipants: summary.member ? 1 : 0,
@@ -640,7 +652,7 @@ const [rows] = await pool.query(
       const total = records.length;
       const byMonth = {};
       for (const record of records) {
-        const mk = String(record.attendanceDate || "").slice(0, 7);
+        const mk = toDateKey(record.attendanceDate).slice(0, 7);
         if (!mk) continue;
         if (!byMonth[mk]) byMonth[mk] = { present: 0, late: 0, absent: 0, excused: 0 };
         const s = String(record.status || "").toLowerCase();

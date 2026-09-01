@@ -36,7 +36,9 @@ export function getAttendanceStanding(effectiveAbsences) {
   if (count >= ATTENDANCE_POLICY.ADMIN_REVIEW_THRESHOLD) {
     return { status: ATTENDANCE_POLICY.ADMIN_REVIEW_STATUS, tone: "admin-review" };
   }
-  for (let i = ATTENDANCE_POLICY.WARNING_THRESHOLDS.length - 1; i >= 0; i -= 1) {
+  // Check thresholds in ascending order so that e.g. 0 absences maps to
+  // "Good Standing" (the first threshold it satisfies), not a later one.
+  for (let i = 0; i < ATTENDANCE_POLICY.WARNING_THRESHOLDS.length; i += 1) {
     const level = ATTENDANCE_POLICY.WARNING_THRESHOLDS[i];
     if (count <= level.maxEffectiveAbsences) {
       return { status: level.status, tone: level.tone };

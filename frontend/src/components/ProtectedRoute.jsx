@@ -7,6 +7,7 @@
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { canAccessRoute } from "../context/AuthContext";
+import MaintenanceGate from "./MaintenanceGate";
 
 /**
  * Map of route paths to permission keys.
@@ -88,7 +89,9 @@ function ProtectedRoute({ children }) {
     }
   }
 
-  return children;
+  // Maintenance mode: non-admin roles are blocked from ALL protected pages
+  // (works on refresh and manual URL entry — see MaintenanceGate).
+  return <MaintenanceGate>{children}</MaintenanceGate>;
 }
 
 export default ProtectedRoute;
