@@ -82,11 +82,11 @@ export default function MaintenanceGate({ children }) {
         <FiTool size={40} color="#4f46e5" />
       </div>
       <h1 style={{ margin: 0, fontSize: 30, fontWeight: 800, letterSpacing: 2 }}>KATAGA</h1>
-      <p style={{ margin: 0, fontSize: 13, color: "#64748b", letterSpacing: 1 }}>
+      <p style={{ margin: 0, fontSize: 13, color: "#312e81", letterSpacing: 1 }}>
         Kapatiran ng Talino at Galing
       </p>
       <h2 style={{ margin: "10px 0 0", fontSize: 22 }}>SYSTEM UNDER MAINTENANCE</h2>
-      <p style={{ margin: 0, color: "#475569", fontSize: 15, maxWidth: 420 }}>
+      <p style={{ margin: 0, color: "#312e81", fontSize: 15, maxWidth: 420 }}>
         We're currently performing maintenance to improve the system.
         Please check back again later.
       </p>
