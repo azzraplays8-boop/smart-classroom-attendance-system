@@ -84,15 +84,18 @@ export function enforceMaintenanceMode(pool) {
       let role = req.user?.role;
       if (!role) {
         const header = req.headers.authorization || "";
-        if (header.startsWith("Bearer ")) {
+        if (header.toLowerCase().startsWith("bearer ")) {
+          const token = header.replace(/^Bearer\s+/i, "").trim();
           try {
-            role = jwt.decode(header.slice(1).trim())?.role;
+            role = jwt.decode(token)?.role;
           } catch {
             role = undefined;
           }
         }
       }
-      if (role === "super_admin" || role === "administrator") return next();
+
+      const normalizedRole = typeof role === "string" ? role.trim().toLowerCase() : "";
+      if (normalizedRole === "super_admin" || normalizedRole === "administrator") return next();
 
       return res.status(503).json({
         message: "System is under maintenance. Please try again later.",

@@ -45,10 +45,9 @@ export default function MaintenanceGate({ children }) {
     return () => window.clearInterval(timer);
   }, [isAdmin, check]);
 
-  // Local override: keep the app accessible even if an old stale
-  // maintenance flag remains in the database. This allows the app to work
-  // while the backend row is cleaned up.
-  if (true || isAdmin || checking || !maintenanceMode) {
+  // Admin and super-admin accounts remain exempt from maintenance mode so
+  // they can still access the system while non-admin roles are blocked.
+  if (isAdmin || checking || !maintenanceMode) {
     return children;
   }
 
