@@ -9,7 +9,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import express from "express";
-import { authenticate, generateToken } from "../src/auth/authMiddleware.js";
+import { authenticate, enforceMaintenanceMode, generateToken } from "../src/auth/authMiddleware.js";
 
 process.env.JWT_SECRET = process.env.JWT_SECRET || "test-secret-key-for-testing";
 
@@ -232,6 +232,46 @@ test("authenticate rejects invalid token", async () => {
   const { status, body } = await makeRequest(app, "invalid-token-string");
   assert.equal(status, 401);
   assert.ok(body.message.includes("Invalid token"));
+});
+
+// ─── Regression: maintenance mode must not block admin/super-admin roles ───
+test("enforceMaintenanceMode allows administrator and super_admin while maintenance is enabled", async () => {
+  const pool = {
+    async query(sql) {
+      if (String(sql).includes("setting_key = 'maintenanceMode'")) {
+        return [[{ setting_value: "true" }]];
+      }
+      return [[]];
+    },
+  };
+
+  const app = express();
+  app.use(express.json());
+  app.get("/protected", enforceMaintenanceMode(pool), (req, res) => {
+    res.json({ ok: true, userRole: req.user?.role || "unknown" });
+  });
+
+  const server = createServer(app);
+  await new Promise((resolve) => server.listen(0, resolve));
+  const { port } = server.address();
+
+  try {
+    const token = generateValidToken(10, { role: "administrator" });
+    const adminRes = await fetch(`http://127.0.0.1:${port}/protected`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    assert.equal(adminRes.status, 200, `Expected 200 for admin, got ${adminRes.status}`);
+    assert.equal((await adminRes.json()).ok, true);
+
+    const superAdminToken = generateValidToken(11, { role: "super_admin" });
+    const superAdminRes = await fetch(`http://127.0.0.1:${port}/protected`, {
+      headers: { Authorization: `Bearer ${superAdminToken}` },
+    });
+    assert.equal(superAdminRes.status, 200, `Expected 200 for super admin, got ${superAdminRes.status}`);
+    assert.equal((await superAdminRes.json()).ok, true);
+  } finally {
+    server.close();
+  }
 });
 
 // ─── Test 9: DB error is fail-closed (401) ───
