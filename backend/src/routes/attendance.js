@@ -443,10 +443,28 @@ const [rows] = await pool.query(
         return res.status(400).json({ message: "A non-empty ids array is required." });
       }
 
+      const orgScope = req.user?.role === "super_admin" ? null : Number(req.user?.organization_id || 0);
       const placeholders = numericIds.map(() => "?").join(",");
+
+      const [allowedRows] = await pool.query(
+        `SELECT a.id
+         FROM attendance a
+         LEFT JOIN participants p ON p.id = a.participant_id
+         LEFT JOIN users u ON u.id = p.user_id
+         WHERE a.id IN (${placeholders})
+           ${orgScope ? "AND u.organization_id = ?" : ""}`,
+        orgScope ? [...numericIds, orgScope] : numericIds
+      );
+
+      const allowedIds = (allowedRows || []).map((row) => Number(row.id)).filter(Boolean);
+      if (!allowedIds.length) {
+        return res.status(404).json({ message: "No authorized attendance records were found to delete." });
+      }
+
+      const deletePlaceholders = allowedIds.map(() => "?").join(",");
       const [result] = await pool.query(
-        `DELETE FROM attendance WHERE id IN (${placeholders})`,
-        numericIds
+        `DELETE FROM attendance WHERE id IN (${deletePlaceholders})`,
+        allowedIds
       );
 
       if (!result?.affectedRows) {
@@ -456,7 +474,7 @@ const [rows] = await pool.query(
       return res.json({
         message: `${result.affectedRows} attendance records deleted successfully.`,
         deleted: result.affectedRows,
-        ids: numericIds,
+        ids: allowedIds,
       });
     } catch (err) {
       console.error("POST /attendance/bulk-delete error:", err);
@@ -992,8 +1010,10 @@ router.post("/", auth, authorizeAnyPermission(PERMISSION_KEYS.MANAGE_ATTENDANCE,
   router.post("/close-session", auth, authorizePermission(PERMISSION_KEYS.MANAGE_ATTENDANCE), async (req, res) => {
     try {
       const tz = await getOrgTimezone(pool);
-      const date = String(req.body?.date || "").trim() ||
-        new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(new Date());
+      const date = String(req.body?.date || "").trim();
+      if (!date) {
+        return res.status(400).json({ message: "A date is required to close the attendance session." });
+      }
       const activity = String(req.body?.activity || "").trim() || null;
 
       const results = await closeSessionAndNotifyAbsences({

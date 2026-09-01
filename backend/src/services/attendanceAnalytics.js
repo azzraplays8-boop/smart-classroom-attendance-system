@@ -174,6 +174,11 @@ export async function countAttendanceParticipants(pool) {
 }
 
 export async function closeSessionAndNotifyAbsences({ pool, date, activity, timezone, sendEmail }) {
+  const targetDate = String(date || "").trim();
+  if (!targetDate) {
+    throw new Error("A session date is required before finalizing automatic absences.");
+  }
+
   const [participants] = await pool.query(
     `SELECT p.id, p.participant_identifier, p.first_name, p.last_name, p.email,
             p.department, p.level, p.group_name, u.role AS userRole
