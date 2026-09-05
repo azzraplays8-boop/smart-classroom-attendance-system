@@ -1,9 +1,35 @@
 -- Add attendance metadata columns for session-finalized auto-generated absences.
 -- Safe to run repeatedly; only adds missing columns.
 
-ALTER TABLE attendance
-  ADD COLUMN IF NOT EXISTS source VARCHAR(64) NULL AFTER status,
-  ADD COLUMN IF NOT EXISTS auto_generated TINYINT(1) NOT NULL DEFAULT 0 AFTER source;
+SET @column_count := (
+  SELECT COUNT(*)
+  FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'attendance'
+    AND COLUMN_NAME = 'source'
+);
+SET @sql_stmt := IF(@column_count = 0,
+  'ALTER TABLE attendance ADD COLUMN source VARCHAR(64) NULL AFTER status',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql_stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @column_count := (
+  SELECT COUNT(*)
+  FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'attendance'
+    AND COLUMN_NAME = 'auto_generated'
+);
+SET @sql_stmt := IF(@column_count = 0,
+  'ALTER TABLE attendance ADD COLUMN auto_generated TINYINT(1) NOT NULL DEFAULT 0 AFTER source',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql_stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 -- Keep the unique participant/date protection in place while allowing metadata.
 -- The existing uq_attendance_participant_date unique key is the guardrail against duplicates.
