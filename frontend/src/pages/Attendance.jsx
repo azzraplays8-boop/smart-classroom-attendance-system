@@ -129,8 +129,7 @@ function Attendance() {
 
   const fetchToday = async () => {
     try {
-      const today = new Date().toLocaleDateString("en-CA");
-      const res = await authFetch(`/attendance?date=${today}`);
+      const res = await authFetch("/attendance");
       const data = await res.json();
       if (res.ok) {
         setAttendanceList(data.attendance || []);
@@ -586,8 +585,10 @@ function Attendance() {
     const requestBody = {};
     if (qrPayload && qrPayload.uuid) {
       requestBody.qrUuid = String(qrPayload.uuid).trim();
+      requestBody.method = "qr";
     } else {
       requestBody.participantIdentifier = rawValue;
+      requestBody.method = "qr";
     }
 
     setStatusMessage("Processing...");

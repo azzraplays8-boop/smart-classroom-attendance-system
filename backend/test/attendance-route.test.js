@@ -151,7 +151,7 @@ test('attendance POST returns before check-in email work finishes', async () => 
         Authorization: `Bearer ${makeToken('administrator')}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ participantIdentifier: participant.participantIdentifier }),
+      body: JSON.stringify({ participantIdentifier: participant.participantIdentifier, status: 'Present' }),
     });
 
     assert.equal(response.status, 201);

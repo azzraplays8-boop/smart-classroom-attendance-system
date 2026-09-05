@@ -19,6 +19,7 @@ import {
   summarizeParticipantMonthly,
   summarizeMonthlyTotals,
   closeSessionAndNotifyAbsences,
+  maybeAutoMarkAbsent,
   getAttendanceParticipantPopulation,
   countAttendanceParticipants,
   ATTENDANCE_PARTICIPANT_FILTER_SQL,
@@ -28,6 +29,12 @@ import {
   sendAbsenceNoticeEmail,
   isValidEmail,
 } from "../services/emailService.js";
+import {
+  calculateAttendanceStatus,
+  extractTimezone,
+  getDateKeyInTimezone,
+  isAttendanceModeAllowed,
+} from "../config/attendanceSchedule.js";
 
 // ── Attendance settings helpers ────────────────────────────
 
@@ -35,45 +42,6 @@ import {
  * Parse a grace period string like "5 minutes", "10 minutes", or "None"
  * into a number of minutes. Returns 0 for "None" or unrecognised values.
  */
-function parseGracePeriod(gracePeriod) {
-  if (!gracePeriod || gracePeriod === "None") return 0;
-  const match = String(gracePeriod).match(/(\d+)/);
-  return match ? parseInt(match[1], 10) : 0;
-}
-
-/**
- * Extract the IANA timezone name from the stored format.
- * Example: "(UTC+08:00) Asia/Manila" → "Asia/Manila"
- * Falls back to "Asia/Manila" if parsing fails.
- */
-function extractTimezone(tzSetting) {
-  if (!tzSetting) return "Asia/Manila";
-  const match = String(tzSetting).match(/\)\s*(.+)/);
-  return match ? match[1].trim() : "Asia/Manila";
-}
-
-/**
- * Get the current wall-clock hours, minutes, seconds in the given IANA timezone.
- */
-function getCurrentTimeInTimezone(tzName) {
-  const now = new Date();
-  const formatter = new Intl.DateTimeFormat("en-US", {
-    timeZone: tzName,
-    hour: "numeric",
-    minute: "numeric",
-    second: "numeric",
-    hour12: false,
-  });
-  const parts = formatter.formatToParts(now);
-  let hours = 0, minutes = 0, seconds = 0;
-  for (const part of parts) {
-    if (part.type === "hour") hours = parseInt(part.value, 10);
-    if (part.type === "minute") minutes = parseInt(part.value, 10);
-    if (part.type === "second") seconds = parseInt(part.value, 10);
-  }
-  return { hours, minutes, seconds };
-}
-
 /**
  * Normalize a value that may be a JS Date (mysql2) or a date string into
  * "YYYY-MM-DD". String(Date) gives e.g. "Fri Aug 01 2026 ..." which breaks
@@ -116,6 +84,19 @@ async function getOrgTimezone(pool) {
   } catch {
     return "Asia/Manila";
   }
+}
+
+async function loadAttendanceSettings(pool) {
+  const [rows] = await pool.query(
+    "SELECT setting_key, setting_value FROM settings"
+  );
+  const settings = {};
+  for (const row of rows || []) {
+    settings[row.setting_key] = row.setting_value === "true"
+      ? true
+      : row.setting_value === "false" ? false : row.setting_value;
+  }
+  return settings;
 }
 
 function formatAttendanceDate(value, timezone) {
@@ -227,45 +208,6 @@ async function buildMemberAttendanceSummary(pool, user) {
  *
  * Returns "Present", "Late", or "Absent".
  */
-function computeAttendanceStatus(settings) {
-  const tzName = extractTimezone(settings.timezone);
-  const now = getCurrentTimeInTimezone(tzName);
-  const currentMinutes = now.hours * 60 + now.minutes;
-
-  // Parse time values – use the same defaults as Settings.jsx
-  const startTime   = settings.attendanceStartTime || "07:30";
-  const lateCutoff  = settings.lateCutoffTime     || "08:00";
-  const endTime     = settings.attendanceEndTime   || "17:00";
-  const graceMins   = parseGracePeriod(settings.gracePeriod);
-  const autoMarkAbsent = settings.autoMarkAbsent === "true" || settings.autoMarkAbsent === true;
-
-  const [startH, startM]     = startTime.split(":").map(Number);
-  const [cutoffH, cutoffM]   = lateCutoff.split(":").map(Number);
-  const [endH, endM]         = endTime.split(":").map(Number);
-
-  const startMinutes   = startH * 60 + startM;
-  const cutoffMinutes  = cutoffH * 60 + cutoffM + graceMins;
-  const endMinutes     = endH * 60 + endM;
-
-  // ── Decision logic ──────────────────────────────────────
-  // 1) Arrived at or before start time                           → Present
-  // 2) Arrived between start time and (late-cutoff + grace)      → Present
-  // 3) Arrived between (late-cutoff + grace) and end time        → Late
-  // 4) Arrived at or after end time → Absent if autoMarkAbsent
-  //    is enabled, otherwise Late
-  if (currentMinutes <= startMinutes) {
-    return "Present";
-  }
-  if (currentMinutes <= cutoffMinutes) {
-    return "Present";
-  }
-  if (currentMinutes < endMinutes) {
-    return "Late";
-  }
-  // currentMinutes >= endMinutes
-  return autoMarkAbsent ? "Absent" : "Late";
-}
-
 export default function attendanceRouter({ pool }) {
   const router = express.Router();
 
@@ -293,9 +235,15 @@ export default function attendanceRouter({ pool }) {
 
   router.get("/", auth, async (req, res) => {
     try {
-      const date = req.query.date || null;
-      const dateSql = date ? `= ?` : `= CURDATE()`;
-      const params = date ? [date] : [];
+      const settings = await loadAttendanceSettings(pool);
+      const timezone = extractTimezone(settings.timezone);
+      const date = String(req.query.date || getDateKeyInTimezone(new Date(), timezone));
+      await maybeAutoMarkAbsent({
+        pool,
+        date,
+        settings,
+        sendEmail: (args) => sendAbsenceNoticeEmail(args),
+      });
 
       const [rows] = await pool.query(
         `SELECT a.id, a.participant_id AS participantId, a.attendance_date AS attendanceDate,
@@ -304,9 +252,9 @@ export default function attendanceRouter({ pool }) {
                 p.photo, p.department, p.level AS year, p.group_name AS section
          FROM attendance a
          LEFT JOIN participants p ON p.id = a.participant_id
-         WHERE a.attendance_date ${dateSql}
+         WHERE a.attendance_date = ?
          ORDER BY a.time_in DESC, a.created_at DESC`,
-        params
+        [date]
       );
 
       res.json({ attendance: rows });
@@ -816,7 +764,20 @@ const [rows] = await pool.query(
 
 router.post("/", auth, authorizeAnyPermission(PERMISSION_KEYS.MANAGE_ATTENDANCE, PERMISSION_KEYS.ENCODE_ATTENDANCE), async (req, res) => {
     try {
-      const { participantIdentifier, qrUuid, status, remarks } = req.body || {};
+      const { participantIdentifier, qrUuid, status, remarks, method } = req.body || {};
+      const settings = await loadAttendanceSettings(pool);
+      const attendanceTimezone = extractTimezone(settings.timezone);
+      const attendanceDate = getDateKeyInTimezone(new Date(), attendanceTimezone);
+      await maybeAutoMarkAbsent({
+        pool,
+        date: attendanceDate,
+        settings,
+        sendEmail: (args) => sendAbsenceNoticeEmail(args),
+      });
+      const attendanceMethod = method || (qrUuid ? "qr" : "manual");
+      if (!isAttendanceModeAllowed(settings.attendanceMode, attendanceMethod)) {
+        return res.status(403).json({ message: `Attendance mode does not allow ${attendanceMethod} check-in.` });
+      }
       console.log("🔍 [TRACE] 1. Request body:", JSON.stringify(req.body));
       let participant = null;
       let resolvedIdentifier = null;
@@ -861,8 +822,8 @@ router.post("/", auth, authorizeAnyPermission(PERMISSION_KEYS.MANAGE_ATTENDANCE,
 
         // Prevent duplicate attendance using the participant ID
         const [existingRows] = await pool.query(
-          `SELECT * FROM attendance WHERE participant_id = ? AND attendance_date = CURDATE() LIMIT 1`,
-          [participant.id]
+          `SELECT * FROM attendance WHERE participant_id = ? AND attendance_date = ? LIMIT 1`,
+          [participant.id, attendanceDate]
         );
 
         const existing = existingRows?.[0] ?? null;
@@ -904,8 +865,8 @@ router.post("/", auth, authorizeAnyPermission(PERMISSION_KEYS.MANAGE_ATTENDANCE,
         resolvedIdentifier = normalizedIdentifier;
 
         const [existingRows] = await pool.query(
-          `SELECT * FROM attendance WHERE participant_id = ? AND attendance_date = CURDATE() LIMIT 1`,
-          [participant.id]
+          `SELECT * FROM attendance WHERE participant_id = ? AND attendance_date = ? LIMIT 1`,
+          [participant.id, attendanceDate]
         );
 
         const existing = existingRows?.[0] ?? null;
@@ -917,29 +878,20 @@ router.post("/", auth, authorizeAnyPermission(PERMISSION_KEYS.MANAGE_ATTENDANCE,
 
       // Load attendance settings from the database for dynamic status computation
       let computedStatus;
-      let attendanceTimezone = "Asia/Manila";
       if (status && String(status).trim()) {
         computedStatus = String(status).trim();
-        attendanceTimezone = await getOrgTimezone(pool);
       } else {
-        const [settingsRows] = await pool.query(
-          "SELECT setting_key, setting_value FROM settings"
-        );
-        const settings = {};
-        for (const row of settingsRows) {
-          settings[row.setting_key] = row.setting_value === "true" ? true
-            : row.setting_value === "false" ? false
-            : row.setting_value;
-        }
         console.log("🔍 [TRACE] 5. Settings loaded:", JSON.stringify(settings));
-        attendanceTimezone = extractTimezone(settings.timezone);
-        computedStatus = computeAttendanceStatus(settings);
+        computedStatus = calculateAttendanceStatus(settings);
+        if (computedStatus === "Outside Window") {
+          return res.status(400).json({ message: "Attendance can only be recorded during the configured attendance window." });
+        }
       }
       console.log("🔍 [TRACE] 6. Computed status:", computedStatus);
 
       const insertSql = `INSERT INTO attendance (participant_id, attendance_date, time_in, status, remarks, created_at)
-                         VALUES (?, CURDATE(), NOW(), ?, ?, NOW())`;
-      const insertParams = [participant.id, computedStatus, remarks || null];
+             VALUES (?, ?, NOW(), ?, ?, NOW())`;
+      const insertParams = [participant.id, attendanceDate, computedStatus, remarks || null];
       console.log("🔍 [TRACE] 7. INSERT SQL:", insertSql);
       console.log("🔍 [TRACE] 8. INSERT params:", JSON.stringify(insertParams));
 

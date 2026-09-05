@@ -6,6 +6,7 @@
  * filter attendance_date ranges. NO records are ever deleted or modified.
  */
 import { buildStandingBreakdown } from "../config/attendancePolicy.js";
+import { extractTimezone, hasAttendanceEnded } from "../config/attendanceSchedule.js";
 
 export const ATTENDANCE_PARTICIPANT_FILTER_SQL = `
   (p.status IS NULL OR TRIM(COALESCE(p.status, '')) = '' OR LOWER(p.status) = 'active')
@@ -253,4 +254,17 @@ export async function closeSessionAndNotifyAbsences({ pool, date, activity, time
   }
 
   return results;
+}
+
+export async function maybeAutoMarkAbsent({ pool, date, settings, sendEmail }) {
+  const enabled = settings?.autoMarkAbsent === true || settings?.autoMarkAbsent === "true";
+  if (!enabled || !hasAttendanceEnded(settings)) return { skipped: true, marked: 0 };
+
+  return closeSessionAndNotifyAbsences({
+    pool,
+    date,
+    activity: null,
+    timezone: extractTimezone(settings.timezone),
+    sendEmail,
+  });
 }
