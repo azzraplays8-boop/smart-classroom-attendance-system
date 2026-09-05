@@ -7,7 +7,7 @@ set DB_PORT=3306
 set DB_USER=root
 set DB_PASSWORD=21RONfoewbo@38124
 set DB_NAME=smart_attendance
-set CORS_ORIGIN=http://localhost:5173
+set CORS_ORIGIN=http://localhost:5173,http://127.0.0.1:5173
 echo Starting server...
 node src/server.js 2>&1
 

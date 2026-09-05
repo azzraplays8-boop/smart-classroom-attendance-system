@@ -935,18 +935,21 @@ router.post("/", auth, authorizeAnyPermission(PERMISSION_KEYS.MANAGE_ATTENDANCE,
         [result.insertId]
       );
 
-      // ── Check-in confirmation email (Part 8 / Part 11) ────────────────
-      // Attendance is ALREADY persisted above. Email failure must never
-      // affect the saved record — all errors are caught inside the service.
-      let emailNotification = { attempted: false, sent: false, reason: null };
-      try {
-        const [emailRows] = await pool.query(
-          "SELECT email FROM participants WHERE id = ? LIMIT 1",
-          [participant.id]
-        );
-        const recipientEmail = emailRows?.[0]?.email || null;
-        if (isValidEmail(recipientEmail)) {
-          emailNotification.attempted = true;
+      // Attendance is persisted before notification work starts. Do not await
+      // any email-related database, timezone, or SMTP operation here.
+      const emailNotification = { queued: true };
+      void Promise.resolve().then(async () => {
+        try {
+          const [emailRows] = await pool.query(
+            "SELECT email FROM participants WHERE id = ? LIMIT 1",
+            [participant.id]
+          );
+          const recipientEmail = emailRows?.[0]?.email || null;
+          if (!isValidEmail(recipientEmail)) {
+            console.warn(`[email] Check-in confirmation skipped for participant ${participant.id}: no valid email on file.`);
+            return;
+          }
+
           const tz = await getOrgTimezone(pool);
           const dateStr = new Intl.DateTimeFormat("en-US", {
             timeZone: tz, year: "numeric", month: "long", day: "numeric",
@@ -954,7 +957,7 @@ router.post("/", auth, authorizeAnyPermission(PERMISSION_KEYS.MANAGE_ATTENDANCE,
           const timeStr = new Intl.DateTimeFormat("en-US", {
             timeZone: tz, hour: "numeric", minute: "2-digit", hour12: true,
           }).format(new Date());
-          const outcome = await sendCheckInConfirmationEmail({
+          await sendCheckInConfirmationEmail({
             to: recipientEmail,
             participantName: [participant.firstName, participant.lastName].filter(Boolean).join(" "),
             date: dateStr,
@@ -963,25 +966,16 @@ router.post("/", auth, authorizeAnyPermission(PERMISSION_KEYS.MANAGE_ATTENDANCE,
               : timeStr,
             status: computedStatus,
           });
-          emailNotification.sent = outcome.sent;
-          emailNotification.reason = outcome.error || null;
-        } else {
-          emailNotification.reason = "no-valid-email";
-          console.warn(`[email] Check-in confirmation skipped for participant ${participant.id}: no valid email on file.`);
+        } catch (emailErr) {
+          console.error("[email] Unexpected error sending check-in confirmation:", emailErr?.message);
         }
-      } catch (emailErr) {
-        // Never fail attendance because of email problems.
-        console.error("[email] Unexpected error sending check-in confirmation:", emailErr?.message);
-        emailNotification.reason = emailErr?.message || "unknown-email-error";
-      }
+      });
 
       const attendanceRecorded = Boolean(newRow?.[0] || result?.insertId);
-      const emailSent = Boolean(emailNotification?.sent);
 
       return res.status(201).json({
         message: "Attendance recorded",
         attendanceRecorded,
-        emailSent,
         attendance: newRow?.[0] ?? null,
         participant: participant
           ? {

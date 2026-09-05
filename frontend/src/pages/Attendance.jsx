@@ -614,10 +614,7 @@ function Attendance() {
 
       const timeIn = data.attendance?.timeIn ? formatTime(data.attendance.timeIn) : formatTime(new Date().toISOString());
       const recordedStatus = data.attendance?.status || "Present";
-      const emailSent = Boolean(data.emailSent || data.emailNotification?.sent);
-      const successMessage = emailSent
-        ? "Attendance recorded successfully. A confirmation email has been sent."
-        : "Attendance recorded successfully, but the confirmation email could not be sent.";
+      const successMessage = "Attendance recorded successfully.";
 
       const matchedParticipant = data.participant || null;
       const displayIdentifier = matchedParticipant?.participantIdentifier || rawValue;
@@ -636,8 +633,6 @@ function Attendance() {
         timeIn,
         date: new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }),
         status: recordedStatus,
-        emailNotification: data.emailNotification || null,
-        emailSent,
         photo: matchedParticipant?.photo || null,
       });
 
