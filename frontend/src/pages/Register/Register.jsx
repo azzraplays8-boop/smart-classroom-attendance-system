@@ -8,7 +8,7 @@
 import { useEffect, useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
-import { formatYearLevelLabel, parseList } from "../../hooks/useAcademicConfig";
+import { DEFAULT_YEAR_LEVELS, formatYearLevelLabel, parseList } from "../../hooks/useAcademicConfig";
 import { API_BASE_URL } from "../../config/api";
 import {
   FiEye,
@@ -80,7 +80,7 @@ export default function Register() {
       )
     : [];
   const registrationDepartments = serverDepartments;
-  const registrationYearLevels = serverYearLevels;
+  const registrationYearLevels = serverYearLevels.length ? serverYearLevels : DEFAULT_YEAR_LEVELS;
   const registrationYearLevelLabels = registrationYearLevels.map(formatYearLevelLabel);
 
   const [formData, setFormData] = useState({
