@@ -6,8 +6,8 @@
  *
  * Required environment variables (see backend/.env.example):
  *   SMTP_HOST       e.g. smtp.gmail.com
- *   SMTP_PORT       e.g. 465
- *   SMTP_SECURE     "true" for 465, "false" for 587
+ *   SMTP_PORT       e.g. 587
+ *   SMTP_SECURE     "false" for 587 STARTTLS, "true" for 465 TLS
  *   SMTP_USER       sender account (e.g. kataga.notifications@gmail.com)
  *   SMTP_PASS       app password / account password
  *   MAIL_FROM       optional display sender, e.g. "KATAGA <kataga@gmail.com>"
@@ -77,8 +77,9 @@ function getTransporter() {
   try {
     transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST,
-      port: Number(process.env.SMTP_PORT || 465),
+      port: Number(process.env.SMTP_PORT || 587),
       secure: String(process.env.SMTP_SECURE || "true").toLowerCase() === "true",
+      requireTLS: String(process.env.SMTP_SECURE || "true").toLowerCase() !== "true",
       getSocket: createIpv4Socket,
       auth: {
         user: process.env.SMTP_USER,
