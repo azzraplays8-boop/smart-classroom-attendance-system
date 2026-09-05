@@ -73,6 +73,7 @@ export default function Register() {
     : [];
   const registrationDepartments = serverDepartments;
   const registrationYearLevels = serverYearLevels;
+  const registrationYearLevelLabels = registrationYearLevels.map(formatYearLevelLabel);
 
   const [formData, setFormData] = useState({
     // Personal Information
@@ -180,7 +181,7 @@ export default function Register() {
     }
     if (!formData.category.trim()) {
       errors.category = "Category is required.";
-    } else if (!registrationYearLevels.includes(formData.category.trim())) {
+    } else if (!registrationYearLevelLabels.includes(formData.category.trim())) {
       errors.category = "Select a category from the configured list.";
     }
     if (registrationSections.length && !registrationSections.includes(formData.section.trim())) {
@@ -465,7 +466,7 @@ export default function Register() {
                     registrationDepartments,
                     "Select a department")}
                   {renderSelect("Category", "category",
-                    registrationYearLevels.map((value) => formatYearLevelLabel(value)),
+                    registrationYearLevelLabels,
                     "Select a year level")}
                 </div>
                 {registrationSections.length > 0 && <div className="register-field-row register-field-row-2">

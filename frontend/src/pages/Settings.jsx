@@ -176,14 +176,14 @@ function normalizeAcademicSettingsForStorage(rawSettings = {}) {
   // their mirror fields (departmentOptions, sectionOptions, yearLevelOptions).
   // The mirror fields are only fallbacks for legacy saved data — otherwise the
   // stale mirror value silently overwrites the user's new edits on save.
-  const departmentValue = readListValue(
-    rawSettings.defaultDepartments,
-    rawSettings.departmentOptions,
-    rawSettings.defaultCourses,
-    rawSettings.courseOptions
-  );
-  const sectionValue = readListValue(rawSettings.defaultSections, rawSettings.sectionOptions);
-  const yearValue = readListValue(rawSettings.positionLevels, rawSettings.yearLevelOptions);
+  const readConfiguredValue = (primaryKey, fallbackKey) =>
+    Object.prototype.hasOwnProperty.call(rawSettings, primaryKey)
+      ? readListValue(rawSettings[primaryKey])
+      : readListValue(rawSettings[fallbackKey]);
+
+  const departmentValue = readConfiguredValue("defaultDepartments", "departmentOptions");
+  const sectionValue = readConfiguredValue("defaultSections", "sectionOptions");
+  const yearValue = readConfiguredValue("positionLevels", "yearLevelOptions");
 
   return {
     ...rawSettings,

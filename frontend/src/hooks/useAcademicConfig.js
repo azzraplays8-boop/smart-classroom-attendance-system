@@ -23,18 +23,22 @@ function firstConfiguredList(...values) {
   return [];
 }
 
+function configuredList(settings, primaryKey, fallbackKey) {
+  if (Object.prototype.hasOwnProperty.call(settings, primaryKey)) {
+    return parseList(settings[primaryKey]);
+  }
+  return firstConfiguredList(settings[fallbackKey]);
+}
+
 export function normalizeAcademicSettings(settings = {}) {
   const academicYear = settings.academicYear ?? settings.schoolYear ?? settings.orgYear ?? "";
   const semester = settings.semester ?? settings.academicSemester ?? "1st";
 
   // Edited form fields (defaultDepartments/defaultSections/positionLevels)
   // take priority over their mirror fields — mirror fields are only fallbacks.
-  const departmentList = firstConfiguredList(
-    settings.defaultDepartments,
-    settings.departmentOptions
-  );
-  const sectionList = firstConfiguredList(settings.defaultSections, settings.sectionOptions);
-  const yearList = firstConfiguredList(settings.positionLevels, settings.yearLevelOptions);
+  const departmentList = configuredList(settings, "defaultDepartments", "departmentOptions");
+  const sectionList = configuredList(settings, "defaultSections", "sectionOptions");
+  const yearList = configuredList(settings, "positionLevels", "yearLevelOptions");
 
   return {
     academicYear,

@@ -222,7 +222,7 @@ export default function authRouter({ pool }) {
         // Participant fields
         participant_id, gender, date_of_birth,
         // Academic fields
-        department, category,
+        department, category, group_name,
         // Contact fields
         contact_number,
       } = req.body;
@@ -424,7 +424,7 @@ export default function authRouter({ pool }) {
               contact_number.trim(),
               department.trim(),
               category.trim(),
-              "", // Team is intentionally excluded from registration; keep the field non-null.
+              group_name?.trim() || "",
               "Active",
             ]
           : [
@@ -440,7 +440,7 @@ export default function authRouter({ pool }) {
               contact_number.trim(),
               department.trim(),
               category.trim(),
-              "", // Team is intentionally excluded from registration; keep the field non-null.
+              group_name?.trim() || "",
               "Active",
             ];
 
