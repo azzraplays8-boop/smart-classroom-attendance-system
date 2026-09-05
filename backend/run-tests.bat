@@ -1,5 +1,5 @@
 @echo off
-cd /d "c:\Users\Ronel Pesalbon\(VS CODE)\backend"
+cd /d "c:\Users\Ronel Pesalbon\(VS CODE)\smart-classroom-attendance-system\backend"
 set PORT=5050
 set JWT_SECRET=test-secret-key-for-testing
 set DB_HOST=localhost

@@ -36,9 +36,16 @@ export default function Register() {
     let cancelled = false;
 
     fetch(`${API_BASE_URL}/settings/registration`)
-      .then((response) => {
-        if (!response.ok) throw new Error("Failed to load registration options");
-        return response.json();
+      .then(async (response) => {
+        const payload = await response.json().catch(() => null);
+        if (!response.ok) {
+          const serverMessage = payload?.message || `Request failed with HTTP ${response.status}.`;
+          throw new Error(serverMessage);
+        }
+        if (!payload || typeof payload.settings !== "object" || payload.settings === null) {
+          throw new Error("Registration options response was invalid.");
+        }
+        return payload;
       })
       .then(({ settings = {} }) => {
         if (!cancelled) {
@@ -48,7 +55,8 @@ export default function Register() {
       })
       .catch((loadError) => {
         if (!cancelled) {
-          setAcademicConfigError(loadError.message || "Failed to load academic configuration.");
+          console.error("[Registration academic configuration]", loadError);
+          setAcademicConfigError(loadError.message || "Unable to reach registration configuration.");
         }
       });
 
