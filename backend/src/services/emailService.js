@@ -17,6 +17,9 @@
  * break attendance recording (Part 11). All failures are logged and the
  * functions resolve with { sent: false, error }.
  */
+import dns from "node:dns";
+import net from "node:net";
+import tls from "node:tls";
 import nodemailer from "nodemailer";
 
 const ORG_SIGNATURE = "Thank you,\nKATAGA\nKapatiran ng Talino at Galing";
@@ -33,6 +36,37 @@ function isMailConfigured() {
   return Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
 }
 
+function createIpv4Socket(options, callback) {
+  const host = options.host;
+  dns.lookup(host, { family: 4 }, (lookupError, address) => {
+    if (lookupError) {
+      callback(lookupError);
+      return;
+    }
+
+    const socketOptions = {
+      host: address,
+      port: options.port,
+      localAddress: options.localAddress,
+      servername: host,
+      ...(options.secure ? options.tls || {} : {}),
+    };
+    const socket = options.secure
+      ? tls.connect(socketOptions)
+      : net.connect(socketOptions);
+    let settled = false;
+
+    const finish = (error) => {
+      if (settled) return;
+      settled = true;
+      callback(error, error ? undefined : { connection: socket, secured: Boolean(options.secure) });
+    };
+
+    socket.once(options.secure ? "secureConnect" : "connect", () => finish(null));
+    socket.once("error", finish);
+  });
+}
+
 function getTransporter() {
   if (transporterAttempted) return transporter;
   transporterAttempted = true;
@@ -45,6 +79,7 @@ function getTransporter() {
       host: process.env.SMTP_HOST,
       port: Number(process.env.SMTP_PORT || 465),
       secure: String(process.env.SMTP_SECURE || "true").toLowerCase() === "true",
+      getSocket: createIpv4Socket,
       auth: {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS,
