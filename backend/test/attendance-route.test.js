@@ -98,6 +98,73 @@ test('attendance POST records attendance for an administrator using participantI
   }
 });
 
+test('attendance POST returns before check-in email work finishes', async () => {
+  let emailLookupStarted = false;
+  let releaseEmailLookup;
+  let emailDispatchFinished;
+  const emailDispatchDone = new Promise((resolve) => {
+    emailDispatchFinished = resolve;
+  });
+  const emailLookupReleased = new Promise((resolve) => {
+    releaseEmailLookup = resolve;
+  });
+  const participant = {
+    id: 1,
+    participant_identifier: '2023-001245',
+    participantIdentifier: '2023-001245',
+    first_name: 'Juan',
+    firstName: 'Juan',
+    last_name: 'Dela Cruz',
+    lastName: 'Dela Cruz',
+    department: 'BSIT',
+  };
+  const pool = wrapPoolForAuth({
+    async query(sql, params) {
+      const sqlStr = String(sql);
+      if (sqlStr.includes('FROM attendance') && sqlStr.includes('attendance_date = CURDATE()')) return [[]];
+      if (sqlStr.includes('FROM participants') && sqlStr.includes('WHERE participant_identifier')) return [[participant]];
+      if (sqlStr.includes('INSERT INTO attendance')) return [{ insertId: 99 }];
+      if (sqlStr.includes('SELECT a.id')) {
+        return [[{ id: 99, participantId: 1, attendanceDate: '2026-07-07', timeIn: '2026-07-07T07:35:00.000Z', status: 'Present' }]];
+      }
+      if (sqlStr.includes('SELECT email FROM participants')) {
+        emailLookupStarted = true;
+        await emailLookupReleased;
+        emailDispatchFinished();
+        return [[{ email: 'juan@example.com' }]];
+      }
+      return [[]];
+    },
+  });
+
+  const app = express();
+  app.use(express.json());
+  app.use('/attendance', attendanceRouter({ pool }));
+  const server = createServer(app);
+  await new Promise((resolve) => server.listen(0, resolve));
+  const { port } = server.address();
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/attendance`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${makeToken('administrator')}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ participantIdentifier: participant.participantIdentifier }),
+    });
+
+    assert.equal(response.status, 201);
+    assert.equal((await response.json()).message, 'Attendance recorded');
+    assert.equal(emailLookupStarted, true);
+
+    releaseEmailLookup();
+    await emailDispatchDone;
+  } finally {
+    await new Promise((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+  }
+});
+
 test('attendance POST is denied for an encoder without manage_attendance? (encoder has encode_attendance → allowed)', async () => {
   const pool = wrapPoolForAuth(createStubPool({
     '2023-009999': { firstName: 'Levi', lastName: 'Ackerman', department: 'ICT' },
