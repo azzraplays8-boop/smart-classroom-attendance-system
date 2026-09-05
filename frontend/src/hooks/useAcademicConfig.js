@@ -31,9 +31,7 @@ export function normalizeAcademicSettings(settings = {}) {
   // take priority over their mirror fields — mirror fields are only fallbacks.
   const departmentList = firstConfiguredList(
     settings.defaultDepartments,
-    settings.departmentOptions,
-    settings.defaultCourses,
-    settings.courseOptions
+    settings.departmentOptions
   );
   const sectionList = firstConfiguredList(settings.defaultSections, settings.sectionOptions);
   const yearList = firstConfiguredList(settings.positionLevels, settings.yearLevelOptions);
@@ -108,7 +106,7 @@ export function useAcademicConfig() {
     const { academicYear, semester, departmentValue, sectionValue, yearValue } = normalizeAcademicSettings(settings);
 
     const departments = parseList(departmentValue);
-    const fromCourses = parseList(settings.courseOptions ?? settings.defaultCourses ?? "");
+    const fromCourses = parseList(settings.defaultCourses ?? settings.courseOptions ?? "");
     const sections = parseList(sectionValue);
 
     let yearLevels = parseList(yearValue);

@@ -56,7 +56,7 @@ export default function settingsRouter({ pool }) {
       const [rows] = await pool.query(
         `SELECT setting_key, setting_value
            FROM settings
-          WHERE setting_key IN ('defaultDepartments', 'departmentOptions', 'defaultCourses', 'courseOptions', 'positionLevels', 'yearLevelOptions')`
+          WHERE setting_key IN ('defaultDepartments', 'departmentOptions', 'defaultCourses', 'courseOptions', 'defaultSections', 'sectionOptions', 'positionLevels', 'yearLevelOptions')`
       );
       const settings = Object.fromEntries(rows.map((row) => [row.setting_key, row.setting_value]));
       return res.json({ settings });

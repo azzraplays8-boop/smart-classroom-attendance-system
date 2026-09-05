@@ -8,7 +8,7 @@
 import { useEffect, useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
-import { useAcademicConfig, formatYearLevelLabel, parseList } from "../../hooks/useAcademicConfig";
+import { formatYearLevelLabel, parseList } from "../../hooks/useAcademicConfig";
 import { API_BASE_URL } from "../../config/api";
 import {
   FiEye,
@@ -29,8 +29,8 @@ import "./Register.css";
 export default function Register() {
   const { register, isAuthenticated, loading: authLoading } = useAuth();
   const navigate = useNavigate();
-  const academicConfig = useAcademicConfig();
   const [registrationAcademicConfig, setRegistrationAcademicConfig] = useState(null);
+  const [academicConfigError, setAcademicConfigError] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -41,10 +41,15 @@ export default function Register() {
         return response.json();
       })
       .then(({ settings = {} }) => {
-        if (!cancelled) setRegistrationAcademicConfig(settings);
+        if (!cancelled) {
+          setRegistrationAcademicConfig(settings);
+          setAcademicConfigError("");
+        }
       })
-      .catch(() => {
-        // Local/default configuration remains available if the API is offline.
+      .catch((loadError) => {
+        if (!cancelled) {
+          setAcademicConfigError(loadError.message || "Failed to load academic configuration.");
+        }
       });
 
     return () => {
@@ -54,11 +59,11 @@ export default function Register() {
 
   const serverDepartments = registrationAcademicConfig
     ? parseList(
-        registrationAcademicConfig.defaultDepartments ||
-          registrationAcademicConfig.departmentOptions ||
-          registrationAcademicConfig.defaultCourses ||
-          registrationAcademicConfig.courseOptions
+        registrationAcademicConfig.defaultDepartments || registrationAcademicConfig.departmentOptions
       )
+    : [];
+  const registrationSections = registrationAcademicConfig
+    ? parseList(registrationAcademicConfig.defaultSections || registrationAcademicConfig.sectionOptions)
     : [];
   const serverYearLevels = registrationAcademicConfig
     ? parseList(
@@ -66,12 +71,8 @@ export default function Register() {
           registrationAcademicConfig.yearLevelOptions
       )
     : [];
-  const registrationDepartments = serverDepartments.length
-    ? serverDepartments
-    : academicConfig.departments;
-  const registrationYearLevels = serverYearLevels.length
-    ? serverYearLevels
-    : academicConfig.yearLevels;
+  const registrationDepartments = serverDepartments;
+  const registrationYearLevels = serverYearLevels;
 
   const [formData, setFormData] = useState({
     // Personal Information
@@ -91,6 +92,7 @@ export default function Register() {
     // Academic Information
     department: "",
     category: "",
+    section: "",
     // Contact Information
     contact_number: "",
   });
@@ -167,11 +169,22 @@ export default function Register() {
     }
 
     // Academic Information
-    if (!formData.department.trim()) {
+    if (!registrationAcademicConfig) {
+      errors.academicConfig = "Academic configuration is still loading.";
+    } else if (academicConfigError) {
+      errors.academicConfig = "Academic configuration could not be loaded.";
+    } else if (!formData.department.trim()) {
       errors.department = "Department/Group is required.";
+    } else if (!registrationDepartments.includes(formData.department.trim())) {
+      errors.department = "Select a department from the configured list.";
     }
     if (!formData.category.trim()) {
       errors.category = "Category is required.";
+    } else if (!registrationYearLevels.includes(formData.category.trim())) {
+      errors.category = "Select a category from the configured list.";
+    }
+    if (registrationSections.length && !registrationSections.includes(formData.section.trim())) {
+      errors.section = "Select a section from the configured list.";
     }
 
     // Contact Information
@@ -210,6 +223,7 @@ export default function Register() {
         // Academic Information
         department: formData.department.trim(),
         category: formData.category.trim(),
+        group_name: formData.section.trim(),
         // Contact Information
         contact_number: formData.contact_number.trim(),
       });
@@ -444,14 +458,19 @@ export default function Register() {
               {/* ACADEMIC INFORMATION */}
               <div className="register-section">
                 <h3 className="register-section-title">Academic Information</h3>
+                {academicConfigError && <div className="register-alert" role="alert"><span className="register-alert-ic">!</span><span>{academicConfigError}</span></div>}
+                {!registrationAcademicConfig && !academicConfigError && <div className="register-alert" role="status"><FiLoader className="register-spinner" size={16} /><span>Loading academic configuration...</span></div>}
                 <div className="register-field-row register-field-row-2">
                   {renderSelect("Department / Group", "department",
                     registrationDepartments,
                     "Select a department")}
                   {renderSelect("Category", "category",
-                    registrationYearLevels.map(formatYearLevelLabel),
+                    registrationYearLevels.map((value) => formatYearLevelLabel(value)),
                     "Select a year level")}
                 </div>
+                {registrationSections.length > 0 && <div className="register-field-row register-field-row-2">
+                  {renderSelect("Section", "section", registrationSections, "Select a section")}
+                </div>}
               </div>
 
               {/* CONTACT INFORMATION */}
