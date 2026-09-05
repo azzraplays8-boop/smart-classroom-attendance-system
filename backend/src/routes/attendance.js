@@ -941,29 +941,39 @@ router.post("/", auth, authorizeAnyPermission(PERMISSION_KEYS.MANAGE_ATTENDANCE,
       void Promise.resolve().then(async () => {
         try {
           const [emailRows] = await pool.query(
-            "SELECT email FROM participants WHERE id = ? LIMIT 1",
+            `SELECT email, participant_identifier AS participantIdentifier,
+                    first_name AS firstName, last_name AS lastName, middle_name AS middleName,
+                    department, level AS year, group_name AS section
+             FROM participants WHERE id = ? LIMIT 1`,
             [participant.id]
           );
-          const recipientEmail = emailRows?.[0]?.email || null;
+          const emailParticipant = emailRows?.[0] || participant;
+          const recipientEmail = emailParticipant.email || null;
           if (!isValidEmail(recipientEmail)) {
             console.warn(`[email] Check-in confirmation skipped for participant ${participant.id}: no valid email on file.`);
             return;
           }
 
           const tz = await getOrgTimezone(pool);
+          const attendanceDate = newRow?.[0]?.attendanceDate || new Date();
+          const attendanceTime = newRow?.[0]?.timeIn || new Date();
           const dateStr = new Intl.DateTimeFormat("en-US", {
             timeZone: tz, year: "numeric", month: "long", day: "numeric",
-          }).format(new Date());
+          }).format(typeof attendanceDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(attendanceDate)
+            ? new Date(`${attendanceDate}T12:00:00Z`)
+            : new Date(attendanceDate));
           const timeStr = new Intl.DateTimeFormat("en-US", {
             timeZone: tz, hour: "numeric", minute: "2-digit", hour12: true,
-          }).format(new Date());
+          }).format(new Date(attendanceTime));
           await sendCheckInConfirmationEmail({
             to: recipientEmail,
-            participantName: [participant.firstName, participant.lastName].filter(Boolean).join(" "),
+            participantName: [emailParticipant.firstName, emailParticipant.middleName, emailParticipant.lastName].filter(Boolean).join(" "),
+            participantId: emailParticipant.participantIdentifier || participant.participantIdentifier,
+            courseStrand: emailParticipant.department || participant.department,
+            yearLevel: emailParticipant.year || participant.year,
+            section: emailParticipant.section || participant.section,
             date: dateStr,
-            timeIn: newRow?.[0]?.timeIn
-              ? new Date(newRow[0].timeIn).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })
-              : timeStr,
+            timeIn: timeStr,
             status: computedStatus,
           });
         } catch (emailErr) {

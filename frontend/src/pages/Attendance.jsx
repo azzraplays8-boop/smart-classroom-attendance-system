@@ -612,7 +612,7 @@ function Attendance() {
         return;
       }
 
-      const timeIn = data.attendance?.timeIn ? formatTime(data.attendance.timeIn) : formatTime(new Date().toISOString());
+      const timeIn = data.attendance?.timeInLabel || (data.attendance?.timeIn ? formatTime(data.attendance.timeIn) : "-");
       const recordedStatus = data.attendance?.status || "Present";
       const successMessage = "Attendance recorded successfully.";
 
@@ -631,7 +631,7 @@ function Attendance() {
         year: matchedParticipant?.year || "-",
         section: matchedParticipant?.section || "-",
         timeIn,
-        date: new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }),
+        date: data.attendance?.attendanceDateLabel || data.attendance?.attendanceDate || "-",
         status: recordedStatus,
         photo: matchedParticipant?.photo || null,
       });
@@ -1119,9 +1119,6 @@ function Attendance() {
           <div style={{ marginTop: 14, padding: "10px 14px", borderRadius: 10, background: "var(--surface-2, #f8fafc)", border: "1px solid var(--border-2, #e2e8f0)", fontSize: 13, color: "var(--muted-2)" }}>
             Thank you for checking in, {attendanceResult.participantName}. Your attendance for this session has been recorded.
             {attendanceResult.status?.toLowerCase() === "late" ? " Please note: you were checked in as LATE based on the attendance time rules." : ""}
-            {attendanceResult.emailNotification && !attendanceResult.emailNotification.sent
-              ? " (Note: confirmation email could not be sent — your attendance is still safely recorded.)"
-              : ""}
           </div>
         </div>
       ) : null}

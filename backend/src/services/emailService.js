@@ -93,23 +93,42 @@ async function safeSend({ to, subject, text }) {
 }
 
 /** Check-in confirmation email (Part 8). */
-export async function sendCheckInConfirmationEmail({ to, participantName, date, timeIn, status }) {
+export async function sendCheckInConfirmationEmail({
+  to,
+  participantName,
+  participantId,
+  courseStrand,
+  yearLevel,
+  section,
+  date,
+  timeIn,
+  status,
+}) {
   const name = participantName || "Participant";
+  const statusLabel = String(status || "Recorded").trim();
   return safeSend({
     to,
-    subject: "KATAGA Attendance Confirmation",
+    subject: `Attendance Recorded - ${date}`,
     text: [
       `Hello ${name},`,
       "",
-      "Thank you for checking in.",
+      "Your attendance has been successfully recorded for today's session.",
       "",
-      "Your attendance has been successfully recorded.",
+      "Attendance Details",
       "",
-      `Date: ${date}`,
-      `Time In: ${timeIn}`,
-      `Status: ${status}`,
+      `Name: ${participantName || "Participant"}`,
+      `Participant ID: ${participantId || "-"}`,
+      `Course / Strand: ${courseStrand || "-"}`,
+      `Year Level: ${yearLevel || "-"}`,
+      `Section: ${section || "-"}`,
+      `Attendance Status: ${statusLabel}`,
+      `Time Recorded: ${timeIn || "-"}`,
+      `Date: ${date || "-"}`,
       "",
-      ORG_SIGNATURE,
+      `Your attendance for this session has been recorded successfully. You were marked ${statusLabel.toUpperCase()} based on the attendance time rules.`,
+      "",
+      "Thank you,",
+      "KATAGA Portal",
     ].join("\n"),
   });
 }
