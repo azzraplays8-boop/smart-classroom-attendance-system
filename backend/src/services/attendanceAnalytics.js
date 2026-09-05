@@ -256,9 +256,9 @@ export async function closeSessionAndNotifyAbsences({ pool, date, activity, time
   return results;
 }
 
-export async function maybeAutoMarkAbsent({ pool, date, settings, sendEmail }) {
+export async function maybeAutoMarkAbsent({ pool, date, settings, sendEmail, now = new Date() }) {
   const enabled = settings?.autoMarkAbsent === true || settings?.autoMarkAbsent === "true";
-  if (!enabled || !hasAttendanceEnded(settings)) return { skipped: true, marked: 0 };
+  if (!enabled || !hasAttendanceEnded(settings, now)) return { skipped: true, marked: 0 };
 
   return closeSessionAndNotifyAbsences({
     pool,

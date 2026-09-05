@@ -19,7 +19,6 @@ import {
   summarizeParticipantMonthly,
   summarizeMonthlyTotals,
   closeSessionAndNotifyAbsences,
-  maybeAutoMarkAbsent,
   getAttendanceParticipantPopulation,
   countAttendanceParticipants,
   ATTENDANCE_PARTICIPANT_FILTER_SQL,
@@ -238,12 +237,6 @@ export default function attendanceRouter({ pool }) {
       const settings = await loadAttendanceSettings(pool);
       const timezone = extractTimezone(settings.timezone);
       const date = String(req.query.date || getDateKeyInTimezone(new Date(), timezone));
-      await maybeAutoMarkAbsent({
-        pool,
-        date,
-        settings,
-        sendEmail: (args) => sendAbsenceNoticeEmail(args),
-      });
 
       const [rows] = await pool.query(
         `SELECT a.id, a.participant_id AS participantId, a.attendance_date AS attendanceDate,
@@ -768,12 +761,6 @@ router.post("/", auth, authorizeAnyPermission(PERMISSION_KEYS.MANAGE_ATTENDANCE,
       const settings = await loadAttendanceSettings(pool);
       const attendanceTimezone = extractTimezone(settings.timezone);
       const attendanceDate = getDateKeyInTimezone(new Date(), attendanceTimezone);
-      await maybeAutoMarkAbsent({
-        pool,
-        date: attendanceDate,
-        settings,
-        sendEmail: (args) => sendAbsenceNoticeEmail(args),
-      });
       const attendanceMethod = method || (qrUuid ? "qr" : "manual");
       if (!isAttendanceModeAllowed(settings.attendanceMode, attendanceMethod)) {
         return res.status(403).json({ message: `Attendance mode does not allow ${attendanceMethod} check-in.` });

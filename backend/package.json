@@ -6,7 +6,8 @@
   "main": "src/server.js",
   "scripts": {
     "dev": "node --watch src/server.js",
-    "start": "node src/server.js"
+    "start": "node src/server.js",
+    "attendance:auto-absent": "node src/jobs/autoMarkAbsent.js"
   },
   "dependencies": {
     "archiver": "^8.0.0",
