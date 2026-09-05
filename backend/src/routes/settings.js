@@ -47,6 +47,25 @@ export default function settingsRouter({ pool }) {
     }
   });
 
+  // GET /settings/registration — public academic options used by registration.
+  // These values are safe to expose and keep the public form consistent with
+  // the options configured by an administrator instead of browser storage.
+  router.get("/registration", async (req, res) => {
+    try {
+      await ensureTable(pool);
+      const [rows] = await pool.query(
+        `SELECT setting_key, setting_value
+           FROM settings
+          WHERE setting_key IN ('defaultDepartments', 'departmentOptions', 'defaultCourses', 'courseOptions', 'positionLevels', 'yearLevelOptions')`
+      );
+      const settings = Object.fromEntries(rows.map((row) => [row.setting_key, row.setting_value]));
+      return res.json({ settings });
+    } catch (err) {
+      console.error("GET /settings/registration error:", err?.message || err);
+      return res.status(500).json({ message: "Failed to fetch registration options." });
+    }
+  });
+
   // GET /settings — return all settings as a flat object
   router.get("/", auth, async (req, res) => {
     try {

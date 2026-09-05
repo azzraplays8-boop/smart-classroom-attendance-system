@@ -5,10 +5,11 @@
  * First registered user becomes Super Administrator (auto-approved, no org required).
  * Subsequent registrations require a valid invitation code and become Pending Approval.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
-import { useAcademicConfig, formatYearLevelLabel } from "../../hooks/useAcademicConfig";
+import { useAcademicConfig, formatYearLevelLabel, parseList } from "../../hooks/useAcademicConfig";
+import { API_BASE_URL } from "../../config/api";
 import {
   FiEye,
   FiEyeOff,
@@ -29,6 +30,48 @@ export default function Register() {
   const { register, isAuthenticated, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const academicConfig = useAcademicConfig();
+  const [registrationAcademicConfig, setRegistrationAcademicConfig] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    fetch(`${API_BASE_URL}/settings/registration`)
+      .then((response) => {
+        if (!response.ok) throw new Error("Failed to load registration options");
+        return response.json();
+      })
+      .then(({ settings = {} }) => {
+        if (!cancelled) setRegistrationAcademicConfig(settings);
+      })
+      .catch(() => {
+        // Local/default configuration remains available if the API is offline.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const serverDepartments = registrationAcademicConfig
+    ? parseList(
+        registrationAcademicConfig.defaultDepartments ||
+          registrationAcademicConfig.departmentOptions ||
+          registrationAcademicConfig.defaultCourses ||
+          registrationAcademicConfig.courseOptions
+      )
+    : [];
+  const serverYearLevels = registrationAcademicConfig
+    ? parseList(
+        registrationAcademicConfig.positionLevels ||
+          registrationAcademicConfig.yearLevelOptions
+      )
+    : [];
+  const registrationDepartments = serverDepartments.length
+    ? serverDepartments
+    : academicConfig.departments;
+  const registrationYearLevels = serverYearLevels.length
+    ? serverYearLevels
+    : academicConfig.yearLevels;
 
   const [formData, setFormData] = useState({
     // Personal Information
@@ -403,10 +446,10 @@ export default function Register() {
                 <h3 className="register-section-title">Academic Information</h3>
                 <div className="register-field-row register-field-row-2">
                   {renderSelect("Department / Group", "department",
-                    academicConfig.departments,
+                    registrationDepartments,
                     "Select a department")}
                   {renderSelect("Category", "category",
-                    academicConfig.yearLevels.map(formatYearLevelLabel),
+                    registrationYearLevels.map(formatYearLevelLabel),
                     "Select a year level")}
                 </div>
               </div>
