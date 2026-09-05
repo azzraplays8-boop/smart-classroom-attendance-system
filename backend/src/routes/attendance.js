@@ -118,6 +118,23 @@ async function getOrgTimezone(pool) {
   }
 }
 
+function formatAttendanceDate(value, timezone) {
+  const date = typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)
+    ? new Date(`${value}T12:00:00Z`)
+    : new Date(value || Date.now());
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone, year: "numeric", month: "long", day: "numeric",
+  }).format(date);
+}
+
+function formatAttendanceTime(value, timezone) {
+  const date = new Date(value || Date.now());
+  if (Number.isNaN(date.getTime())) return String(value || "-");
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone, hour: "numeric", minute: "2-digit", hour12: true,
+  }).format(date);
+}
+
 async function buildMemberAttendanceSummary(pool, user) {
   const member = await resolveCurrentParticipant(pool, user);
   if (!member) {
@@ -900,8 +917,10 @@ router.post("/", auth, authorizeAnyPermission(PERMISSION_KEYS.MANAGE_ATTENDANCE,
 
       // Load attendance settings from the database for dynamic status computation
       let computedStatus;
+      let attendanceTimezone = "Asia/Manila";
       if (status && String(status).trim()) {
         computedStatus = String(status).trim();
+        attendanceTimezone = await getOrgTimezone(pool);
       } else {
         const [settingsRows] = await pool.query(
           "SELECT setting_key, setting_value FROM settings"
@@ -913,6 +932,7 @@ router.post("/", auth, authorizeAnyPermission(PERMISSION_KEYS.MANAGE_ATTENDANCE,
             : row.setting_value;
         }
         console.log("🔍 [TRACE] 5. Settings loaded:", JSON.stringify(settings));
+        attendanceTimezone = extractTimezone(settings.timezone);
         computedStatus = computeAttendanceStatus(settings);
       }
       console.log("🔍 [TRACE] 6. Computed status:", computedStatus);
@@ -954,17 +974,10 @@ router.post("/", auth, authorizeAnyPermission(PERMISSION_KEYS.MANAGE_ATTENDANCE,
             return;
           }
 
-          const tz = await getOrgTimezone(pool);
           const attendanceDate = newRow?.[0]?.attendanceDate || new Date();
           const attendanceTime = newRow?.[0]?.timeIn || new Date();
-          const dateStr = new Intl.DateTimeFormat("en-US", {
-            timeZone: tz, year: "numeric", month: "long", day: "numeric",
-          }).format(typeof attendanceDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(attendanceDate)
-            ? new Date(`${attendanceDate}T12:00:00Z`)
-            : new Date(attendanceDate));
-          const timeStr = new Intl.DateTimeFormat("en-US", {
-            timeZone: tz, hour: "numeric", minute: "2-digit", hour12: true,
-          }).format(new Date(attendanceTime));
+          const dateStr = formatAttendanceDate(attendanceDate, attendanceTimezone);
+          const timeStr = formatAttendanceTime(attendanceTime, attendanceTimezone);
           await sendCheckInConfirmationEmail({
             to: recipientEmail,
             participantName: [emailParticipant.firstName, emailParticipant.middleName, emailParticipant.lastName].filter(Boolean).join(" "),
@@ -982,11 +995,18 @@ router.post("/", auth, authorizeAnyPermission(PERMISSION_KEYS.MANAGE_ATTENDANCE,
       });
 
       const attendanceRecorded = Boolean(newRow?.[0] || result?.insertId);
+      const attendance = newRow?.[0]
+        ? {
+            ...newRow[0],
+            attendanceDateLabel: formatAttendanceDate(newRow[0].attendanceDate, attendanceTimezone),
+            timeInLabel: formatAttendanceTime(newRow[0].timeIn, attendanceTimezone),
+          }
+        : null;
 
       return res.status(201).json({
         message: "Attendance recorded",
         attendanceRecorded,
-        attendance: newRow?.[0] ?? null,
+        attendance,
         participant: participant
           ? {
               participantIdentifier: participant.participantIdentifier ?? null,

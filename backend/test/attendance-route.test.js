@@ -127,7 +127,7 @@ test('attendance POST returns before check-in email work finishes', async () => 
       if (sqlStr.includes('SELECT a.id')) {
         return [[{ id: 99, participantId: 1, attendanceDate: '2026-07-07', timeIn: '2026-07-07T07:35:00.000Z', status: 'Present' }]];
       }
-      if (sqlStr.includes('SELECT email FROM participants')) {
+      if (sqlStr.includes('SELECT email')) {
         emailLookupStarted = true;
         await emailLookupReleased;
         emailDispatchFinished();
