@@ -258,7 +258,18 @@ export async function closeSessionAndNotifyAbsences({ pool, date, activity, time
 
 export async function maybeAutoMarkAbsent({ pool, date, settings, sendEmail, now = new Date() }) {
   const enabled = settings?.autoMarkAbsent === true || settings?.autoMarkAbsent === "true";
-  if (!enabled || !hasAttendanceEnded(settings, now)) return { skipped: true, marked: 0 };
+  if (!enabled) return { skipped: true, status: "disabled", marked: 0 };
+  if (!hasAttendanceEnded(settings, now)) return { skipped: true, status: "before_end", marked: 0 };
+
+  const [sessionRows] = await pool.query(
+    `SELECT 1
+     FROM attendance
+     WHERE attendance_date = ?
+       AND LOWER(COALESCE(status, '')) IN ('present', 'late', 'excused')
+     LIMIT 1`,
+    [date]
+  );
+  if (!sessionRows?.length) return { skipped: true, status: "not_started", marked: 0 };
 
   return closeSessionAndNotifyAbsences({
     pool,

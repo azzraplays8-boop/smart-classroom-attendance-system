@@ -15,6 +15,9 @@ function createPool(settings, participants, existing = []) {
       if (text.includes("SELECT participant_id FROM attendance WHERE attendance_date = ?")) {
         return [state.existing];
       }
+      if (text.includes("FROM attendance") && text.includes("LOWER(COALESCE(status")) {
+        return [state.existing.some((row) => row.status && ["present", "late", "excused"].includes(String(row.status).toLowerCase())) ? [{ 1: 1 }] : []];
+      }
       if (text.includes("SELECT participant_id FROM attendance_email_log")) return [[]];
       if (text.includes("INSERT INTO attendance_email_log")) return [{ insertId: 1 }];
       if (text.includes("INSERT INTO attendance (")) {
@@ -52,8 +55,8 @@ test("auto-absence job skips when disabled or before Attendance End", async () =
 
 test("auto-absence job marks only missing participants and is idempotent", async () => {
   const pool = createPool(baseSettings, participants, [
-    { participant_id: 1 }, // Present/Late/Excused rows all count as attended.
-    { participant_id: 3 }, // Existing Absent row is also preserved.
+    { participant_id: 1, status: "Present" },
+    { participant_id: 3, status: "Absent" },
   ]);
 
   const first = await runAutoMarkAbsent({ pool, now: afterEnd });

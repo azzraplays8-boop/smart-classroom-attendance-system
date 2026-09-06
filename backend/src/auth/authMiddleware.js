@@ -52,7 +52,7 @@ export function enforceMaintenanceMode(pool) {
   return async (req, res, next) => {
     try {
       const requestPath = (req.originalUrl || req.url || "").split("?")[0];
-      if (requestPath === "/health" || requestPath === "/settings/public" || requestPath.endsWith("/settings/public")) {
+      if (requestPath === "/health" || requestPath === "/settings/public" || requestPath.endsWith("/settings/public") || requestPath === "/attendance/auto-absent") {
         return next();
       }
 

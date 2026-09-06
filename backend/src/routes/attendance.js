@@ -1,4 +1,6 @@
 import express from "express";
+import crypto from "crypto";
+import { runAutoMarkAbsent } from "../jobs/autoMarkAbsent.js";
 import {
   authenticate,
   authorizePermission,
@@ -209,6 +211,32 @@ async function buildMemberAttendanceSummary(pool, user) {
  */
 export default function attendanceRouter({ pool }) {
   const router = express.Router();
+
+  router.post("/auto-absent", async (req, res) => {
+    const configuredSecret = process.env.CRON_SECRET;
+    const authorization = String(req.headers.authorization || "");
+    const match = authorization.match(/^Bearer ([^\s]+)$/i);
+    const suppliedSecret = match?.[1] || "";
+    const suppliedBytes = Buffer.from(suppliedSecret);
+    const configuredBytes = Buffer.from(configuredSecret || "");
+    const secretsMatch = Boolean(configuredSecret && suppliedSecret &&
+      suppliedBytes.length === configuredBytes.length &&
+      crypto.timingSafeEqual(suppliedBytes, configuredBytes));
+
+    if (!secretsMatch) return res.status(401).json({ message: "Unauthorized" });
+
+    try {
+      const result = await runAutoMarkAbsent({ pool });
+      return res.json({
+        success: true,
+        status: result.status || (result.skipped ? "skipped" : "processed"),
+        markedAbsent: result.marked || 0,
+      });
+    } catch (err) {
+      console.error("POST /attendance/auto-absent error:", err?.message || err);
+      return res.status(500).json({ message: "Failed to process automatic absences." });
+    }
+  });
 
   // Every attendance route requires a valid, active authenticated user.
   // Read endpoints are open to any authenticated role (including Viewer);
