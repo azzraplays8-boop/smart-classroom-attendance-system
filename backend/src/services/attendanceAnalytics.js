@@ -199,7 +199,18 @@ export async function closeSessionAndNotifyAbsences({
     `SELECT participant_id FROM attendance WHERE attendance_date = ?`,
     [date]
   );
-  const presentIds = new Set((existing || []).map((r) => r.participant_id));
+  const existingByParticipant = new Map((existing || []).map((row) => [row.participant_id, row]));
+  const [existingMetadata] = await pool.query(
+    `SELECT participant_id, status, source, auto_generated
+     FROM attendance WHERE attendance_date = ?`,
+    [date]
+  );
+  for (const row of existingMetadata || []) {
+    existingByParticipant.set(row.participant_id, {
+      ...existingByParticipant.get(row.participant_id),
+      ...row,
+    });
+  }
 
   const [alreadyNotified] = await pool.query(
     `SELECT participant_id FROM attendance_email_log
@@ -218,19 +229,25 @@ export async function closeSessionAndNotifyAbsences({
   const notificationCandidates = [];
 
   for (const p of participants || []) {
-    if (presentIds.has(p.id)) continue; // has a record (Present/Late/Absent/Excused)
+    const existingRecord = existingByParticipant.get(p.id);
+    const isRetryableAutoAbsence = existingRecord &&
+      String(existingRecord.status || "").toLowerCase() === "absent" &&
+      (existingRecord.auto_generated === 1 || existingRecord.source === "auto_absent");
+    if (existingRecord && !isRetryableAutoAbsence) continue;
 
-    await pool.query(
-      `INSERT INTO attendance (participant_id, attendance_date, time_in, status, source, auto_generated, activity)
-       VALUES (?, ?, NULL, 'Absent', 'auto_absent', 1, ?)
-       ON DUPLICATE KEY UPDATE
-         status = COALESCE(status, VALUES(status)),
-         source = COALESCE(source, VALUES(source)),
-         auto_generated = COALESCE(auto_generated, VALUES(auto_generated)),
-         activity = COALESCE(activity, VALUES(activity))`,
-      [p.id, date, activity || null]
-    );
-    results.marked += 1;
+    if (!existingRecord) {
+      await pool.query(
+        `INSERT INTO attendance (participant_id, attendance_date, time_in, status, source, auto_generated, activity)
+         VALUES (?, ?, NULL, 'Absent', 'auto_absent', 1, ?)
+         ON DUPLICATE KEY UPDATE
+           status = COALESCE(status, VALUES(status)),
+           source = COALESCE(source, VALUES(source)),
+           auto_generated = COALESCE(auto_generated, VALUES(auto_generated)),
+           activity = COALESCE(activity, VALUES(activity))`,
+        [p.id, date, activity || null]
+      );
+      results.marked += 1;
+    }
 
     if (notifiedIds.has(p.id)) continue; // duplicate absence email prevention
 
