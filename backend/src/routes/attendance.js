@@ -215,7 +215,7 @@ export default function attendanceRouter({ pool }) {
   router.post("/auto-absent", async (req, res) => {
     const configuredSecret = process.env.CRON_SECRET;
     const authorization = String(req.headers.authorization || "");
-    const match = authorization.match(/^Bearer ([^\s]+)$/i);
+    const match = authorization.match(/^Bearer\s+([^\s]+)$/i);
     const suppliedSecret = match?.[1] || "";
     const suppliedBytes = Buffer.from(suppliedSecret);
     const configuredBytes = Buffer.from(configuredSecret || "");
@@ -223,7 +223,16 @@ export default function attendanceRouter({ pool }) {
       suppliedBytes.length === configuredBytes.length &&
       crypto.timingSafeEqual(suppliedBytes, configuredBytes));
 
-    if (!secretsMatch) return res.status(401).json({ message: "Unauthorized" });
+    if (!secretsMatch) {
+      console.warn("[cron auth] rejected auto-absent request", {
+        configured: Boolean(configuredSecret),
+        headerPresent: Boolean(authorization),
+        bearerFormat: Boolean(match),
+        suppliedLength: suppliedSecret.length,
+        configuredLength: configuredBytes.length,
+      });
+      return res.status(401).json({ message: "Unauthorized" });
+    }
 
     try {
       const result = await runAutoMarkAbsent({ pool });

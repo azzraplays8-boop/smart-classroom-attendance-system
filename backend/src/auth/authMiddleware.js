@@ -51,8 +51,9 @@ export const PERMISSION_KEYS = {
 export function enforceMaintenanceMode(pool) {
   return async (req, res, next) => {
     try {
-      const requestPath = (req.originalUrl || req.url || "").split("?")[0];
-      if (requestPath === "/health" || requestPath === "/settings/public" || requestPath.endsWith("/settings/public") || requestPath === "/attendance/auto-absent") {
+      const requestPath = ((req.originalUrl || req.url || "").split("?")[0].replace(/\/+$/, "") || "/");
+      const isCronEndpoint = req.method === "POST" && requestPath === "/attendance/auto-absent";
+      if (requestPath === "/health" || requestPath === "/settings/public" || requestPath.endsWith("/settings/public") || isCronEndpoint) {
         return next();
       }
 
