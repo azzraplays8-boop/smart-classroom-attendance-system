@@ -121,15 +121,15 @@ async function safeSend({ to, subject, text, html }) {
     }
     if (!response.ok) {
       const error = safeErrorMessage(response, body);
-      console.error(`[email] Brevo rejected "${subject}" to ${to}: ${error}`);
+      console.error(`[email] Brevo rejected "${subject}": ${error}`);
       return { sent: false, error };
     }
 
     const messageId = body?.messageId || null;
-    console.log(`[email] Sent "${subject}" to ${to} (${messageId || "ok"})`);
+    console.log(`[email] Sent "${subject}" (${messageId || "ok"})`);
     return { sent: true, messageId };
   } catch (err) {
-    console.error(`[email] Failed to send "${subject}" to ${to}:`, err?.message || err);
+    console.error(`[email] Failed to send "${subject}":`, err?.message || err);
     return { sent: false, error: err?.message || String(err) };
   }
 }

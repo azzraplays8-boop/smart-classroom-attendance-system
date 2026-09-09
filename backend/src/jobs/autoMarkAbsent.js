@@ -16,7 +16,7 @@ async function loadAttendanceSettings(pool) {
   ]));
 }
 
-export async function runAutoMarkAbsent({ pool, now = new Date() } = {}) {
+export async function runAutoMarkAbsent({ pool, now = new Date(), waitForNotifications = true } = {}) {
   const activePool = pool || createAppPool(getEnvDb());
   const ownsPool = !pool;
 
@@ -29,6 +29,7 @@ export async function runAutoMarkAbsent({ pool, now = new Date() } = {}) {
       date,
       settings,
       sendEmail: (args) => sendAbsenceNoticeEmail(args),
+      waitForNotifications,
       now,
     });
 

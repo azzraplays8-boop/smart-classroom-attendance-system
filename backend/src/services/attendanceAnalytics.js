@@ -174,7 +174,14 @@ export async function countAttendanceParticipants(pool) {
   return Number(rows?.[0]?.total ?? 0) || 0;
 }
 
-export async function closeSessionAndNotifyAbsences({ pool, date, activity, timezone, sendEmail }) {
+export async function closeSessionAndNotifyAbsences({
+  pool,
+  date,
+  activity,
+  timezone,
+  sendEmail,
+  waitForNotifications = true,
+}) {
   const targetDate = String(date || "").trim();
   if (!targetDate) {
     throw new Error("A session date is required before finalizing automatic absences.");
@@ -201,7 +208,13 @@ export async function closeSessionAndNotifyAbsences({ pool, date, activity, time
   );
   const notifiedIds = new Set((alreadyNotified || []).map((r) => r.participant_id));
 
-  const results = { marked: 0, emailsSent: 0, emailsSkipped: 0, emailsFailed: 0 };
+  const results = {
+    marked: 0,
+    notificationAttempts: 0,
+    emailsSent: 0,
+    emailsSkipped: 0,
+    emailsFailed: 0,
+  };
   const notificationCandidates = [];
 
   for (const p of participants || []) {
@@ -264,33 +277,50 @@ export async function closeSessionAndNotifyAbsences({ pool, date, activity, time
     return { emailStatus, attempted };
   };
 
-  // Brevo accepts concurrent requests, but a small worker pool avoids a burst of
-  // requests when a session has many absences.
-  const workerCount = Math.min(5, notificationCandidates.length);
-  let nextCandidate = 0;
-  const workers = Array.from({ length: workerCount }, async () => {
-    while (nextCandidate < notificationCandidates.length) {
-      const candidate = notificationCandidates[nextCandidate++];
-      const outcome = await sendNotification(candidate);
-      if (outcome.attempted) results.notificationAttempts = (results.notificationAttempts || 0) + 1;
-      if (outcome.emailStatus === "sent") results.emailsSent += 1;
-      else if (outcome.emailStatus === "failed") results.emailsFailed += 1;
-      else results.emailsSkipped += 1;
-    }
-  });
-  await Promise.all(workers);
+  const notificationWork = async () => {
+    // Brevo accepts concurrent requests, but a small worker pool avoids a burst of
+    // requests when a session has many absences.
+    const workerCount = Math.min(5, notificationCandidates.length);
+    let nextCandidate = 0;
+    const workers = Array.from({ length: workerCount }, async () => {
+      while (nextCandidate < notificationCandidates.length) {
+        const candidate = notificationCandidates[nextCandidate++];
+        const outcome = await sendNotification(candidate);
+        if (outcome.attempted) results.notificationAttempts += 1;
+        if (outcome.emailStatus === "sent") results.emailsSent += 1;
+        else if (outcome.emailStatus === "failed") results.emailsFailed += 1;
+        else results.emailsSkipped += 1;
+      }
+    });
+    await Promise.all(workers);
 
-  results.notificationAttempts ||= 0;
-  console.log("[auto-absence] notification summary", {
-    totalAbsenceRecordsCreated: results.marked,
-    totalNotificationAttempts: results.notificationAttempts,
-    sentCount: results.emailsSent,
-    failedCount: results.emailsFailed,
-  });
+    console.log("[auto-absence] notification summary", {
+      totalAbsenceRecordsCreated: results.marked,
+      totalNotificationAttempts: results.notificationAttempts,
+      sentCount: results.emailsSent,
+      failedCount: results.emailsFailed,
+    });
+  };
+
+  if (waitForNotifications) {
+    await notificationWork();
+  } else {
+    // The HTTP cron request only needs to wait for durable attendance inserts.
+    void notificationWork().catch((error) => {
+      console.error("[auto-absence] notification batch failed:", error?.message || "unknown error");
+    });
+  }
   return results;
 }
 
-export async function maybeAutoMarkAbsent({ pool, date, settings, sendEmail, now = new Date() }) {
+export async function maybeAutoMarkAbsent({
+  pool,
+  date,
+  settings,
+  sendEmail,
+  waitForNotifications = true,
+  now = new Date(),
+}) {
   const enabled = settings?.autoMarkAbsent === true || settings?.autoMarkAbsent === "true";
   if (!enabled) return { skipped: true, status: "disabled", marked: 0 };
   if (!hasAttendanceEnded(settings, now)) return { skipped: true, status: "before_end", marked: 0 };
@@ -311,5 +341,6 @@ export async function maybeAutoMarkAbsent({ pool, date, settings, sendEmail, now
     activity: null,
     timezone: extractTimezone(settings.timezone),
     sendEmail,
+    waitForNotifications,
   });
 }

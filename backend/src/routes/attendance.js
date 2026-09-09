@@ -235,7 +235,7 @@ export default function attendanceRouter({ pool }) {
     }
 
     try {
-      const result = await runAutoMarkAbsent({ pool });
+      const result = await runAutoMarkAbsent({ pool, waitForNotifications: false });
       return res.json({
         success: true,
         status: result.status || (result.skipped ? "skipped" : "processed"),
