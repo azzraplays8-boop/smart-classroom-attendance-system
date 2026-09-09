@@ -210,6 +210,90 @@ test('closeSessionAndNotifyAbsences creates real absent records and skips duplic
   assert.equal(second.emailsSent, 0);
 });
 
+test('absence notifications are bounded, isolated, and retry failed sends', async () => {
+  const participants = Array.from({ length: 7 }, (_, index) => ({
+    id: index + 1,
+    first_name: `Participant${index + 1}`,
+    last_name: "Example",
+    email: `participant${index + 1}@example.com`,
+    department: "CS",
+    level: "1",
+    group_name: "A",
+  }));
+  const state = { attendance: [], emailLog: [], insertsBeforeEmail: 0 };
+  let activeSends = 0;
+  let maxActiveSends = 0;
+  let shouldFailParticipantTwo = true;
+
+  const pool = {
+    async query(sql, params) {
+      const text = String(sql);
+      if (text.includes("FROM participants p")) return [participants];
+      if (text.includes("SELECT participant_id FROM attendance WHERE attendance_date = ?")) {
+        return [state.attendance];
+      }
+      if (text.includes("SELECT participant_id, status, source, auto_generated")) {
+        return [state.attendance];
+      }
+      if (text.includes("SELECT participant_id FROM attendance_email_log")) {
+        return [state.emailLog.filter((row) => row.status === "sent")];
+      }
+      if (text.includes("INSERT INTO attendance (")) {
+        state.attendance.push({
+          participant_id: params[0],
+          status: "Absent",
+          source: "auto_absent",
+          auto_generated: 1,
+        });
+        state.insertsBeforeEmail += 1;
+        return [{ insertId: params[0] }];
+      }
+      if (text.includes("INSERT INTO attendance_email_log")) {
+        const [participantId, attendanceDate, , status, errorMessage] = params;
+        const current = state.emailLog.find((row) => row.participant_id === participantId);
+        if (current) Object.assign(current, { status, errorMessage });
+        else state.emailLog.push({ participant_id: participantId, attendanceDate, status, errorMessage });
+        return [{ insertId: participantId }];
+      }
+      return [[]];
+    },
+  };
+
+  const sendEmail = async ({ to }) => {
+    activeSends += 1;
+    maxActiveSends = Math.max(maxActiveSends, activeSends);
+    assert.equal(state.insertsBeforeEmail, participants.length);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    activeSends -= 1;
+    if (to === "participant2@example.com" && shouldFailParticipantTwo) {
+      throw new Error("simulated provider failure");
+    }
+    return { sent: true };
+  };
+
+  const first = await closeSessionAndNotifyAbsences({
+    pool,
+    date: "2026-09-02",
+    sendEmail,
+  });
+  assert.equal(first.marked, 7);
+  assert.equal(first.notificationAttempts, 7);
+  assert.equal(first.emailsSent, 6);
+  assert.equal(first.emailsFailed, 1);
+  assert.ok(maxActiveSends <= 5);
+
+  shouldFailParticipantTwo = false;
+  const second = await closeSessionAndNotifyAbsences({
+    pool,
+    date: "2026-09-02",
+    sendEmail,
+  });
+  assert.equal(second.marked, 0);
+  assert.equal(second.notificationAttempts, 1);
+  assert.equal(second.emailsSent, 1);
+  assert.equal(state.emailLog.filter((row) => row.status === "sent").length, 7);
+});
+
 test('bulk delete attendance route requires manage_attendance and deletes selected records', async () => {
   let deletedIds = null;
   const pool = wrapPoolForAuth({
