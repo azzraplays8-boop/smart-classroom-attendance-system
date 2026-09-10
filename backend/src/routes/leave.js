@@ -73,6 +73,36 @@ export default function leaveRouter({ pool }) {
     res.status(201).json({ request });
   });
 
+  router.patch("/:id/cancel", async (req, res) => {
+    const [rows] = await pool.query(`SELECT lr.*, u.full_name AS requester_name, u.email AS requester_email, u.role AS requester_role, p.participant_identifier, p.department, p.group_name AS groupName FROM leave_requests lr JOIN users u ON u.id = lr.requester_id LEFT JOIN participants p ON p.id = lr.participant_id WHERE lr.id = ? LIMIT 1`, [req.params.id]);
+    const request = rows[0];
+    if (!request) return res.status(404).json({ message: "Leave request not found." });
+    if (Number(request.requester_id) !== Number(req.user.id)) return res.status(403).json({ message: "You do not own this leave request." });
+    if (normalizeStatus(request.status) !== "pending") return res.status(409).json({ message: "Only pending requests can be cancelled." });
+
+    const [result] = await pool.query(
+      "UPDATE leave_requests SET status = 'cancelled', reviewed_by = ?, reviewed_at = NOW() WHERE id = ? AND status = 'pending'",
+      [req.user.id, req.params.id]
+    );
+    if (!result || Number(result.affectedRows || 0) === 0) {
+      return res.status(409).json({ message: "This leave request is no longer pending and cannot be cancelled." });
+    }
+
+    const [updatedRows] = await pool.query(`SELECT lr.*, u.full_name AS requester_name, u.email AS requester_email, u.role AS requester_role, p.participant_identifier, p.department, p.group_name AS groupName FROM leave_requests lr JOIN users u ON u.id = lr.requester_id LEFT JOIN participants p ON p.id = lr.participant_id WHERE lr.id = ? LIMIT 1`, [req.params.id]);
+    const updatedRequest = displayRow(updatedRows[0]);
+
+    const requesterRole = normalizeRole(req.user.role);
+    const approverRoles = requesterRole === "administrator" ? ["super_admin"] : requesterRole === "super_admin" ? [] : ["administrator", "super_admin"];
+    if (approverRoles.length > 0) {
+      const [recipients] = await pool.query("SELECT email FROM users WHERE is_active = 1 AND (account_status IS NULL OR account_status = 'approved') AND role IN (?) AND email IS NOT NULL AND email <> ''", [approverRoles]);
+      const uniqueEmails = [...new Set(recipients.map((item) => String(item.email).trim().toLowerCase()).filter(isValidEmail))];
+      const data = { requesterName: updatedRequest.requesterName, participantId: updatedRequest.participantIdentifier || updatedRequest.participantId, requesterRole: updatedRequest.requesterRole, department: updatedRequest.department || updatedRequest.groupName, leaveType: updatedRequest.leaveType, startDate: updatedRequest.startDate, endDate: updatedRequest.endDate, days: updatedRequest.days, reason: updatedRequest.reason, submittedAt: updatedRequest.submittedAt, approver: req.user.full_name };
+      await Promise.all(uniqueEmails.map((to) => sendLeaveDecisionEmail({ to, data, status: "cancelled", intro: "A leave request has been cancelled and removed from the approval queue." })));
+    }
+
+    res.json({ request: updatedRequest, status: "cancelled", message: "Leave request cancelled." });
+  });
+
   router.patch("/:id", async (req, res) => {
     const status = normalizeStatus(req.body?.status || "");
     if (!["approved", "rejected"].includes(status)) return res.status(400).json({ message: "Status must be approved or rejected." });

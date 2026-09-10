@@ -32,6 +32,13 @@ export async function reviewLeaveRequest(id, status, rejectionReason = "") {
   return data;
 }
 
+export async function cancelLeaveRequest(id) {
+  const response = await authFetch(`/leave/${id}/cancel`, { method: "PATCH" });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data?.message || "Unable to cancel leave request.");
+  return data.request || data;
+}
+
 const LEAVE_TIME_ZONE = "Asia/Manila";
 
 export function normalizeLeaveStatus(value) {
@@ -348,6 +355,7 @@ export function getStatusTone(status) {
   if (normalized === "approved") return "success";
   if (normalized === "pending") return "warning";
   if (normalized === "rejected") return "danger";
+  if (normalized === "cancelled") return "muted";
   return "muted";
 }
 

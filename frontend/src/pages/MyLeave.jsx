@@ -4,6 +4,7 @@ import { useAuth } from "../hooks/useAuth";
 import { authFetch } from "../services/apiClient";
 import {
   LEAVE_TYPES,
+  cancelLeaveRequest,
   createLeaveRequest,
   fetchLeaveRequests,
   getCurrentParticipantForUser,
@@ -74,6 +75,7 @@ export default function MyLeave() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [notice, setNotice] = useState({ type: "", message: "" });
   const [validationErrors, setValidationErrors] = useState({});
+  const [cancelTarget, setCancelTarget] = useState(null);
   const [form, setForm] = useState({
     leaveType: "sick_leave",
     days: "",
@@ -213,6 +215,23 @@ export default function MyLeave() {
     }
   };
 
+  const handleCancelRequest = async () => {
+    if (!cancelTarget?.id) return;
+    setIsSubmitting(true);
+    setNotice({ type: "", message: "" });
+
+    try {
+      await cancelLeaveRequest(cancelTarget.id);
+      setRecords(await fetchLeaveRequests());
+      setCancelTarget(null);
+      setNotice({ type: "success", message: "Leave request cancelled successfully." });
+    } catch (err) {
+      setNotice({ type: "error", message: err?.message || "Unable to cancel leave request." });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   if (loading) {
     return <div className="leave-loader">Loading your leave details…</div>;
   }
@@ -276,29 +295,67 @@ export default function MyLeave() {
                 <th>Reason</th>
                 <th>Status</th>
                 <th>Date Submitted</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {history.length === 0 ? (
                 <tr>
-                  <td colSpan="6" className="leave-empty">No leave requests yet.<small>Request your first leave using the button above.</small></td>
+                  <td colSpan="7" className="leave-empty">No leave requests yet.<small>Request your first leave using the button above.</small></td>
                 </tr>
               ) : (
-                history.map((record) => (
-                  <tr key={record.id}>
-                    <td>{LEAVE_TYPES.find((type) => type.key === record.leaveType)?.label || record.leaveType}</td>
-                    <td>{formatDate(record.startDate)}{record.endDate && record.endDate !== record.startDate ? ` - ${formatDate(record.endDate)}` : ""}</td>
-                    <td>{record.days}</td>
-                    <td>{record.reason || "—"}</td>
-                    <td><span className={`leave-status leave-status--${getStatusTone(record.status)}`}>{String(record.status || "pending").toUpperCase()}</span><small className="leave-status-note">{normalizeStatusLabel(record.status) === "pending" ? "Waiting for Admin approval" : normalizeStatusLabel(record.status) === "approved" ? "Approved" : "Rejected"}{record.rejectionReason ? `: ${record.rejectionReason}` : ""}</small></td>
-                    <td>{formatDate(record.submittedAt)}</td>
-                  </tr>
-                ))
+                history.map((record) => {
+                  const statusLabel = normalizeStatusLabel(record.status);
+                  const canCancel = statusLabel === "pending";
+                  return (
+                    <tr key={record.id}>
+                      <td>{LEAVE_TYPES.find((type) => type.key === record.leaveType)?.label || record.leaveType}</td>
+                      <td>{formatDate(record.startDate)}{record.endDate && record.endDate !== record.startDate ? ` - ${formatDate(record.endDate)}` : ""}</td>
+                      <td>{record.days}</td>
+                      <td>{record.reason || "—"}</td>
+                      <td><span className={`leave-status leave-status--${getStatusTone(record.status)}`}>{String(record.status || "pending").toUpperCase()}</span><small className="leave-status-note">{statusLabel === "pending" ? "Waiting for Admin approval" : statusLabel === "approved" ? "Approved" : statusLabel === "cancelled" ? "Cancelled" : "Rejected"}{record.rejectionReason ? `: ${record.rejectionReason}` : ""}</small></td>
+                      <td>{formatDate(record.submittedAt)}</td>
+                      <td>
+                        {canCancel ? (
+                          <button type="button" className="leave-secondary-btn leave-secondary-btn--danger" onClick={() => setCancelTarget(record)} disabled={isSubmitting}>Cancel Request</button>
+                        ) : null}
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
         </div>
       </section>
+
+      {cancelTarget && (
+        <div className="leave-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setCancelTarget(null); }}>
+          <div className="leave-modal leave-modal--compact" role="dialog" aria-modal="true" aria-labelledby="cancel-leave-title">
+            <div className="leave-modal-header">
+              <div>
+                <p className="leave-kicker">Leave request</p>
+                <h2 id="cancel-leave-title">Cancel Leave Request?</h2>
+              </div>
+              <button type="button" className="leave-close-btn" onClick={() => setCancelTarget(null)} aria-label="Close cancel dialog">x</button>
+            </div>
+
+            <div className="leave-cancel-body">
+              <p>Are you sure you want to cancel this leave request? This action will remove it from the approval queue.</p>
+              <div className="leave-cancel-details">
+                <div><span>Leave Type</span><strong>{LEAVE_TYPES.find((type) => type.key === cancelTarget.leaveType)?.label || cancelTarget.leaveType}</strong></div>
+                <div><span>Date range</span><strong>{formatDateRange(cancelTarget.startDate, cancelTarget.endDate)}</strong></div>
+                <div><span>Number of Days</span><strong>{cancelTarget.days}</strong></div>
+              </div>
+            </div>
+
+            <div className="leave-form-actions">
+              <button type="button" className="leave-secondary-btn" onClick={() => setCancelTarget(null)} disabled={isSubmitting}>Keep Request</button>
+              <button type="button" className="leave-primary-btn leave-primary-btn--danger" onClick={handleCancelRequest} disabled={isSubmitting}>{isSubmitting ? "Cancelling..." : "Yes, Cancel Request"}</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {isModalOpen && (
         <div className="leave-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeModal(); }}>

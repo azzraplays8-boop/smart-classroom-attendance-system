@@ -85,8 +85,9 @@ export function sendPendingLeaveRequestEmail({ to, data, reviewUrl }) {
   return sendLeaveEmail({ to, subject: `Pending Leave Request - ${data.requesterName}`, title: "Pending Leave Request", status: "PENDING", data, reviewUrl, intro: "A leave request is waiting for review." });
 }
 
-export function sendLeaveDecisionEmail({ to, data, status }) {
-  return sendLeaveEmail({ to, subject: `Leave Request ${String(status).toUpperCase()} - ${data.leaveType}`, title: `Leave Request ${String(status).toUpperCase()}`, status, data, intro: `Your leave request has been ${String(status).toLowerCase()}.` });
+export function sendLeaveDecisionEmail({ to, data, status, intro }) {
+  const defaultIntro = `Your leave request has been ${String(status).toLowerCase()}.`;
+  return sendLeaveEmail({ to, subject: `Leave Request ${String(status).toUpperCase()} - ${data.leaveType}`, title: `Leave Request ${String(status).toUpperCase()}`, status, data, intro: intro || defaultIntro });
 }
 
 function statusStyle(status) {

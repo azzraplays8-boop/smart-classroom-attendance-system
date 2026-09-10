@@ -1,3 +1,5 @@
+process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-secret-key-for-testing';
+
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import express from 'express';
@@ -156,6 +158,7 @@ test('POST /leave accepts participants without organization_id or group_name col
 });
 
 function makeLeaveCancelPool({ requesterId = 3, status = 'pending', requesterRole = 'viewer' } = {}) {
+  let currentStatus = status;
   const requestRow = {
     id: 42,
     participant_id: 11,
@@ -167,7 +170,7 @@ function makeLeaveCancelPool({ requesterId = 3, status = 'pending', requesterRol
     end_date: '2026-09-12',
     days: 3,
     reason: 'Cold and fever',
-    status,
+    status: currentStatus,
     rejection_reason: null,
     reviewed_by: null,
     submitted_at: '2026-09-09T08:00:00.000Z',
@@ -184,10 +187,11 @@ function makeLeaveCancelPool({ requesterId = 3, status = 'pending', requesterRol
       const sqlText = String(sql);
 
       if (sqlText.includes('FROM leave_requests') && sqlText.includes('WHERE lr.id = ? LIMIT 1')) {
-        return [[requestRow]];
+        return [[{ ...requestRow, status: currentStatus }]];
       }
 
       if (sqlText.includes('UPDATE leave_requests SET status =')) {
+        currentStatus = 'cancelled';
         return [{ affectedRows: 1 }];
       }
 
