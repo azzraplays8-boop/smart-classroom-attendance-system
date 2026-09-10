@@ -68,6 +68,65 @@ test('GET /leave normalizes pending status for admin/super-admin users', async (
   }
 });
 
+test('GET /leave/balances works when participants do not have organization_id', async () => {
+  const pool = wrapPoolForAuth({
+    async query(sql) {
+      const sqlText = String(sql);
+
+      if (sqlText.includes('FROM participants')) {
+        if (sqlText.includes('organization_id')) {
+          throw new Error("ER_BAD_FIELD_ERROR: Unknown column 'organization_id' in 'field list'");
+        }
+        return [[{
+          id: 11,
+          participant_identifier: 'P-1001',
+          department: 'IT',
+          group_name: 'A',
+          full_name: 'Alice Example',
+        }]];
+      }
+
+      if (sqlText.includes("WHERE status = 'approved'")) {
+        return [[{ participant_id: 11, leave_type: 'sick_leave', used_days: 2 }]];
+      }
+
+      if (sqlText.includes("WHERE status = 'pending'")) {
+        return [[]];
+      }
+
+      if (sqlText.includes('FROM leave_adjustments')) {
+        return [[{ participant_id: 11, leave_type: 'sick_leave', net_adjustment: 3 }]];
+      }
+
+      return [[]];
+    },
+  }, 'administrator');
+
+  const app = express();
+  app.use(express.json());
+  app.use('/leave', leaveRouter({ pool }));
+
+  const server = createServer(app);
+  await new Promise((resolve) => server.listen(0, resolve));
+  const { port } = server.address();
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/leave/balances`, {
+      headers: {
+        Authorization: `Bearer ${makeToken('administrator')}`,
+      },
+    });
+
+    assert.equal(response.status, 200, `Expected 200 but got ${response.status}`);
+    const body = await response.json();
+    assert.equal(body.balances.length, 1);
+    assert.equal(body.balances[0].participantIdentifier, 'P-1001');
+    assert.equal(body.balances[0].organization, '—');
+  } finally {
+    await new Promise((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+  }
+});
+
 test('POST /leave accepts participants without organization_id or group_name columns', async () => {
   const pool = wrapPoolForAuth({
     async query(sql, params) {

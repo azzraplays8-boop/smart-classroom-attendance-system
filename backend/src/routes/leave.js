@@ -102,6 +102,9 @@ function buildBalanceSummaryRows(participantRows, approvedRows, adjustmentRows, 
 
   return participantRows.map((participant) => {
     const participantId = Number(participant.id ?? participant.participantId ?? participant.participant_id ?? 0);
+    const participantName = participant.full_name || participant.fullName || participant.name ||
+      [participant.first_name, participant.last_name].filter(Boolean).join(" ").trim() ||
+      "Participant";
     const typeSummaries = Array.from(TYPES.entries()).map(([leaveType, allocation]) => {
       const approvedUsed = Number(approvedByKey.get(`${participantId}|${leaveType}`) || 0);
       const netAdjustment = Number(adjustmentByKey.get(`${participantId}|${leaveType}`) || 0);
@@ -128,7 +131,7 @@ function buildBalanceSummaryRows(participantRows, approvedRows, adjustmentRows, 
     return {
       participantId,
       participantIdentifier: participant.participant_identifier ?? participant.participantIdentifier ?? participant.studentNumber ?? null,
-      participantName: participant.full_name || participant.fullName || participant.name || "Participant",
+      participantName,
       organization: participant.organization_name || participant.organizationName || participant.organization || participant.organizationId || "—",
       department: participant.department || participant.groupName || participant.group_name || participant.section || "—",
       typeSummaries,
@@ -140,24 +143,33 @@ function buildBalanceSummaryRows(participantRows, approvedRows, adjustmentRows, 
   });
 }
 
+function withRouteErrorHandling(handler) {
+  return async (req, res, next) => {
+    try {
+      await handler(req, res, next);
+    } catch (error) {
+      console.error("Leave route error:", error);
+      next(error);
+    }
+  };
+}
+
 export default function leaveRouter({ pool }) {
   const router = express.Router();
   router.use(authenticate(pool));
 
-  router.get("/", async (req, res) => {
+  router.get("/", withRouteErrorHandling(async (req, res) => {
     const role = normalizeRole(req.user.role);
     const ownOnly = role === "viewer" || role === "teacher";
     const [rows] = await pool.query(`SELECT lr.*, u.full_name AS requester_name, u.role AS requester_role, p.participant_identifier, p.department, p.group_name AS groupName FROM leave_requests lr JOIN users u ON u.id = lr.requester_id LEFT JOIN participants p ON p.id = lr.participant_id WHERE ${ownOnly ? "lr.requester_id = ?" : "1=1"} ORDER BY lr.submitted_at DESC`, ownOnly ? [req.user.id] : []);
     res.json({ requests: rows.map(displayRow) });
-  });
+  }));
 
-  router.get("/balances", async (req, res) => {
+  router.get("/balances", withRouteErrorHandling(async (req, res) => {
     const [participantRows] = await pool.query(`
       SELECT p.id, p.participant_identifier, p.department, p.group_name AS groupName,
-             p.organization_id, p.full_name,
-             o.name AS organization_name
+             p.first_name, p.last_name
       FROM participants p
-      LEFT JOIN organizations o ON o.id = p.organization_id
       ORDER BY p.participant_identifier ASC
     `);
 
@@ -195,9 +207,9 @@ export default function leaveRouter({ pool }) {
       remainingLeaveDays: totalRemaining,
       totalParticipants: balances.length,
     });
-  });
+  }));
 
-  router.get("/adjustments", async (req, res) => {
+  router.get("/adjustments", withRouteErrorHandling(async (req, res) => {
     if (req.user.role !== "super_admin") {
       return res.status(403).json({ message: "Only Super Admin can view leave balance adjustments." });
     }
@@ -211,9 +223,9 @@ export default function leaveRouter({ pool }) {
     `);
 
     res.json({ adjustments: rows.map(displayAdjustmentRow) });
-  });
+  }));
 
-  router.post("/adjustments", async (req, res) => {
+  router.post("/adjustments", withRouteErrorHandling(async (req, res) => {
     if (req.user.role !== "super_admin") {
       return res.status(403).json({ message: "Only Super Admin can manually adjust leave balances." });
     }
@@ -286,9 +298,9 @@ export default function leaveRouter({ pool }) {
       newBalance,
       message: "Leave balance adjusted successfully.",
     });
-  });
+  }));
 
-  router.post("/", async (req, res) => {
+  router.post("/", withRouteErrorHandling(async (req, res) => {
     const { participantId, leaveType, startDate, endDate, days, reason } = req.body || {};
     const type = String(leaveType || "").toLowerCase();
     const numericDays = Number(days);
@@ -308,9 +320,9 @@ export default function leaveRouter({ pool }) {
     const data = { requesterName: request.requesterName, participantId: request.participantIdentifier || request.participantId, requesterRole: request.requesterRole, department: request.department || request.groupName, leaveType: request.leaveType, startDate: request.startDate, endDate: request.endDate, days: request.days, reason: request.reason, submittedAt: request.submittedAt };
     await Promise.all(uniqueEmails.map((to) => sendPendingLeaveRequestEmail({ to, data, reviewUrl: frontendUrl() ? `${frontendUrl()}/leave-management` : "" })));
     res.status(201).json({ request });
-  });
+  }));
 
-  router.patch("/:id/cancel", async (req, res) => {
+  router.patch("/:id/cancel", withRouteErrorHandling(async (req, res) => {
     const [rows] = await pool.query(`SELECT lr.*, u.full_name AS requester_name, u.email AS requester_email, u.role AS requester_role, p.participant_identifier, p.department, p.group_name AS groupName FROM leave_requests lr JOIN users u ON u.id = lr.requester_id LEFT JOIN participants p ON p.id = lr.participant_id WHERE lr.id = ? LIMIT 1`, [req.params.id]);
     const request = rows[0];
     if (!request) return res.status(404).json({ message: "Leave request not found." });
@@ -338,9 +350,9 @@ export default function leaveRouter({ pool }) {
     }
 
     res.json({ request: updatedRequest, status: "cancelled", message: "Leave request cancelled." });
-  });
+  }));
 
-  router.patch("/:id", async (req, res) => {
+  router.patch("/:id", withRouteErrorHandling(async (req, res) => {
     const status = normalizeStatus(req.body?.status || "");
     if (!["approved", "rejected"].includes(status)) return res.status(400).json({ message: "Status must be approved or rejected." });
     const [rows] = await pool.query(`SELECT lr.*, u.full_name AS requester_name, u.email AS requester_email, u.role AS requester_role, p.participant_identifier, p.department, p.group_name AS groupName FROM leave_requests lr JOIN users u ON u.id = lr.requester_id LEFT JOIN participants p ON p.id = lr.participant_id WHERE lr.id = ? LIMIT 1`, [req.params.id]);
@@ -352,7 +364,7 @@ export default function leaveRouter({ pool }) {
     const data = { requesterName: request.requester_name, participantId: request.participant_identifier || request.participant_id, requesterRole: request.requester_role, department: request.department || request.groupName, leaveType: request.leave_type, startDate: request.start_date, endDate: request.end_date, days: request.days, reason: request.reason, submittedAt: request.submitted_at, approver: req.user.full_name, rejectionReason: status === "rejected" ? String(req.body?.rejectionReason || req.body?.comment || "").trim() : "" };
     await sendLeaveDecisionEmail({ to: request.requester_email, data, status });
     res.json({ status, message: `Leave request ${status}.` });
-  });
+  }));
 
   return router;
 }
