@@ -7,6 +7,7 @@ const TYPES = new Map([
   ["mental_health_leave", 3], ["academic_leave", 5],
 ]);
 const normalizeRole = (role) => String(role || "").toLowerCase();
+const normalizeStatus = (status) => String(status || "").trim().toLowerCase();
 const frontendUrl = () => String(process.env.FRONTEND_URL || process.env.CORS_ORIGIN || "").split(",")[0].trim().replace(/\/$/, "");
 
 function canReview(requesterRole, reviewerRole) {
@@ -28,6 +29,7 @@ function displayRow(row) {
     leaveType: row.leaveType ?? row.leave_type,
     startDate: row.startDate ?? row.start_date,
     endDate: row.endDate ?? row.end_date,
+    status: normalizeStatus(row.status),
     submittedAt: row.submittedAt ?? row.submitted_at,
     reviewedAt: row.reviewedAt ?? row.reviewed_at,
     reviewedBy: row.reviewedBy ?? row.reviewed_by,
@@ -69,12 +71,12 @@ export default function leaveRouter({ pool }) {
   });
 
   router.patch("/:id", async (req, res) => {
-    const status = String(req.body?.status || "").toLowerCase();
+    const status = normalizeStatus(req.body?.status || "");
     if (!["approved", "rejected"].includes(status)) return res.status(400).json({ message: "Status must be approved or rejected." });
     const [rows] = await pool.query(`SELECT lr.*, u.full_name AS requester_name, u.email AS requester_email, u.role AS requester_role, p.participant_identifier, p.department, p.group_name AS groupName FROM leave_requests lr JOIN users u ON u.id = lr.requester_id LEFT JOIN participants p ON p.id = lr.participant_id WHERE lr.id = ? LIMIT 1`, [req.params.id]);
     const request = rows[0];
     if (!request) return res.status(404).json({ message: "Leave request not found." });
-    if (request.status !== "pending") return res.status(409).json({ message: "Only pending requests can be reviewed." });
+    if (normalizeStatus(request.status) !== "pending") return res.status(409).json({ message: "Only pending requests can be reviewed." });
     if (!canReview(request.requester_role, req.user.role) || Number(request.requester_id) === Number(req.user.id)) return res.status(403).json({ message: "You are not authorized to review this leave request." });
     await pool.query("UPDATE leave_requests SET status = ?, rejection_reason = ?, reviewed_by = ?, reviewed_at = NOW() WHERE id = ? AND status = 'pending'", [status, status === "rejected" ? String(req.body?.rejectionReason || req.body?.comment || "").trim() || null : null, req.user.id, req.params.id]);
     const data = { requesterName: request.requester_name, participantId: request.participant_identifier || request.participant_id, requesterRole: request.requester_role, department: request.department || request.groupName, leaveType: request.leave_type, startDate: request.start_date, endDate: request.end_date, days: request.days, reason: request.reason, submittedAt: request.submitted_at, approver: req.user.full_name, rejectionReason: status === "rejected" ? String(req.body?.rejectionReason || req.body?.comment || "").trim() : "" };

@@ -34,6 +34,10 @@ export async function reviewLeaveRequest(id, status, rejectionReason = "") {
 
 const LEAVE_TIME_ZONE = "Asia/Manila";
 
+export function normalizeLeaveStatus(value) {
+  return String(value ?? "").trim().toLowerCase();
+}
+
 export function getLeaveMonthKey(value = new Date()) {
   if (typeof value === "string") {
     const dateOnlyMatch = value.trim().match(/^(\d{4})-(\d{2})-\d{2}$/);
@@ -109,7 +113,7 @@ export function calculateTypeBalance(records = [], participantId, typeKey, perio
     if (!days) return;
 
     const isAdjustment = Boolean(record.adjustmentType || record.isAdjustment);
-    const status = String(record.status || "").toLowerCase();
+    const status = normalizeLeaveStatus(record.status);
 
     if (isAdjustment) {
       const type = String(record.adjustmentType || "ADD").toUpperCase();
@@ -215,7 +219,7 @@ export function getCurrentParticipantForUser(user, participants = []) {
 }
 
 export function getLeaveRequests(records = []) {
-  return (records || []).filter((record) => String(record.status || "").toLowerCase() === "pending");
+  return (records || []).filter((record) => normalizeLeaveStatus(record.status) === "pending");
 }
 
 export function addManualAdjustment({ participantId, userId, organizationId, leaveType, days, date, reason, adjustmentType = "ADD" }) {
@@ -300,7 +304,7 @@ export function addLeaveRequest({ participantId, userId, organizationId, leaveTy
     endDate: normalizedEnd,
     days: cleanedDays,
     reason: reason || "Leave request",
-    status: String(status || "pending").toLowerCase(),
+    status: normalizeLeaveStatus(status || "pending"),
     submittedAt: new Date().toISOString(),
     reviewedAt: null,
     reviewedBy: null,
@@ -316,9 +320,9 @@ export function addLeaveRequest({ participantId, userId, organizationId, leaveTy
 
 export function updateLeaveRequestStatus(recordId, status, reviewedBy) {
   const records = getStoredLeaveRecords();
-  const targetStatus = String(status || "pending").toLowerCase();
+  const targetStatus = normalizeLeaveStatus(status || "pending");
   const targetRecord = records.find((record) => String(record.id) === String(recordId));
-  if (targetRecord && targetStatus === "approved" && String(targetRecord.status || "").toLowerCase() !== "approved") {
+  if (targetRecord && targetStatus === "approved" && normalizeLeaveStatus(targetRecord.status) !== "approved") {
     const period = getLeaveMonthKey(targetRecord.startDate || targetRecord.date || targetRecord.submittedAt);
     const balance = calculateTypeBalance(records, targetRecord.participantId, targetRecord.leaveType, period);
     if (Number(targetRecord.days) > balance.remaining) {
@@ -340,7 +344,7 @@ export function updateLeaveRequestStatus(recordId, status, reviewedBy) {
 }
 
 export function getStatusTone(status) {
-  const normalized = String(status || "").toLowerCase();
+  const normalized = normalizeLeaveStatus(status);
   if (normalized === "approved") return "success";
   if (normalized === "pending") return "warning";
   if (normalized === "rejected") return "danger";

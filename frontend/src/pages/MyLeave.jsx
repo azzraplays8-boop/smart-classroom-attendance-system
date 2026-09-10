@@ -121,6 +121,8 @@ export default function MyLeave() {
     [records, currentParticipant, user]
   );
 
+  const normalizeStatusLabel = (value) => String(value || "pending").trim().toLowerCase();
+
   const selectedBalance = summary.typeSummaries.find((item) => item.typeKey === form.leaveType) || summary.typeSummaries[0];
   const computedEndDate = useMemo(() => getEndDateFromDays(form.startDate, form.days), [form.startDate, form.days]);
 
@@ -245,7 +247,7 @@ export default function MyLeave() {
       <section className="leave-summary-grid">
         <div className="leave-stat-card"><span className="leave-stat-icon leave-stat-icon--blue"><FiCalendar /></span><div><span>Total Remaining</span><strong>{summary.totalRemaining}</strong><small>days remaining</small></div></div>
         <div className="leave-stat-card"><span className="leave-stat-icon leave-stat-icon--green"><FiCheck /></span><div><span>Total Used</span><strong>{summary.totalUsed}</strong><small>approved days</small></div></div>
-        <div className="leave-stat-card"><span className="leave-stat-icon leave-stat-icon--amber"><FiClock /></span><div><span>Pending Requests</span><strong>{history.filter((record) => record.status === "pending").length}</strong><small>awaiting review</small></div></div>
+        <div className="leave-stat-card"><span className="leave-stat-icon leave-stat-icon--amber"><FiClock /></span><div><span>Pending Requests</span><strong>{history.filter((record) => String(record.status || "").trim().toLowerCase() === "pending").length}</strong><small>awaiting review</small></div></div>
       </section>
 
       <section>
@@ -288,7 +290,7 @@ export default function MyLeave() {
                     <td>{formatDate(record.startDate)}{record.endDate && record.endDate !== record.startDate ? ` - ${formatDate(record.endDate)}` : ""}</td>
                     <td>{record.days}</td>
                     <td>{record.reason || "—"}</td>
-                    <td><span className={`leave-status leave-status--${getStatusTone(record.status)}`}>{String(record.status || "pending").toUpperCase()}</span><small className="leave-status-note">{record.status === "pending" ? "Waiting for Admin approval" : record.status === "approved" ? "Approved" : "Rejected"}{record.rejectionReason ? `: ${record.rejectionReason}` : ""}</small></td>
+                    <td><span className={`leave-status leave-status--${getStatusTone(record.status)}`}>{String(record.status || "pending").toUpperCase()}</span><small className="leave-status-note">{normalizeStatusLabel(record.status) === "pending" ? "Waiting for Admin approval" : normalizeStatusLabel(record.status) === "approved" ? "Approved" : "Rejected"}{record.rejectionReason ? `: ${record.rejectionReason}` : ""}</small></td>
                     <td>{formatDate(record.submittedAt)}</td>
                   </tr>
                 ))
