@@ -62,6 +62,33 @@ function emailLayout({ title, content, accent = BRAND_GOLD }) {
 </table></td></tr></table></body></html>`;
 }
 
+function leaveStatusStyle(status) {
+  const normalized = String(status || "PENDING").toUpperCase();
+  if (normalized === "APPROVED") return { background: "#e8f5ed", color: "#17643d", border: "#4da879" };
+  if (normalized === "REJECTED") return { background: "#fff1f0", color: "#a43e38", border: "#d88983" };
+  return { background: "#fff5df", color: "#8a5a08", border: BRAND_GOLD };
+}
+
+function leaveDetails(data) {
+  return `${detailRow("Requester", data.requesterName)}${detailRow("Participant ID", data.participantId)}${detailRow("Role", data.requesterRole)}${detailRow("Department / Group", data.department)}${detailRow("Leave Type", data.leaveType)}${detailRow("Start Date", data.startDate)}${detailRow("End Date", data.endDate)}${detailRow("Number of Days", data.days)}${detailRow("Reason", data.reason)}${detailRow("Date/Time Submitted", data.submittedAt)}${data.approver ? detailRow("Approver", data.approver) : ""}${data.rejectionReason ? detailRow("Rejection Reason", data.rejectionReason) : ""}`;
+}
+
+async function sendLeaveEmail({ to, subject, title, status, data, reviewUrl, intro }) {
+  const colors = leaveStatusStyle(status);
+  const text = [intro, "", `Status: ${String(status).toUpperCase()}`, "", `Requester: ${data.requesterName}`, `Participant ID: ${data.participantId || "-"}`, `Role: ${data.requesterRole}`, `Department / Group: ${data.department || "-"}`, `Leave Type: ${data.leaveType}`, `Dates: ${data.startDate} to ${data.endDate}`, `Number of Days: ${data.days}`, `Reason: ${data.reason || "-"}`, `Date/Time Submitted: ${data.submittedAt}`, data.approver ? `Approver: ${data.approver}` : "", data.rejectionReason ? `Rejection Reason: ${data.rejectionReason}` : "", reviewUrl ? `Review: ${reviewUrl}` : ""].filter(Boolean).join("\n");
+  const button = reviewUrl ? `<p style="margin:26px 0 0"><a href="${escapeHtml(reviewUrl)}" style="display:inline-block;padding:13px 18px;border-radius:7px;background:${BRAND_GREEN};color:#fff;text-decoration:none;font-size:13px;font-weight:700;letter-spacing:.4px">REVIEW LEAVE REQUEST</a></p>` : "";
+  const html = emailLayout({ title, content: `<p style="margin:0 0 18px;color:#52605a;font-size:15px;line-height:24px">${escapeHtml(intro)}</p><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid ${colors.border};border-radius:10px;background:${colors.background};margin-bottom:22px"><tr><td style="padding:18px 20px"><div style="color:${colors.color};font-size:12px;line-height:18px;text-transform:uppercase;letter-spacing:.7px">Leave Status</div><div style="margin-top:4px;color:${colors.color};font-size:23px;line-height:30px;font-weight:700">${escapeHtml(String(status).toUpperCase())}</div></td></tr></table><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse">${leaveDetails(data)}</table>${button}` });
+  return safeSend({ to, subject, text, html });
+}
+
+export function sendPendingLeaveRequestEmail({ to, data, reviewUrl }) {
+  return sendLeaveEmail({ to, subject: `Pending Leave Request - ${data.requesterName}`, title: "Pending Leave Request", status: "PENDING", data, reviewUrl, intro: "A leave request is waiting for review." });
+}
+
+export function sendLeaveDecisionEmail({ to, data, status }) {
+  return sendLeaveEmail({ to, subject: `Leave Request ${String(status).toUpperCase()} - ${data.leaveType}`, title: `Leave Request ${String(status).toUpperCase()}`, status, data, intro: `Your leave request has been ${String(status).toLowerCase()}.` });
+}
+
 function statusStyle(status) {
   const normalized = String(status || "").toUpperCase();
   if (normalized === "PRESENT") return { background: "#e8f5ed", color: "#17643d", border: "#4da879" };
@@ -214,4 +241,6 @@ export default {
   isValidEmail,
   sendCheckInConfirmationEmail,
   sendAbsenceNoticeEmail,
+  sendPendingLeaveRequestEmail,
+  sendLeaveDecisionEmail,
 };
