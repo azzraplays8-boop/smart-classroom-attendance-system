@@ -13,11 +13,55 @@ import {
 } from "../services/leaveService";
 import "../styles/LeaveManagement.css";
 
+function parseLocalDate(value) {
+  if (!value || typeof value !== "string") return null;
+  const match = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/.exec(value.trim());
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const parsed = new Date(year, month - 1, day);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function formatLocalISO(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return "";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function getTodayLocalISO() {
+  const today = new Date();
+  return formatLocalISO(new Date(today.getFullYear(), today.getMonth(), today.getDate()));
+}
+
+function addLocalDays(dateString, daysToAdd) {
+  const baseDate = parseLocalDate(dateString);
+  if (!baseDate) return "";
+  const days = Number(daysToAdd) || 0;
+  const nextDate = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate() + days);
+  return formatLocalISO(nextDate);
+}
+
+function getEndDateFromDays(startDate, days) {
+  const numericDays = Number(days) || 0;
+  if (!startDate || numericDays <= 0) return "";
+  return addLocalDays(startDate, numericDays - 1);
+}
+
 function formatDate(value) {
   if (!value) return "—";
-  const date = new Date(value);
+  const date = parseLocalDate(value) || new Date(value);
   if (Number.isNaN(date.getTime())) return String(value);
   return date.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+}
+
+function formatDateRange(startDate, endDate) {
+  if (!startDate) return "—";
+  const safeEndDate = endDate || startDate;
+  return `${formatDate(startDate)} – ${formatDate(safeEndDate)}`;
 }
 
 export default function MyLeave() {
@@ -29,7 +73,13 @@ export default function MyLeave() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [notice, setNotice] = useState({ type: "", message: "" });
-  const [form, setForm] = useState({ leaveType: "sick_leave", days: "", startDate: "", endDate: "", reason: "" });
+  const [validationErrors, setValidationErrors] = useState({});
+  const [form, setForm] = useState({
+    leaveType: "sick_leave",
+    days: "",
+    startDate: getTodayLocalISO(),
+    reason: "",
+  });
 
   const loadData = async () => {
     setLoading(true);
@@ -72,40 +122,69 @@ export default function MyLeave() {
   );
 
   const selectedBalance = summary.typeSummaries.find((item) => item.typeKey === form.leaveType) || summary.typeSummaries[0];
+  const computedEndDate = useMemo(() => getEndDateFromDays(form.startDate, form.days), [form.startDate, form.days]);
+
+  const leaveTypeLabel = LEAVE_TYPES.find((type) => type.key === form.leaveType)?.label || "Leave";
+  const requestedDays = Number(form.days) || 0;
+  const availableDays = Number(selectedBalance?.remaining || 0);
+  const daysRemainingAfterApproval = Math.max(availableDays - requestedDays, 0);
+  const previewSummary = {
+    label: leaveTypeLabel,
+    range: form.startDate && requestedDays > 0 ? formatDateRange(form.startDate, computedEndDate) : "Choose a date range",
+    requestText: `${requestedDays || 0} day${requestedDays === 1 ? "" : "s"} requested`,
+    balanceText: `${availableDays} day${availableDays === 1 ? "" : "s"} available → ${daysRemainingAfterApproval} day${daysRemainingAfterApproval === 1 ? "" : "s"} remaining after approval`,
+  };
 
   const closeModal = () => {
-    if (!isSubmitting) setIsModalOpen(false);
+    if (!isSubmitting) {
+      setValidationErrors({});
+      setIsModalOpen(false);
+    }
+  };
+
+  const validateLeaveForm = () => {
+    const nextErrors = {};
+    const days = Number(form.days);
+
+    if (!form.leaveType) {
+      nextErrors.leaveType = "Leave type is required.";
+    }
+
+    if (form.days === "" || !Number.isFinite(days) || days < 1) {
+      nextErrors.days = "Number of days is required and must be at least 1.";
+    }
+
+    if (Number.isFinite(days) && days > Number(selectedBalance?.remaining || 0)) {
+      nextErrors.days = `Requested days exceed your available balance of ${selectedBalance?.remaining ?? 0}.`;
+    }
+
+    if (!form.startDate) {
+      nextErrors.startDate = "Start date is required.";
+    }
+
+    if (form.startDate && computedEndDate && new Date(computedEndDate) < new Date(form.startDate)) {
+      nextErrors.startDate = "End date cannot be before the start date.";
+    }
+
+    if (!form.reason.trim()) {
+      nextErrors.reason = "Please provide a reason for your request.";
+    }
+
+    return nextErrors;
   };
 
   const handleRequestSubmit = async (event) => {
     event.preventDefault();
-    const days = Number(form.days);
-    const leaveType = LEAVE_TYPES.find((type) => type.key === form.leaveType);
+    const nextErrors = validateLeaveForm();
+    setValidationErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) {
+      const firstError = Object.values(nextErrors)[0];
+      setNotice({ type: "error", message: firstError });
+      return;
+    }
 
-    if (!form.leaveType) {
-      setNotice({ type: "error", message: "Leave type is required." });
-      return;
-    }
-    if (!Number.isFinite(days) || days <= 0) {
-      setNotice({ type: "error", message: "Number of days must be greater than zero." });
-      return;
-    }
-    if (days > Number(selectedBalance?.remaining || 0)) {
-      setNotice({ type: "error", message: `You only have ${selectedBalance.remaining} ${leaveType?.label || "leave"} days remaining.` });
-      return;
-    }
-    if (!form.startDate || !form.endDate) {
-      setNotice({ type: "error", message: "Start date and end date are required." });
-      return;
-    }
-    if (new Date(form.endDate) < new Date(form.startDate)) {
-      setNotice({ type: "error", message: "End date cannot be before start date." });
-      return;
-    }
-    if (!form.reason.trim()) {
-      setNotice({ type: "error", message: "Please provide a reason for your request." });
-      return;
-    }
+    const days = Number(form.days);
+    const finalEndDate = getEndDateFromDays(form.startDate, days);
 
     setIsSubmitting(true);
     setNotice({ type: "", message: "" });
@@ -116,12 +195,13 @@ export default function MyLeave() {
         organizationId: currentParticipant.organizationId ?? currentParticipant.organization_id ?? null,
         leaveType: form.leaveType,
         startDate: form.startDate,
-        endDate: form.endDate,
+        endDate: finalEndDate,
         days,
         reason: form.reason.trim(),
       });
       setRecords(await fetchLeaveRequests());
-      setForm({ leaveType: "sick_leave", days: "", startDate: "", endDate: "", reason: "" });
+      setForm({ leaveType: "sick_leave", days: "", startDate: getTodayLocalISO(), reason: "" });
+      setValidationErrors({});
       setIsModalOpen(false);
       setNotice({ type: "success", message: "Leave request submitted successfully." });
     } catch (err) {
@@ -157,7 +237,7 @@ export default function MyLeave() {
           <h1>My Leave</h1>
           <p className="leave-subtitle">Manage your leave requests and view your remaining leave balance.</p>
         </div>
-        <button type="button" className="leave-primary-btn" onClick={() => { setNotice({ type: "", message: "" }); setIsModalOpen(true); }}><FiPlus /> Request Leave</button>
+        <button type="button" className="leave-primary-btn" onClick={() => { setNotice({ type: "", message: "" }); setValidationErrors({}); setIsModalOpen(true); }}><FiPlus /> Request Leave</button>
       </header>
 
       {notice.message && <div className={`leave-alert leave-alert--${notice.type}`}>{notice.message}</div>}
@@ -218,14 +298,74 @@ export default function MyLeave() {
         </div>
       </section>
 
-      {isModalOpen && <div className="leave-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeModal(); }}><div className="leave-modal" role="dialog" aria-modal="true" aria-labelledby="viewer-leave-modal-title"><div className="leave-modal-header"><div><p className="leave-kicker">New request</p><h2 id="viewer-leave-modal-title">Request Leave</h2></div><button type="button" className="leave-close-btn" onClick={closeModal} aria-label="Close request form">x</button></div><form className="leave-form" onSubmit={handleRequestSubmit}>
-        <label>Leave Type<select value={form.leaveType} onChange={(event) => setForm((prev) => ({ ...prev, leaveType: event.target.value }))}>{LEAVE_TYPES.map((type) => <option key={type.key} value={type.key}>{type.label}</option>)}</select></label>
-        <div className="leave-available-note">You have <strong>{selectedBalance?.remaining || 0} days remaining.</strong></div>
-        <label>Number of Days<input type="number" min="1" max={selectedBalance?.remaining || 0} value={form.days} onChange={(event) => setForm((prev) => ({ ...prev, days: event.target.value }))} /></label>
-        <div className="leave-form-row"><label>Start Date<input type="date" value={form.startDate} onChange={(event) => setForm((prev) => ({ ...prev, startDate: event.target.value }))} /></label><label>End Date<input type="date" min={form.startDate || undefined} value={form.endDate} onChange={(event) => setForm((prev) => ({ ...prev, endDate: event.target.value }))} /></label></div>
-        <label>Reason<textarea rows="3" value={form.reason} onChange={(event) => setForm((prev) => ({ ...prev, reason: event.target.value }))} /></label>
-        <div className="leave-form-actions"><button type="button" className="leave-secondary-btn" onClick={closeModal} disabled={isSubmitting}>Cancel</button><button type="submit" className="leave-primary-btn" disabled={isSubmitting}>{isSubmitting ? "Submitting..." : <><FiSend /> Submit Leave Request</>}</button></div>
-      </form></div></div>}
+      {isModalOpen && (
+        <div className="leave-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeModal(); }}>
+          <div className="leave-modal" role="dialog" aria-modal="true" aria-labelledby="viewer-leave-modal-title">
+            <div className="leave-modal-header">
+              <div>
+                <p className="leave-kicker">New request</p>
+                <h2 id="viewer-leave-modal-title">Request Leave</h2>
+              </div>
+              <button type="button" className="leave-close-btn" onClick={closeModal} aria-label="Close request form">x</button>
+            </div>
+
+            <form className="leave-form" onSubmit={handleRequestSubmit}>
+              <div className="leave-form-row">
+                <div className="leave-form-field leave-form-field--full">
+                  <label>Leave Type</label>
+                  <select value={form.leaveType} onChange={(event) => setForm((prev) => ({ ...prev, leaveType: event.target.value }))}>
+                    {LEAVE_TYPES.map((type) => <option key={type.key} value={type.key}>{type.label}</option>)}
+                  </select>
+                  {validationErrors.leaveType && <div className="leave-field-error">{validationErrors.leaveType}</div>}
+                </div>
+              </div>
+
+              <div className="leave-form-row">
+                <div className="leave-form-field">
+                  <label>Available Balance</label>
+                  <div className="leave-readonly-box">{selectedBalance?.remaining ?? 0} days</div>
+                </div>
+                <div className="leave-form-field">
+                  <label>Start Date</label>
+                  <input type="date" value={form.startDate} onChange={(event) => setForm((prev) => ({ ...prev, startDate: event.target.value }))} />
+                  {validationErrors.startDate && <div className="leave-field-error">{validationErrors.startDate}</div>}
+                </div>
+              </div>
+
+              <div className="leave-form-row">
+                <div className="leave-form-field">
+                  <label>Number of Days</label>
+                  <input type="number" min="1" max={selectedBalance?.remaining || 0} value={form.days} onChange={(event) => setForm((prev) => ({ ...prev, days: event.target.value }))} />
+                  {validationErrors.days && <div className="leave-field-error">{validationErrors.days}</div>}
+                </div>
+                <div className="leave-form-field">
+                  <label>End Date / Valid Until</label>
+                  <input type="text" className="leave-input-readonly" readOnly value={computedEndDate ? formatDate(computedEndDate) : ""} placeholder="Select a start date" />
+                </div>
+              </div>
+
+              <div className="leave-form-field leave-form-field--full">
+                <label>Reason</label>
+                <textarea rows="3" value={form.reason} onChange={(event) => setForm((prev) => ({ ...prev, reason: event.target.value }))} />
+                {validationErrors.reason && <div className="leave-field-error">{validationErrors.reason}</div>}
+              </div>
+
+              <div className="leave-summary-card">
+                <div className="leave-summary-card__title">Leave Summary</div>
+                <div className="leave-summary-card__type">{previewSummary.label}</div>
+                <div className="leave-summary-card__range">{previewSummary.range}</div>
+                <div className="leave-summary-card__meta">{previewSummary.requestText}</div>
+                <div className="leave-summary-card__meta leave-summary-card__meta--muted">{previewSummary.balanceText}</div>
+              </div>
+
+              <div className="leave-form-actions">
+                <button type="button" className="leave-secondary-btn" onClick={closeModal} disabled={isSubmitting}>Cancel</button>
+                <button type="submit" className="leave-primary-btn" disabled={isSubmitting}>{isSubmitting ? "Submitting..." : <><FiSend /> Submit Request</>}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
