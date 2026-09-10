@@ -77,7 +77,7 @@ export default function MyLeave() {
     if (!isSubmitting) setIsModalOpen(false);
   };
 
-  const handleRequestSubmit = (event) => {
+  const handleRequestSubmit = async (event) => {
     event.preventDefault();
     const days = Number(form.days);
     const leaveType = LEAVE_TYPES.find((type) => type.key === form.leaveType);
