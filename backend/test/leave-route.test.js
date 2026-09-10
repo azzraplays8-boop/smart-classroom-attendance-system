@@ -281,3 +281,120 @@ test('PATCH /leave/:id/cancel refuses to cancel a non-pending request', async ()
     await new Promise((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
   }
 });
+
+test('POST /leave/adjustments lets super admin deduct and persists the adjustment ledger', async () => {
+  const pool = wrapPoolForAuth({
+    async query(sql, params) {
+      const sqlText = String(sql);
+
+      if (sqlText.includes('FROM participants WHERE id = ? LIMIT 1')) {
+        return [[{ id: 11, participant_identifier: 'P-1001', department: 'IT', group_name: 'BSIT-1' }]];
+      }
+
+      if (sqlText.includes('SELECT COALESCE(SUM') && sqlText.includes('leave_requests') && sqlText.includes('approved')) {
+        return [[{ used_days: 2 }]];
+      }
+
+      if (sqlText.includes('SELECT COALESCE(SUM') && sqlText.includes('leave_adjustments') && sqlText.includes('adjustment_type')) {
+        return [[{ adjustment_total: 0 }]];
+      }
+
+      if (sqlText.includes('INSERT INTO leave_adjustments')) {
+        return [{ insertId: 77 }];
+      }
+
+      if (sqlText.includes('FROM leave_adjustments la') && sqlText.includes('WHERE la.id = ?')) {
+        return [[{
+          id: 77,
+          participant_id: 11,
+          leave_type: 'sick_leave',
+          days: 1,
+          adjustment_type: 'DEDUCT',
+          reason: 'Correction',
+          adjusted_by: 5,
+          adjusted_at: '2026-09-10T12:00:00.000Z',
+          participant_identifier: 'P-1001',
+          adjusted_by_name: 'Super Admin',
+          organization_id: 1,
+        }]];
+      }
+
+      if (sqlText.includes('SELECT email FROM users')) {
+        return [[{ email: 'admin@example.com' }]];
+      }
+
+      return [[]];
+    },
+  }, 'super_admin', { id: 5, role: 'super_admin', full_name: 'Super Admin' });
+
+  const app = express();
+  app.use(express.json());
+  app.use('/leave', leaveRouter({ pool }));
+
+  const server = createServer(app);
+  await new Promise((resolve) => server.listen(0, resolve));
+  const { port } = server.address();
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/leave/adjustments`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${makeToken('super_admin', { id: 5, role: 'super_admin', full_name: 'Super Admin' })}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        participantId: 11,
+        leaveType: 'sick_leave',
+        days: 1,
+        adjustmentType: 'DEDUCT',
+        reason: 'Correction',
+      }),
+    });
+
+    assert.equal(response.status, 201, `Expected 201 but got ${response.status}`);
+    const body = await response.json();
+    assert.equal(body.adjustment.isAdjustment, true);
+    assert.equal(body.adjustment.adjustmentType, 'DEDUCT');
+    assert.equal(body.adjustment.reason, 'Correction');
+    assert.equal(body.adjustment.participantId, 11);
+  } finally {
+    await new Promise((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+  }
+});
+
+test('POST /leave/adjustments rejects non-super-admin users', async () => {
+  const pool = wrapPoolForAuth({
+    async query() {
+      return [[]];
+    },
+  }, 'administrator', { id: 8, role: 'administrator' });
+
+  const app = express();
+  app.use(express.json());
+  app.use('/leave', leaveRouter({ pool }));
+
+  const server = createServer(app);
+  await new Promise((resolve) => server.listen(0, resolve));
+  const { port } = server.address();
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/leave/adjustments`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${makeToken('administrator', { id: 8, role: 'administrator' })}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        participantId: 11,
+        leaveType: 'sick_leave',
+        days: 1,
+        adjustmentType: 'ADD',
+        reason: 'Manual add',
+      }),
+    });
+
+    assert.equal(response.status, 403);
+  } finally {
+    await new Promise((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+  }
+});

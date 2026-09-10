@@ -7,6 +7,7 @@ import {
   LEAVE_TYPES,
   addManualAdjustment,
   createLeaveRequest,
+  fetchLeaveAdjustments,
   fetchLeaveRequests,
   getAllParticipantLeaveSummaries,
   getLeaveMonthKey,
@@ -89,8 +90,10 @@ export default function LeaveManagement() {
   const currentPeriod = getLeaveMonthKey();
   const currentPeriodLabel = new Date(`${currentPeriod}-01T00:00:00`).toLocaleDateString(undefined, { year: "numeric", month: "long" });
   const canManageLeave = user?.role === "super_admin" || user?.role === "administrator" || hasPermission(user, "manage_leave");
+  const canAdjustLeaveBalance = user?.role === "super_admin";
   const [participants, setParticipants] = useState([]);
   const [records, setRecords] = useState([]);
+  const [adjustmentHistory, setAdjustmentHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
@@ -122,9 +125,11 @@ export default function LeaveManagement() {
 
       const allParticipants = Array.isArray(data?.participants) ? data.participants : [];
       const stored = await fetchLeaveRequests();
+      const adjustments = canAdjustLeaveBalance ? await fetchLeaveAdjustments() : [];
 
       setParticipants(allParticipants);
       setRecords(stored);
+      setAdjustmentHistory(adjustments);
     } catch (err) {
       setError(err?.message || "Unable to load leave data.");
     } finally {
@@ -155,6 +160,12 @@ export default function LeaveManagement() {
   const requestedDays = Number(form.days) || 0;
   const availableDays = Number(selectedBalance?.remaining || 0);
   const remainingAfterApproval = Math.max(availableDays - requestedDays, 0);
+  const adjustmentDays = Number(form.days) || 0;
+  const adjustmentPreviewBase = Number(selectedBalance?.remaining ?? 0);
+  const adjustmentPreview =
+    form.adjustmentType === "DEDUCT"
+      ? Math.max(0, adjustmentPreviewBase - adjustmentDays)
+      : Math.min(Number(LEAVE_TYPES.find((type) => type.key === form.leaveType)?.allocation ?? adjustmentPreviewBase), adjustmentPreviewBase + adjustmentDays);
 
   const stats = useMemo(() => {
     const approvedDays = records
@@ -177,8 +188,11 @@ export default function LeaveManagement() {
     setIsSubmitting(false);
   };
 
-  const handleAdjustmentSubmit = (event) => {
+  const handleAdjustmentSubmit = async (event) => {
     event.preventDefault();
+
+    const numericDays = Number(form.days);
+    const selectedParticipant = participants.find((p) => String(p.id) === String(form.participantId));
 
     if (!form.participantId) {
       setToast("Select a participant first.");
@@ -188,25 +202,33 @@ export default function LeaveManagement() {
       setToast("Select a leave type.");
       return;
     }
-    if (!Number(form.days) || Number(form.days) <= 0) {
-      setToast("Leave days must be greater than zero.");
+    if (!Number.isInteger(numericDays) || numericDays <= 0) {
+      setToast("Number of days must be a positive whole number.");
+      return;
+    }
+    if (!form.reason || !String(form.reason).trim()) {
+      setToast("Reason / adjustment note is required.");
+      return;
+    }
+    if (user?.role !== "super_admin") {
+      setToast("Only Super Admin can adjust leave balances.");
       return;
     }
 
     try {
-      const selectedParticipant = participants.find((p) => String(p.id) === String(form.participantId));
-      addManualAdjustment({
+      setIsSubmitting(true);
+      await addManualAdjustment({
         participantId: form.participantId,
         userId: selectedParticipant?.userId ?? selectedParticipant?.user_id ?? user?.id,
         organizationId: selectedParticipant?.organizationId ?? selectedParticipant?.organization_id ?? null,
         leaveType: form.leaveType,
-        days: form.days,
+        days: numericDays,
         date: form.date,
-        reason: form.reason || `Manual ${form.adjustmentType.toLowerCase()} adjustment`,
+        reason: form.reason.trim(),
         adjustmentType: form.adjustmentType,
       });
 
-      setToast("Manual adjustment recorded.");
+      setToast("Leave balance adjusted successfully.");
       setForm({
         participantId: "",
         leaveType: "sick_leave",
@@ -216,10 +238,13 @@ export default function LeaveManagement() {
         reason: "",
         adjustmentType: "ADD",
       });
-      loadData();
+      setFormErrors({});
+      await loadData();
       clearModalState();
     } catch (err) {
       setToast(err?.message || "Unable to save adjustment.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -408,38 +433,59 @@ export default function LeaveManagement() {
 
   const renderAdjustmentForm = () => (
     <form className="leave-form" onSubmit={handleAdjustmentSubmit}>
-      <label>
-        Participant
-        <select value={form.participantId} onChange={(event) => setForm((prev) => ({ ...prev, participantId: event.target.value }))}>
-          <option value="">Select participant</option>
-          {participants.map((participant) => <option key={participant.id} value={participant.id}>{participantName(participant)}</option>)}
-        </select>
-      </label>
-      <label>
-        Leave Type
-        <select value={form.leaveType} onChange={(event) => setForm((prev) => ({ ...prev, leaveType: event.target.value }))}>
-          {LEAVE_TYPES.map((leaveType) => <option key={leaveType.key} value={leaveType.key}>{leaveType.label}</option>)}
-        </select>
-      </label>
-      <label>
-        Number of Days
-        <input type="number" min="1" value={form.days} onChange={(event) => setForm((prev) => ({ ...prev, days: event.target.value }))} />
-      </label>
-      <label>
-        Date
-        <input type="date" value={form.date} onChange={(event) => setForm((prev) => ({ ...prev, date: event.target.value }))} />
-      </label>
-      <label>
-        Adjustment Type
-        <select value={form.adjustmentType} onChange={(event) => setForm((prev) => ({ ...prev, adjustmentType: event.target.value }))}>
-          <option value="ADD">ADD</option><option value="DEDUCT">DEDUCT</option>
-        </select>
-      </label>
-      <label>
-        Reason / Adjustment Note
+      <div className="leave-form-row">
+        <div className="leave-form-field leave-form-field--full">
+          <label>Participant</label>
+          <select value={form.participantId} onChange={(event) => setForm((prev) => ({ ...prev, participantId: event.target.value }))}>
+            <option value="">Select participant</option>
+            {participants.map((participant) => <option key={participant.id} value={participant.id}>{participantName(participant)}</option>)}
+          </select>
+        </div>
+      </div>
+
+      <div className="leave-form-row">
+        <div className="leave-form-field">
+          <label>Leave Type</label>
+          <select value={form.leaveType} onChange={(event) => setForm((prev) => ({ ...prev, leaveType: event.target.value }))}>
+            {LEAVE_TYPES.map((leaveType) => <option key={leaveType.key} value={leaveType.key}>{leaveType.label}</option>)}
+          </select>
+        </div>
+        <div className="leave-form-field">
+          <label>Current Balance</label>
+          <div className="leave-readonly-box">{selectedBalance?.remaining ?? 0} days</div>
+        </div>
+      </div>
+
+      <div className="leave-form-row">
+        <div className="leave-form-field">
+          <label>Adjustment Type</label>
+          <select value={form.adjustmentType} onChange={(event) => setForm((prev) => ({ ...prev, adjustmentType: event.target.value }))}>
+            <option value="ADD">ADD</option>
+            <option value="DEDUCT">DEDUCT</option>
+          </select>
+        </div>
+        <div className="leave-form-field">
+          <label>Number of Days</label>
+          <input type="number" min="1" step="1" value={form.days} onChange={(event) => setForm((prev) => ({ ...prev, days: event.target.value }))} />
+        </div>
+      </div>
+
+      <div className="leave-summary-card">
+        <div className="leave-summary-card__title">Balance Preview</div>
+        <div className="leave-summary-card__type">{LEAVE_TYPES.find((type) => type.key === form.leaveType)?.label || "Leave"}</div>
+        <div className="leave-summary-card__meta">Current Balance: {selectedBalance?.remaining ?? 0} days</div>
+        <div className="leave-summary-card__meta leave-summary-card__meta--muted">New Balance: {adjustmentPreview} days</div>
+      </div>
+
+      <div className="leave-form-field leave-form-field--full">
+        <label>Reason / Adjustment Note</label>
         <textarea rows="3" value={form.reason} onChange={(event) => setForm((prev) => ({ ...prev, reason: event.target.value }))} />
-      </label>
-      <button type="submit" className="leave-primary-btn" disabled={isSubmitting}>{isSubmitting ? "Submitting..." : <><FiCheck /> Save Adjustment</>}</button>
+      </div>
+
+      <div className="leave-form-actions">
+        <button type="button" className="leave-secondary-btn" onClick={clearModalState} disabled={isSubmitting}>Cancel</button>
+        <button type="submit" className="leave-primary-btn" disabled={isSubmitting}>{isSubmitting ? "Saving..." : <><FiCheck /> Save Adjustment</>}</button>
+      </div>
     </form>
   );
 
@@ -477,7 +523,34 @@ export default function LeaveManagement() {
           {filteredSummaries.length > 10 && <div className="leave-pagination"><button type="button" className="leave-secondary-btn" disabled={page === 1} onClick={() => setPage((value) => value - 1)}>Previous</button><span>Page {page} of {Math.ceil(filteredSummaries.length / 10)}</span><button type="button" className="leave-secondary-btn" disabled={page >= Math.ceil(filteredSummaries.length / 10)} onClick={() => setPage((value) => value + 1)}>Next</button></div>}
         </section>
 
-        <section className="leave-quick-actions"><div><p className="leave-kicker">Shortcuts</p><h2>Quick Actions</h2><p>Update balances or send a request without leaving this overview.</p></div><div className="leave-quick-action-buttons"><button type="button" className="leave-primary-btn" onClick={() => setActiveModal("request")}><FiPlus /> New Leave Request</button>{canManageLeave && <button type="button" className="leave-secondary-btn" onClick={() => setActiveModal("adjustment")}><FiEdit3 /> Adjust Leave Balance</button>}</div></section>
+        {canAdjustLeaveBalance && (
+          <section className="leave-panel">
+            <div className="leave-section-heading"><div><p className="leave-kicker">Audit Trail</p><h2>Adjustment History</h2></div><span className="leave-count">{adjustmentHistory.length} entries</span></div>
+            <div className="leave-table-wrap">
+              <table className="leave-table">
+                <thead><tr><th>Participant</th><th>Leave Type</th><th>Change</th><th>Reason</th><th>Adjusted By</th><th>Date / Time</th></tr></thead>
+                <tbody>
+                  {adjustmentHistory.length === 0 ? (
+                    <tr><td colSpan="6" className="leave-empty">No manual adjustments recorded yet.</td></tr>
+                  ) : (
+                    adjustmentHistory.map((adjustment) => (
+                      <tr key={adjustment.id}>
+                        <td><strong>{adjustment.participantIdentifier || adjustment.participantId}</strong></td>
+                        <td>{LEAVE_TYPES.find((type) => type.key === adjustment.leaveType)?.label || adjustment.leaveType}</td>
+                        <td><span className={`leave-balance-pill ${adjustment.adjustmentType === "DEDUCT" ? "leave-balance-pill--danger" : "leave-balance-pill--success"}`}>{adjustment.adjustmentType === "DEDUCT" ? "-" : "+"}{adjustment.days} day{adjustment.days === 1 ? "" : "s"}</span></td>
+                        <td>{adjustment.reason || "—"}</td>
+                        <td>{adjustment.adjustedByName || "Super Admin"}</td>
+                        <td>{formatDate(adjustment.adjustedAt || adjustment.adjusted_at)}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
+
+        <section className="leave-quick-actions"><div><p className="leave-kicker">Shortcuts</p><h2>Quick Actions</h2><p>Update balances or send a request without leaving this overview.</p></div><div className="leave-quick-action-buttons"><button type="button" className="leave-primary-btn" onClick={() => setActiveModal("request")}><FiPlus /> New Leave Request</button>{canAdjustLeaveBalance && <button type="button" className="leave-secondary-btn" onClick={() => setActiveModal("adjustment")}><FiEdit3 /> Adjust Leave Balance</button>}</div></section>
       </>}
       {loading && <div className="leave-loader">Loading leave data…</div>}
 

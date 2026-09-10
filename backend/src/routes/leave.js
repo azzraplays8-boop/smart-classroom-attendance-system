@@ -8,6 +8,10 @@ const TYPES = new Map([
 ]);
 const normalizeRole = (role) => String(role || "").toLowerCase();
 const normalizeStatus = (status) => String(status || "").trim().toLowerCase();
+const normalizeAdjustmentType = (value) => {
+  const normalized = String(value || "").trim().toUpperCase();
+  return normalized === "DEDUCT" ? "DEDUCT" : "ADD";
+};
 const frontendUrl = () => String(process.env.FRONTEND_URL || process.env.CORS_ORIGIN || "").split(",")[0].trim().replace(/\/$/, "");
 
 function canReview(requesterRole, reviewerRole) {
@@ -40,6 +44,24 @@ function displayRow(row) {
   };
 }
 
+function displayAdjustmentRow(row) {
+  return {
+    ...row,
+    id: row.id,
+    participantId: row.participantId ?? row.participant_id,
+    participantIdentifier: row.participantIdentifier ?? row.participant_identifier,
+    leaveType: row.leaveType ?? row.leave_type,
+    days: Number(row.days ?? 0),
+    adjustmentType: normalizeAdjustmentType(row.adjustmentType ?? row.adjustment_type),
+    reason: row.reason || row.adjustment_note || "Manual adjustment",
+    adjustedBy: row.adjustedBy ?? row.adjusted_by,
+    adjustedByName: row.adjustedByName ?? row.adjusted_by_name,
+    adjustedAt: row.adjustedAt ?? row.adjusted_at,
+    organizationId: row.organizationId ?? row.organization_id,
+    isAdjustment: true,
+  };
+}
+
 export default function leaveRouter({ pool }) {
   const router = express.Router();
   router.use(authenticate(pool));
@@ -49,6 +71,97 @@ export default function leaveRouter({ pool }) {
     const ownOnly = role === "viewer" || role === "teacher";
     const [rows] = await pool.query(`SELECT lr.*, u.full_name AS requester_name, u.role AS requester_role, p.participant_identifier, p.department, p.group_name AS groupName FROM leave_requests lr JOIN users u ON u.id = lr.requester_id LEFT JOIN participants p ON p.id = lr.participant_id WHERE ${ownOnly ? "lr.requester_id = ?" : "1=1"} ORDER BY lr.submitted_at DESC`, ownOnly ? [req.user.id] : []);
     res.json({ requests: rows.map(displayRow) });
+  });
+
+  router.get("/adjustments", async (req, res) => {
+    if (req.user.role !== "super_admin") {
+      return res.status(403).json({ message: "Only Super Admin can view leave balance adjustments." });
+    }
+
+    const [rows] = await pool.query(`
+      SELECT la.*, p.participant_identifier, u.full_name AS adjusted_by_name
+      FROM leave_adjustments la
+      LEFT JOIN participants p ON p.id = la.participant_id
+      LEFT JOIN users u ON u.id = la.adjusted_by
+      ORDER BY la.adjusted_at DESC
+    `);
+
+    res.json({ adjustments: rows.map(displayAdjustmentRow) });
+  });
+
+  router.post("/adjustments", async (req, res) => {
+    if (req.user.role !== "super_admin") {
+      return res.status(403).json({ message: "Only Super Admin can manually adjust leave balances." });
+    }
+
+    const { participantId, leaveType, days, adjustmentType, reason } = req.body || {};
+    const normalizedLeaveType = String(leaveType || "").trim().toLowerCase();
+    const numericDays = Number(days);
+    const normalizedAdjustmentType = normalizeAdjustmentType(adjustmentType);
+    const trimmedReason = String(reason || "").trim();
+
+    if (!participantId) return res.status(400).json({ message: "Participant is required." });
+    if (!TYPES.has(normalizedLeaveType)) return res.status(400).json({ message: "Valid leave type is required." });
+    if (!Number.isInteger(numericDays) || numericDays <= 0) return res.status(400).json({ message: "Number of days must be a positive whole number." });
+    if (!['ADD', 'DEDUCT'].includes(normalizedAdjustmentType)) return res.status(400).json({ message: "Adjustment type must be ADD or DEDUCT." });
+    if (!trimmedReason) return res.status(400).json({ message: "Reason / adjustment note is required." });
+
+    const [participantRows] = await pool.query(
+      "SELECT id, participant_identifier AS participantIdentifier, department, group_name AS groupName FROM participants WHERE id = ? LIMIT 1",
+      [participantId]
+    );
+    const participant = participantRows[0];
+    if (!participant) return res.status(400).json({ message: "Participant record not found." });
+
+    const allocation = Number(TYPES.get(normalizedLeaveType) || 0);
+    const [usedRows] = await pool.query(
+      "SELECT COALESCE(SUM(days), 0) AS used_days FROM leave_requests WHERE participant_id = ? AND leave_type = ? AND status = 'approved'",
+      [participant.id, normalizedLeaveType]
+    );
+    const [adjustmentRows] = await pool.query(
+      "SELECT COALESCE(SUM(CASE WHEN adjustment_type = 'ADD' THEN days WHEN adjustment_type = 'DEDUCT' THEN -days ELSE 0 END), 0) AS net_adjustment FROM leave_adjustments WHERE participant_id = ? AND leave_type = ?",
+      [participant.id, normalizedLeaveType]
+    );
+
+    const approvedUsed = Number(usedRows[0]?.used_days || 0);
+    const netAdjustment = Number(adjustmentRows[0]?.net_adjustment || 0);
+    const currentBalance = Math.max(0, allocation - approvedUsed + netAdjustment);
+    const projectedBalance = normalizedAdjustmentType === "DEDUCT"
+      ? currentBalance - numericDays
+      : currentBalance + numericDays;
+
+    if (normalizedAdjustmentType === "DEDUCT" && projectedBalance < 0) {
+      return res.status(400).json({ message: "Deduction would make the leave balance below zero." });
+    }
+
+    if (normalizedAdjustmentType === "ADD" && projectedBalance > allocation) {
+      return res.status(400).json({ message: `This adjustment would exceed the ${allocation}-day allocation for ${normalizedLeaveType.replace(/_/g, " ")}.` });
+    }
+
+    const [result] = await pool.query(
+      "INSERT INTO leave_adjustments (participant_id, organization_id, leave_type, days, adjustment_type, reason, adjusted_by, adjusted_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())",
+      [participant.id, req.user.organization_id ?? null, normalizedLeaveType, numericDays, normalizedAdjustmentType, trimmedReason, req.user.id]
+    );
+
+    const [savedRows] = await pool.query(`
+      SELECT la.*, p.participant_identifier, u.full_name AS adjusted_by_name
+      FROM leave_adjustments la
+      LEFT JOIN participants p ON p.id = la.participant_id
+      LEFT JOIN users u ON u.id = la.adjusted_by
+      WHERE la.id = ? LIMIT 1
+    `, [result.insertId]);
+
+    const adjustment = displayAdjustmentRow(savedRows[0]);
+    const newBalance = normalizedAdjustmentType === "DEDUCT"
+      ? Math.max(0, currentBalance - numericDays)
+      : Math.min(allocation, currentBalance + numericDays);
+
+    res.status(201).json({
+      adjustment,
+      currentBalance,
+      newBalance,
+      message: "Leave balance adjusted successfully.",
+    });
   });
 
   router.post("/", async (req, res) => {

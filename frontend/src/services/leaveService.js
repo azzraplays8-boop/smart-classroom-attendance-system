@@ -18,6 +18,13 @@ export async function fetchLeaveRequests() {
   return Array.isArray(data?.requests) ? data.requests : [];
 }
 
+export async function fetchLeaveAdjustments() {
+  const response = await authFetch("/leave/adjustments");
+  const data = await response.json();
+  if (!response.ok) throw new Error(data?.message || "Unable to load adjustment history.");
+  return Array.isArray(data?.adjustments) ? data.adjustments : [];
+}
+
 export async function createLeaveRequest(payload) {
   const response = await authFetch("/leave", { method: "POST", body: JSON.stringify(payload) });
   const data = await response.json();
@@ -229,35 +236,31 @@ export function getLeaveRequests(records = []) {
   return (records || []).filter((record) => normalizeLeaveStatus(record.status) === "pending");
 }
 
-export function addManualAdjustment({ participantId, userId, organizationId, leaveType, days, date, reason, adjustmentType = "ADD" }) {
+export async function addManualAdjustment({ participantId, userId, organizationId, leaveType, days, date, reason, adjustmentType = "ADD" }) {
   const trimmedDays = Number(days) || 0;
   if (!participantId || !leaveType || trimmedDays <= 0) {
     throw new Error("Participant, leave type, and valid days are required.");
   }
 
-  const existing = getStoredLeaveRecords();
-  const nextRecord = {
-    id: `leave-adjustment-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
-    participantId: Number(participantId),
-    userId: userId != null ? Number(userId) : null,
-    organizationId: organizationId != null ? Number(organizationId) : null,
-    leaveType: normalizeLeaveType(leaveType),
-    startDate: date || new Date().toISOString().slice(0, 10),
-    endDate: date || new Date().toISOString().slice(0, 10),
-    days: trimmedDays,
-    reason: reason || "Manual adjustment",
-    status: "approved",
-    submittedAt: new Date().toISOString(),
-    reviewedAt: new Date().toISOString(),
-    reviewedBy: userId != null ? Number(userId) : null,
-    adjustmentType: String(adjustmentType || "ADD").toUpperCase(),
-    adjustmentNote: reason || "Manual adjustment",
-    isAdjustment: true,
-  };
+  const response = await authFetch("/leave/adjustments", {
+    method: "POST",
+    body: JSON.stringify({
+      participantId,
+      userId,
+      organizationId,
+      leaveType,
+      days: trimmedDays,
+      adjustmentType: String(adjustmentType || "ADD").toUpperCase(),
+      reason: reason || "Manual balance adjustment",
+    }),
+  });
 
-  const nextRecords = [nextRecord, ...existing];
-  saveLeaveRecords(nextRecords);
-  return nextRecord;
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.message || "Unable to save leave balance adjustment.");
+  }
+
+  return data.adjustment || data;
 }
 
 export function addLeaveRequest({ participantId, userId, organizationId, leaveType, startDate, endDate, days, reason, status = "pending" }) {
