@@ -96,7 +96,6 @@ export default function participantsRouter({ pool, upload }) {
   // GET /participants
   router.get("/", async (req, res) => {
     try {
-      const isViewer = ["viewer", "teacher"].includes(String(req.user.role || "").toLowerCase());
       const [rows] = await pool.query(
         `SELECT
           id,
@@ -118,9 +117,7 @@ export default function participantsRouter({ pool, upload }) {
           group_name AS section,
           status
         FROM participants
-        ${isViewer ? "WHERE user_id = ?" : ""}
         ORDER BY id ASC`
-        , isViewer ? [req.user.id] : []
       );
 
       res.json({ participants: rows });

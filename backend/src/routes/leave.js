@@ -59,7 +59,8 @@ export default function leaveRouter({ pool }) {
     const [result] = await pool.query("INSERT INTO leave_requests (participant_id, requester_id, requester_role, organization_id, leave_type, start_date, end_date, days, reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", [participant.id, req.user.id, req.user.role, participant.organization_id || req.user.organization_id || null, type, startDate, endDate, numericDays, String(reason || "Leave request").trim()]);
     const [rows] = await pool.query(`SELECT lr.*, u.full_name AS requester_name, u.role AS requester_role, p.participant_identifier, p.department, p.group_name AS groupName FROM leave_requests lr JOIN users u ON u.id = lr.requester_id LEFT JOIN participants p ON p.id = lr.participant_id WHERE lr.id = ?`, [result.insertId]);
     const request = displayRow(rows[0]);
-    const approverRoles = normalizeRole(req.user.role) === "administrator" ? ["super_admin"] : ["administrator", "super_admin"];
+    const requesterRole = normalizeRole(req.user.role);
+    const approverRoles = requesterRole === "administrator" ? ["super_admin"] : requesterRole === "super_admin" ? [] : ["administrator", "super_admin"];
     const [recipients] = await pool.query("SELECT email FROM users WHERE is_active = 1 AND (account_status IS NULL OR account_status = 'approved') AND role IN (?) AND email IS NOT NULL AND email <> ''", [approverRoles]);
     const uniqueEmails = [...new Set(recipients.map((item) => String(item.email).trim().toLowerCase()).filter(isValidEmail))];
     const data = { requesterName: request.requesterName, participantId: request.participantIdentifier || request.participantId, requesterRole: request.requesterRole, department: request.department || request.groupName, leaveType: request.leaveType, startDate: request.startDate, endDate: request.endDate, days: request.days, reason: request.reason, submittedAt: request.submittedAt };

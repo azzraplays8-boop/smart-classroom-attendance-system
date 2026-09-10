@@ -272,7 +272,7 @@ export default function LeaveManagement() {
   return (
     <div className="leave-page">
       <header className="leave-header">
-          <div><p className="leave-eyebrow">Leave Management</p><h1>Leave Dashboard</h1><p className="leave-subtitle">{currentPeriodLabel} · Keep every participant's time away organized and visible.</p></div>
+          <div><p className="leave-eyebrow">Leave Management</p><h1>Leave Management</h1><p className="leave-subtitle">Manage participant leave balances and review leave requests.</p><span className="leave-period-indicator">{currentPeriodLabel}</span></div>
       </header>
       {toast && <div className="leave-toast">{toast}</div>}
       {error && <div className="leave-alert leave-alert--error">{error}</div>}

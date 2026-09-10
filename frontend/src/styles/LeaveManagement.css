@@ -10,6 +10,7 @@
 .leave-eyebrow, .leave-kicker { margin: 0 0 .35rem; color: #3b82f6; font-size: .72rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
 .leave-header h1 { margin: 0; color: #111827; font-size: clamp(1.8rem, 2.5vw, 2.45rem); letter-spacing: -.03em; }
 .leave-subtitle { margin: .45rem 0 0; color: #64748b; font-size: .92rem; }
+.leave-period-indicator { display: inline-flex; margin-top: .75rem; padding: .35rem .65rem; border: 1px solid #dbeafe; border-radius: 999px; color: #1d4ed8; background: #eff6ff; font-size: .72rem; font-weight: 750; }
 .leave-summary-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rem; }
 .leave-stat-card, .leave-panel, .leave-quick-actions { background: #fff; border: 1px solid #e8edf4; border-radius: 18px; box-shadow: 0 14px 32px rgba(15, 23, 42, .055); }
 .leave-stat-card { display: flex; align-items: center; gap: .85rem; padding: 1.1rem; }
