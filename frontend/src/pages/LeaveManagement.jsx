@@ -6,12 +6,12 @@ import { authFetch } from "../services/apiClient";
 import {
   LEAVE_TYPES,
   addManualAdjustment,
-  addLeaveRequest,
+  createLeaveRequest,
+  fetchLeaveRequests,
   getAllParticipantLeaveSummaries,
   getLeaveMonthKey,
   getLeaveRequests,
-  getStoredLeaveRecords,
-  updateLeaveRequestStatus,
+  reviewLeaveRequest,
 } from "../services/leaveService";
 import "../styles/LeaveManagement.css";
 
@@ -75,7 +75,7 @@ export default function LeaveManagement() {
       if (!response.ok) throw new Error(data?.message || "Failed to load participants");
 
       const allParticipants = Array.isArray(data?.participants) ? data.participants : [];
-      const stored = getStoredLeaveRecords();
+      const stored = await fetchLeaveRequests();
 
       setParticipants(allParticipants);
       setRecords(stored);
@@ -158,13 +158,13 @@ export default function LeaveManagement() {
     }
   };
 
-  const handleApprove = (recordId) => {
+  const handleApprove = async (recordId) => {
     if (!canManageLeave) return;
     const record = records.find((item) => String(item.id) === String(recordId));
     if (!record) return;
 
     try {
-      updateLeaveRequestStatus(recordId, "approved", user?.id);
+      await reviewLeaveRequest(recordId, "approved");
       setToast("Leave request approved.");
       loadData();
     } catch (err) {
@@ -172,14 +172,18 @@ export default function LeaveManagement() {
     }
   };
 
-  const handleReject = (recordId) => {
+  const handleReject = async (recordId) => {
     if (!canManageLeave) return;
-    updateLeaveRequestStatus(recordId, "rejected", user?.id);
-    setToast("Leave request rejected.");
-    loadData();
+    try {
+      await reviewLeaveRequest(recordId, "rejected");
+      setToast("Leave request rejected.");
+      loadData();
+    } catch (err) {
+      setToast(err?.message || "Unable to reject leave request.");
+    }
   };
 
-  const handleRequestSubmit = (event) => {
+  const handleRequestSubmit = async (event) => {
     event.preventDefault();
     const selectedParticipant = participants.find((item) => String(item.id) === String(form.participantId));
     if (!selectedParticipant) {
@@ -188,7 +192,7 @@ export default function LeaveManagement() {
     }
 
     try {
-      addLeaveRequest({
+      await createLeaveRequest({
         participantId: selectedParticipant.id,
         userId: selectedParticipant.userId ?? selectedParticipant.user_id ?? user?.id,
         organizationId: selectedParticipant.organizationId ?? selectedParticipant.organization_id ?? null,
