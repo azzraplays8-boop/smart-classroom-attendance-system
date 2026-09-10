@@ -362,6 +362,60 @@ test('POST /leave/adjustments lets super admin deduct and persists the adjustmen
   }
 });
 
+test('GET /leave/balances includes manual adjustments in the current balance calculation', async () => {
+  const pool = wrapPoolForAuth({
+    async query(sql, params) {
+      const sqlText = String(sql);
+
+      if (sqlText.includes('FROM participants')) {
+        return [[{
+          id: 11,
+          participant_identifier: '2023-00324-CM-0',
+          full_name: 'Ron Yeag',
+          department: 'Academics',
+          group_name: 'CM',
+          organization_name: 'KATAGA',
+        }]];
+      }
+
+      if (sqlText.includes('FROM leave_requests') && sqlText.includes("status = 'approved'")) {
+        return [[{ participant_id: 11, leave_type: 'sick_leave', used_days: 1 }]];
+      }
+
+      if (sqlText.includes('FROM leave_adjustments') && sqlText.includes('GROUP BY')) {
+        return [[{ participant_id: 11, leave_type: 'sick_leave', net_adjustment: -2 }]];
+      }
+
+      return [[]];
+    },
+  }, 'super_admin', { id: 5, role: 'super_admin', full_name: 'Super Admin' });
+
+  const app = express();
+  app.use(express.json());
+  app.use('/leave', leaveRouter({ pool }));
+
+  const server = createServer(app);
+  await new Promise((resolve) => server.listen(0, resolve));
+  const { port } = server.address();
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/leave/balances`, {
+      headers: {
+        Authorization: `Bearer ${makeToken('super_admin', { id: 5, role: 'super_admin', full_name: 'Super Admin' })}`,
+      },
+    });
+
+    assert.equal(response.status, 200, `Expected 200 but got ${response.status}`);
+    const body = await response.json();
+    assert.equal(Array.isArray(body.balances), true);
+    assert.equal(body.balances[0].typeSummaries[0].remaining, 2);
+    assert.equal(body.balances[0].typeSummaries[0].allocation, 5);
+    assert.equal(body.balances[0].typeSummaries[0].used, 1);
+  } finally {
+    await new Promise((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+  }
+});
+
 test('POST /leave/adjustments rejects non-super-admin users', async () => {
   const pool = wrapPoolForAuth({
     async query() {

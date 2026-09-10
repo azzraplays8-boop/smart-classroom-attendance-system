@@ -8,6 +8,7 @@ import {
   addManualAdjustment,
   createLeaveRequest,
   fetchLeaveAdjustments,
+  fetchLeaveBalances,
   fetchLeaveRequests,
   getAllParticipantLeaveSummaries,
   getLeaveMonthKey,
@@ -93,6 +94,7 @@ export default function LeaveManagement() {
   const canAdjustLeaveBalance = user?.role === "super_admin";
   const [participants, setParticipants] = useState([]);
   const [records, setRecords] = useState([]);
+  const [balanceSummaries, setBalanceSummaries] = useState([]);
   const [adjustmentHistory, setAdjustmentHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -126,9 +128,11 @@ export default function LeaveManagement() {
       const allParticipants = Array.isArray(data?.participants) ? data.participants : [];
       const stored = await fetchLeaveRequests();
       const adjustments = canAdjustLeaveBalance ? await fetchLeaveAdjustments() : [];
+      const balanceData = await fetchLeaveBalances();
 
       setParticipants(allParticipants);
       setRecords(stored);
+      setBalanceSummaries(Array.isArray(balanceData?.balances) ? balanceData.balances : []);
       setAdjustmentHistory(adjustments);
     } catch (err) {
       setError(err?.message || "Unable to load leave data.");
@@ -147,7 +151,10 @@ export default function LeaveManagement() {
     return () => clearTimeout(timer);
   }, [toast]);
 
-  const allSummaries = useMemo(() => getAllParticipantLeaveSummaries(participants, records), [participants, records]);
+  const allSummaries = useMemo(() => {
+    if (balanceSummaries.length > 0) return balanceSummaries;
+    return getAllParticipantLeaveSummaries(participants, records);
+  }, [balanceSummaries, participants, records]);
   const pendingRequests = useMemo(() => getLeaveRequests(records), [records]);
   const departments = useMemo(() => [...new Set(allSummaries.map((item) => item.department).filter((item) => item && item !== "—"))].sort(), [allSummaries]);
   const filteredSummaries = useMemo(() => allSummaries.filter((item) => `${item.participantName} ${item.participantId}`.toLowerCase().includes(search.toLowerCase()) && (!departmentFilter || item.department === departmentFilter)), [allSummaries, search, departmentFilter]);

@@ -62,6 +62,84 @@ function displayAdjustmentRow(row) {
   };
 }
 
+function getSignedAdjustmentValue(row) {
+  if (row == null) return 0;
+
+  const signedValue = row.signed_change ?? row.signedChange ?? row.adjustment_value ?? row.adjustmentValue ?? row.change ?? null;
+  if (signedValue !== null && signedValue !== undefined && signedValue !== "") {
+    const numericSignedValue = Number(signedValue);
+    if (Number.isFinite(numericSignedValue)) {
+      return numericSignedValue;
+    }
+  }
+
+  const normalizedAdjustmentType = normalizeAdjustmentType(row.adjustmentType ?? row.adjustment_type);
+  const days = Number(row.days ?? row.adjustment_days ?? 0);
+  if (!Number.isFinite(days) || days <= 0) return 0;
+
+  return normalizedAdjustmentType === "DEDUCT" ? -days : days;
+}
+
+function buildBalanceSummaryRows(participantRows, approvedRows, adjustmentRows, pendingRows) {
+  const approvedByKey = new Map();
+  const adjustmentByKey = new Map();
+  const pendingByKey = new Map();
+
+  for (const row of approvedRows || []) {
+    const key = `${Number(row.participant_id ?? row.participantId ?? 0)}|${String(row.leave_type ?? row.leaveType ?? "")}`;
+    approvedByKey.set(key, Number(row.used_days ?? row.days ?? 0));
+  }
+
+  for (const row of adjustmentRows || []) {
+    const key = `${Number(row.participant_id ?? row.participantId ?? 0)}|${String(row.leave_type ?? row.leaveType ?? "")}`;
+    adjustmentByKey.set(key, Number(row.net_adjustment ?? getSignedAdjustmentValue(row) ?? 0));
+  }
+
+  for (const row of pendingRows || []) {
+    const key = `${Number(row.participant_id ?? row.participantId ?? 0)}|${String(row.leave_type ?? row.leaveType ?? "")}`;
+    pendingByKey.set(key, Number(row.pending_days ?? row.days ?? 0));
+  }
+
+  return participantRows.map((participant) => {
+    const participantId = Number(participant.id ?? participant.participantId ?? participant.participant_id ?? 0);
+    const typeSummaries = Array.from(TYPES.entries()).map(([leaveType, allocation]) => {
+      const approvedUsed = Number(approvedByKey.get(`${participantId}|${leaveType}`) || 0);
+      const netAdjustment = Number(adjustmentByKey.get(`${participantId}|${leaveType}`) || 0);
+      const pendingDays = Number(pendingByKey.get(`${participantId}|${leaveType}`) || 0);
+      const currentBalance = Math.max(0, allocation + netAdjustment - approvedUsed);
+
+      return {
+        typeKey: leaveType,
+        label: leaveType.replace(/_/g, " ").replace(/\b\w/g, (character) => character.toUpperCase()),
+        allocation,
+        approved: approvedUsed,
+        pending: pendingDays,
+        adjustment: netAdjustment,
+        used: approvedUsed,
+        remaining: currentBalance,
+      };
+    });
+
+    const totalAllocation = typeSummaries.reduce((sum, item) => sum + Number(item.allocation || 0), 0);
+    const totalUsed = typeSummaries.reduce((sum, item) => sum + Number(item.approved || 0), 0);
+    const totalPending = typeSummaries.reduce((sum, item) => sum + Number(item.pending || 0), 0);
+    const totalRemaining = typeSummaries.reduce((sum, item) => sum + Number(item.remaining || 0), 0);
+
+    return {
+      participantId,
+      participantIdentifier: participant.participant_identifier ?? participant.participantIdentifier ?? participant.studentNumber ?? null,
+      participantName: participant.full_name || participant.fullName || participant.name || "Participant",
+      organization: participant.organization_name || participant.organizationName || participant.organization || participant.organizationId || "—",
+      department: participant.department || participant.groupName || participant.group_name || participant.section || "—",
+      typeSummaries,
+      totalAllocation,
+      totalUsed,
+      totalPending,
+      totalRemaining,
+    };
+  });
+}
+
 export default function leaveRouter({ pool }) {
   const router = express.Router();
   router.use(authenticate(pool));
@@ -71,6 +149,52 @@ export default function leaveRouter({ pool }) {
     const ownOnly = role === "viewer" || role === "teacher";
     const [rows] = await pool.query(`SELECT lr.*, u.full_name AS requester_name, u.role AS requester_role, p.participant_identifier, p.department, p.group_name AS groupName FROM leave_requests lr JOIN users u ON u.id = lr.requester_id LEFT JOIN participants p ON p.id = lr.participant_id WHERE ${ownOnly ? "lr.requester_id = ?" : "1=1"} ORDER BY lr.submitted_at DESC`, ownOnly ? [req.user.id] : []);
     res.json({ requests: rows.map(displayRow) });
+  });
+
+  router.get("/balances", async (req, res) => {
+    const [participantRows] = await pool.query(`
+      SELECT p.id, p.participant_identifier, p.department, p.group_name AS groupName,
+             p.organization_id, p.full_name,
+             o.name AS organization_name
+      FROM participants p
+      LEFT JOIN organizations o ON o.id = p.organization_id
+      ORDER BY p.participant_identifier ASC
+    `);
+
+    const [approvedRows] = await pool.query(`
+      SELECT participant_id, leave_type, SUM(days) AS used_days
+      FROM leave_requests
+      WHERE status = 'approved'
+      GROUP BY participant_id, leave_type
+    `);
+
+    const [pendingRows] = await pool.query(`
+      SELECT participant_id, leave_type, SUM(days) AS pending_days
+      FROM leave_requests
+      WHERE status = 'pending'
+      GROUP BY participant_id, leave_type
+    `);
+
+    const [adjustmentRows] = await pool.query(`
+      SELECT participant_id, leave_type,
+             SUM(CASE
+               WHEN adjustment_type = 'ADD' THEN days
+               WHEN adjustment_type = 'DEDUCT' THEN -days
+               ELSE 0
+             END) AS net_adjustment
+      FROM leave_adjustments
+      GROUP BY participant_id, leave_type
+    `);
+
+    const balances = buildBalanceSummaryRows(participantRows, approvedRows, adjustmentRows, pendingRows);
+    const totalRemaining = balances.reduce((sum, item) => sum + Number(item.totalRemaining || 0), 0);
+
+    res.json({
+      balances,
+      totalRemaining,
+      remainingLeaveDays: totalRemaining,
+      totalParticipants: balances.length,
+    });
   });
 
   router.get("/adjustments", async (req, res) => {

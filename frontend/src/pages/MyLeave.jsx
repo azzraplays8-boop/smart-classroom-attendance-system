@@ -6,6 +6,7 @@ import {
   LEAVE_TYPES,
   cancelLeaveRequest,
   createLeaveRequest,
+  fetchLeaveBalances,
   fetchLeaveRequests,
   getCurrentParticipantForUser,
   getLeaveSummaryForCurrentUser,
@@ -69,6 +70,7 @@ export default function MyLeave() {
   const { user } = useAuth();
   const [participants, setParticipants] = useState([]);
   const [records, setRecords] = useState([]);
+  const [balanceSummary, setBalanceSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -91,8 +93,18 @@ export default function MyLeave() {
       const response = await authFetch("/participants");
       const data = await response.json();
       if (!response.ok) throw new Error(data?.message || "Failed to load your participant records");
-      setParticipants(Array.isArray(data?.participants) ? data.participants : []);
-      setRecords(await fetchLeaveRequests());
+
+      const nextParticipants = Array.isArray(data?.participants) ? data.participants : [];
+      const nextRecords = await fetchLeaveRequests();
+      const balanceData = await fetchLeaveBalances();
+      const currentParticipant = getCurrentParticipantForUser(user, nextParticipants);
+      const participantBalance = currentParticipant
+        ? (balanceData.balances || []).find((item) => String(item.participantId) === String(currentParticipant.id))
+        : null;
+
+      setParticipants(nextParticipants);
+      setRecords(nextRecords);
+      setBalanceSummary(participantBalance || null);
     } catch (err) {
       setError(err?.message || "Unable to load your leave information.");
     } finally {
@@ -110,10 +122,17 @@ export default function MyLeave() {
     [user, participants]
   );
 
-  const summary = useMemo(
-    () => getLeaveSummaryForCurrentUser(user, participants, records),
-    [user, participants, records]
-  );
+  const summary = useMemo(() => {
+    if (currentParticipant && balanceSummary) {
+      return {
+        ...balanceSummary,
+        participantId: currentParticipant.id,
+        participantName: currentParticipant.firstName || currentParticipant.lastName ? `${currentParticipant.firstName || ""} ${currentParticipant.lastName || ""}`.trim() : currentParticipant.participantIdentifier || currentParticipant.studentNumber || currentParticipant.full_name || "Participant",
+      };
+    }
+
+    return getLeaveSummaryForCurrentUser(user, participants, records);
+  }, [balanceSummary, currentParticipant, user, participants, records]);
 
   const history = useMemo(
     () => records.filter((record) => {

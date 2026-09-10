@@ -25,6 +25,18 @@ export async function fetchLeaveAdjustments() {
   return Array.isArray(data?.adjustments) ? data.adjustments : [];
 }
 
+export async function fetchLeaveBalances() {
+  const response = await authFetch("/leave/balances");
+  const data = await response.json();
+  if (!response.ok) throw new Error(data?.message || "Unable to load leave balances.");
+  return {
+    balances: Array.isArray(data?.balances) ? data.balances : [],
+    totalRemaining: Number(data?.totalRemaining ?? data?.remainingLeaveDays ?? 0),
+    remainingLeaveDays: Number(data?.remainingLeaveDays ?? data?.totalRemaining ?? 0),
+    totalParticipants: Number(data?.totalParticipants ?? 0),
+  };
+}
+
 export async function createLeaveRequest(payload) {
   const response = await authFetch("/leave", { method: "POST", body: JSON.stringify(payload) });
   const data = await response.json();
@@ -120,7 +132,7 @@ export function calculateTypeBalance(records = [], participantId, typeKey, perio
 
   let approvedDays = 0;
   let pendingDays = 0;
-  let adjustmentUsedDelta = 0;
+  let netAdjustment = 0;
 
   filtered.forEach((record) => {
     const days = Number(record.days) || 0;
@@ -131,7 +143,9 @@ export function calculateTypeBalance(records = [], participantId, typeKey, perio
 
     if (isAdjustment) {
       const type = String(record.adjustmentType || "ADD").toUpperCase();
-      adjustmentUsedDelta += type === "DEDUCT" ? days : -days;
+      const storedSignedValue = Number(record.signedChange ?? record.signed_change ?? record.change ?? null);
+      const signedValue = Number.isFinite(storedSignedValue) ? storedSignedValue : type === "DEDUCT" ? -days : days;
+      netAdjustment += signedValue;
       return;
     }
 
@@ -143,8 +157,7 @@ export function calculateTypeBalance(records = [], participantId, typeKey, perio
   });
 
   const allocation = typeMetadata.allocation;
-  const used = Math.min(allocation, Math.max(0, approvedDays + adjustmentUsedDelta));
-  const remaining = Math.min(allocation, Math.max(0, allocation - used));
+  const remaining = Math.max(0, allocation + netAdjustment - approvedDays);
 
   return {
     typeKey: normalizedType,
@@ -152,8 +165,8 @@ export function calculateTypeBalance(records = [], participantId, typeKey, perio
     allocation,
     approved: approvedDays,
     pending: pendingDays,
-    adjustment: adjustmentUsedDelta,
-    used,
+    adjustment: netAdjustment,
+    used: approvedDays,
     remaining,
   };
 }
