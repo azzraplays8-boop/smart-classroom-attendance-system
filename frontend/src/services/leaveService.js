@@ -9,6 +9,29 @@ export const LEAVE_TYPES = [
 export const LEAVE_ALLOCATION_MAP = Object.fromEntries(LEAVE_TYPES.map((type) => [type.key, type.allocation]));
 export const LEAVE_STORAGE_KEY = "kataga_leave_records_v1";
 
+import { authFetch } from "./apiClient";
+
+export async function fetchLeaveRequests() {
+  const response = await authFetch("/leave");
+  const data = await response.json();
+  if (!response.ok) throw new Error(data?.message || "Unable to load leave requests.");
+  return Array.isArray(data?.requests) ? data.requests : [];
+}
+
+export async function createLeaveRequest(payload) {
+  const response = await authFetch("/leave", { method: "POST", body: JSON.stringify(payload) });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data?.message || "Unable to submit leave request.");
+  return data.request;
+}
+
+export async function reviewLeaveRequest(id, status, rejectionReason = "") {
+  const response = await authFetch(`/leave/${id}`, { method: "PATCH", body: JSON.stringify({ status, rejectionReason }) });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data?.message || "Unable to update leave request.");
+  return data;
+}
+
 const LEAVE_TIME_ZONE = "Asia/Manila";
 
 export function getLeaveMonthKey(value = new Date()) {
