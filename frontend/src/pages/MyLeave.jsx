@@ -4,12 +4,12 @@ import { useAuth } from "../hooks/useAuth";
 import { authFetch } from "../services/apiClient";
 import {
   LEAVE_TYPES,
-  addLeaveRequest,
+  createLeaveRequest,
+  fetchLeaveRequests,
   getCurrentParticipantForUser,
   getLeaveSummaryForCurrentUser,
   getLowBalanceTone,
   getStatusTone,
-  getStoredLeaveRecords,
 } from "../services/leaveService";
 import "../styles/LeaveManagement.css";
 
@@ -40,7 +40,7 @@ export default function MyLeave() {
       const data = await response.json();
       if (!response.ok) throw new Error(data?.message || "Failed to load your participant records");
       setParticipants(Array.isArray(data?.participants) ? data.participants : []);
-      setRecords(getStoredLeaveRecords());
+      setRecords(await fetchLeaveRequests());
     } catch (err) {
       setError(err?.message || "Unable to load your leave information.");
     } finally {
@@ -110,7 +110,7 @@ export default function MyLeave() {
     setIsSubmitting(true);
     setNotice({ type: "", message: "" });
     try {
-      addLeaveRequest({
+      await createLeaveRequest({
         participantId: currentParticipant.id,
         userId: currentParticipant.userId ?? currentParticipant.user_id ?? user?.id,
         organizationId: currentParticipant.organizationId ?? currentParticipant.organization_id ?? null,
@@ -120,7 +120,7 @@ export default function MyLeave() {
         days,
         reason: form.reason.trim(),
       });
-      setRecords(getStoredLeaveRecords());
+      setRecords(await fetchLeaveRequests());
       setForm({ leaveType: "sick_leave", days: "", startDate: "", endDate: "", reason: "" });
       setIsModalOpen(false);
       setNotice({ type: "success", message: "Leave request submitted successfully." });
