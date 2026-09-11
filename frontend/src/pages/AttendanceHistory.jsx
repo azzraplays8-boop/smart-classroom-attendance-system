@@ -94,7 +94,17 @@ function AttendanceHistory() {
   const [selectedIds, setSelectedIds] = useState([]);
   const [pendingBulkDelete, setPendingBulkDelete] = useState(false);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [importFile, setImportFile] = useState(null);
+  const [importPreview, setImportPreview] = useState([]);
+  const [importSummary, setImportSummary] = useState({ total: 0, ready: 0, warnings: 0, errors: 0 });
+  const [importValidationState, setImportValidationState] = useState("idle");
+  const [importing, setImporting] = useState(false);
+  const [importHistory, setImportHistory] = useState([]);
+  const [importError, setImportError] = useState("");
+  const [importStep, setImportStep] = useState(1);
   const canBulkDelete = user?.role === "super_admin" || user?.role === "administrator";
+  const canImportAttendance = user?.role === "super_admin" || user?.role === "administrator";
   const selectedCount = selectedIds.length;
   const allCurrentSelected = records.length > 0 && selectedCount === records.length;
   const someSelected = selectedCount > 0 && selectedCount < records.length;
@@ -398,6 +408,7 @@ function AttendanceHistory() {
 
   useEffect(() => {
     fetchHistory(1);
+    fetchImportHistory();
   }, []);
 
   const courseOptions = useMemo(() => {
@@ -423,6 +434,230 @@ function AttendanceHistory() {
     if (periodMode === "range" && (rangeFrom || rangeTo)) return `${rangeFrom || "…"} → ${rangeTo || "…"}`;
     return "All Time";
   }, [periodMode, periodMonth, dateFilter, rangeFrom, rangeTo]);
+
+  const fetchImportHistory = async () => {
+    if (!canImportAttendance) return;
+    try {
+      const res = await authFetch("/attendance/import-history");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.message || "Failed to load import history.");
+      setImportHistory(Array.isArray(data.imports) ? data.imports : []);
+    } catch {
+      setImportHistory([]);
+    }
+  };
+
+  const downloadTemplate = () => {
+    const headers = [
+      ["Attendance Import"],
+      ["Required: Participant ID, Date, Status. Recommended: Time In, Activity / Session."],
+      ["Participant ID", "Participant Name", "Date", "Time In", "Status", "Activity / Session", "Department / Group", "Year Level / Category", "Section", "Remarks"],
+      ["P-1001", "Juan Dela Cruz", "2026-09-10", "08:15 AM", "Present", "Orientation", "BSIT", "2nd Year", "A", "On time"],
+      ["P-1002", "Maria Santos", "2026-09-11", "", "Absent", "Flag Ceremony", "BSCS", "3rd Year", "B", "Health reason"],
+    ];
+
+    const worksheet = XLSX.utils.aoa_to_sheet(headers);
+    worksheet["!cols"] = [
+      { wch: 18 }, { wch: 22 }, { wch: 14 }, { wch: 16 }, { wch: 14 }, { wch: 20 }, { wch: 20 }, { wch: 20 }, { wch: 16 }, { wch: 22 },
+    ];
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Attendance Import");
+    XLSX.writeFile(workbook, "attendance-import-template.xlsx");
+  };
+
+  const parseImportDate = (value) => {
+    if (!value && value !== 0) return null;
+    const raw = String(value).trim();
+    if (!raw) return null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+    if (typeof value === "number" && Number.isFinite(value)) {
+      const date = new Date(Math.round((value - 25569) * 86400 * 1000));
+      return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
+    }
+    const parsed = new Date(raw);
+    if (!Number.isNaN(parsed.getTime())) {
+      return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, "0")}-${String(parsed.getDate()).padStart(2, "0")}`;
+    }
+    return null;
+  };
+
+  const parseImportTime = (value, dateValue) => {
+    if (value === null || value === undefined || value === "") return "";
+    let raw = String(value).trim();
+    if (!raw) return "";
+    if (typeof value === "number" && Number.isFinite(value)) {
+      const totalMinutes = Math.round(value * 24 * 60);
+      const hours = Math.floor(totalMinutes / 60) % 24;
+      const minutes = totalMinutes % 60;
+      const date = dateValue || "2000-01-01";
+      return `${date} ${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:00`;
+    }
+    const match = raw.match(/^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)?$/i);
+    if (match) {
+      let hours = Number(match[1]);
+      const minutes = Number(match[2] || 0);
+      const meridian = String(match[3] || "").toUpperCase();
+      if (meridian === "PM" && hours < 12) hours += 12;
+      if (meridian === "AM" && hours === 12) hours = 0;
+      const date = dateValue || "2000-01-01";
+      return `${date} ${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:00`;
+    }
+    return raw;
+  };
+
+  const normalizeStatusValue = (value) => {
+    const normalized = String(value ?? "").trim();
+    if (!normalized) return "";
+    const key = normalized.toLowerCase();
+    const map = {
+      present: "Present",
+      late: "Late",
+      absent: "Absent",
+      excused: "Excused",
+    };
+    return map[key] || "";
+  };
+
+  const validateAttendanceImportRows = async (rows) => {
+    const participantMap = new Map();
+    const participantsResponse = await authFetch("/participants");
+    const participantsData = await participantsResponse.json().catch(() => ({}));
+    const participants = Array.isArray(participantsData.participants) ? participantsData.participants : [];
+    participants.forEach((participant) => {
+      participantMap.set(String(participant.participantIdentifier || participant.participant_identifier || "").trim(), participant);
+    });
+
+    const normalizedRows = rows.map((row, index) => {
+      const participantId = String(row["Participant ID"] ?? row.participantId ?? row.participant_identifier ?? "").trim();
+      const participantName = String(row["Participant Name"] ?? row.participantName ?? "").trim();
+      const date = parseImportDate(row["Date"] ?? row.date ?? "");
+      const timeIn = parseImportTime(row["Time In"] ?? row.timeIn ?? "", date);
+      const status = normalizeStatusValue(row["Status"] ?? row.status ?? "");
+      const activity = String(row["Activity / Session"] ?? row.activity ?? "").trim();
+      const validation = {
+        rowNumber: index + 2,
+        participantId,
+        participantName,
+        date,
+        timeIn,
+        status,
+        activity,
+        validationState: "Ready",
+        validationMessage: "Ready",
+        raw: row,
+      };
+
+      if (!participantId) {
+        validation.validationState = "Error";
+        validation.validationMessage = "Missing required field";
+      } else if (!participantMap.has(participantId)) {
+        validation.validationState = "Error";
+        validation.validationMessage = "Participant ID not found";
+      } else if (!date) {
+        validation.validationState = "Error";
+        validation.validationMessage = "Invalid date";
+      } else if (!status) {
+        validation.validationState = "Error";
+        validation.validationMessage = "Invalid status";
+      } else if ((status === "Present" || status === "Late") && !timeIn) {
+        validation.validationState = "Warning";
+        validation.validationMessage = "Time In recommended";
+      } else {
+        const duplicate = records.find((record) => {
+          if (!record.participantIdentifier) return false;
+          return String(record.participantIdentifier).trim() === participantId && formatDate(record.attendanceDate) === date;
+        });
+        if (duplicate) {
+          validation.validationState = "Warning";
+          validation.validationMessage = "Duplicate — already recorded";
+        }
+      }
+
+      return validation;
+    });
+
+    const nextSummary = {
+      total: normalizedRows.length,
+      ready: normalizedRows.filter((row) => row.validationState === "Ready").length,
+      warnings: normalizedRows.filter((row) => row.validationState === "Warning").length,
+      errors: normalizedRows.filter((row) => row.validationState === "Error").length,
+    };
+    setImportPreview(normalizedRows);
+    setImportSummary(nextSummary);
+    setImportValidationState(nextSummary.errors > 0 ? "blocked" : "ready");
+    setImportError(nextSummary.errors > 0 ? "Please fix the blocking validation errors before importing." : "");
+  };
+
+  const handleImportFileChange = async (file) => {
+    if (!file) return;
+    const ext = file.name.split(".").pop()?.toLowerCase();
+    if (!["xlsx", "xls"].includes(ext || "")) {
+      setImportError("Unsupported file type. Please upload an .xlsx or .xls file.");
+      setImportFile(null);
+      return;
+    }
+
+    setImportError("");
+    setImportFile(file);
+    setImportValidationState("idle");
+    setImportPreview([]);
+    setImportSummary({ total: 0, ready: 0, warnings: 0, errors: 0 });
+  };
+
+  const handleValidateImportFile = async () => {
+    if (!importFile) {
+      setImportError("Please choose an Excel file first.");
+      return;
+    }
+
+    try {
+      const buffer = await importFile.arrayBuffer();
+      const workbook = XLSX.read(new Uint8Array(buffer), { type: "array" });
+      const sheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+      const rows = XLSX.utils.sheet_to_json(sheet, { defval: "", raw: false, blankrows: false });
+      await validateAttendanceImportRows(rows);
+      setImportStep(3);
+    } catch (err) {
+      setImportError(err?.message || "The spreadsheet could not be read. Please use the official template.");
+    }
+  };
+
+  const handleImportAttendance = async () => {
+    const rowsToImport = importPreview.filter((row) => row.validationState !== "Error").map((row) => row.raw);
+    if (!rowsToImport.length) {
+      setImportError("No valid rows are ready to import.");
+      return;
+    }
+
+    const confirmed = window.confirm(`You are about to import ${rowsToImport.length} attendance records. Existing attendance records will not be overwritten. Continue?`);
+    if (!confirmed) return;
+
+    try {
+      setImporting(true);
+      const res = await authFetch("/attendance/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filename: importFile?.name || "attendance-import.xlsx", rows: rowsToImport }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.message || "Failed to import attendance records.");
+      showToast("success", `${data?.summary?.imported ?? rowsToImport.length} attendance records imported successfully.`);
+      setImportFile(null);
+      setImportPreview([]);
+      setImportSummary({ total: 0, ready: 0, warnings: 0, errors: 0 });
+      setImportValidationState("idle");
+      setImportStep(1);
+      setIsImportModalOpen(false);
+      await fetchHistory(1);
+      await fetchImportHistory();
+    } catch (err) {
+      setImportError(err?.message || "Failed to import attendance records.");
+    } finally {
+      setImporting(false);
+    }
+  };
 
   const handleApplyFilters = () => {
     fetchHistory(1);
@@ -585,12 +820,24 @@ function AttendanceHistory() {
       {/* Header */}
       <div className="ah-header">
         <div className="ah-header-left">
-          <h2 className="ah-title">Attendance History</h2>
-          <p className="ah-subtitle">View, search, filter, export and manage attendance records.</p>
+          <h2 className="ah-title">Attendance Records</h2>
+          <p className="ah-subtitle">Search, review, import, export, and manage attendance records.</p>
         </div>
-        <Link to="/attendance" className="ah-back-link">
-          Back to Attendance Recording
-        </Link>
+        <div className="ah-top-actions">
+          {canImportAttendance ? (
+            <button type="button" className="ah-btn ah-btn--primary" onClick={() => setIsImportModalOpen(true)}>
+              Import Attendance
+            </button>
+          ) : null}
+          <div className="ah-export-menu">
+            <button type="button" className="ah-btn ah-btn--outline" onClick={handleExportPdf}>Export PDF</button>
+            <button type="button" className="ah-btn ah-btn--outline" onClick={handleExportExcel}>Export Excel</button>
+            <button type="button" className="ah-btn ah-btn--outline" onClick={handlePrint}>Print</button>
+          </div>
+          <Link to="/attendance" className="ah-back-link">
+            Back to Attendance Recording
+          </Link>
+        </div>
       </div>
 
       {/* Summary Cards */}
@@ -770,22 +1017,26 @@ function AttendanceHistory() {
             disabled={selectedCount === 0 || isBulkDeleting}
             onClick={handleBulkDelete}
           >
-            {isBulkDeleting ? "Deleting..." : `Delete Selected (${selectedCount})`}
+            {isBulkDeleting ? "Deleting..." : selectedCount > 0 ? `Delete Selected (${selectedCount})` : "Delete Selected"}
           </button>
         </div>
       ) : null}
 
-      {/* Export Toolbar */}
-      <div className="ah-export-bar">
-        <button type="button" className="ah-export-btn ah-export-btn--pdf" onClick={handleExportPdf}>
-          <span aria-hidden="true">📄</span> Export PDF
-        </button>
-        <button type="button" className="ah-export-btn ah-export-btn--excel" onClick={handleExportExcel}>
-          <span aria-hidden="true">📊</span> Export Excel
-        </button>
-        <button type="button" className="ah-export-btn ah-export-btn--print" onClick={handlePrint}>
-          <span aria-hidden="true">🖨</span> Print
-        </button>
+      <div className="ah-import-history">
+        {canImportAttendance && importHistory.length > 0 ? (
+          <div className="ah-mini-history-card">
+            <div className="ah-mini-history-header">
+              <span>Import History</span>
+            </div>
+            {importHistory.slice(0, 3).map((item) => (
+              <div key={item.id} className="ah-mini-history-item">
+                <strong>{item.filename || "attendance-import.xlsx"}</strong>
+                <small>{item.importedBy || "System"} • {item.importedAt ? new Date(item.importedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Recently"}</small>
+                <span>{item.importedRows ?? 0} imported • {item.duplicateRows ?? 0} duplicates</span>
+              </div>
+            ))}
+          </div>
+        ) : null}
       </div>
 
       {/* Printable Report (for print) */}
@@ -876,7 +1127,18 @@ function AttendanceHistory() {
                 </tr>
               ) : records.length === 0 ? (
                 <tr>
-                  <td colSpan={canBulkDelete ? 11 : 10} className="ah-table-state">No attendance records found.</td>
+                  <td colSpan={canBulkDelete ? 11 : 10} className="ah-table-state">
+                    <div className="ah-empty-state">
+                      <h4>No attendance records for {periodLabel}</h4>
+                      <p>Record attendance through QR Check-in or import previous attendance records.</p>
+                      <div className="ah-empty-actions">
+                        <Link to="/attendance" className="ah-btn ah-btn--primary">Go to QR Check-in</Link>
+                        {canImportAttendance ? (
+                          <button type="button" className="ah-btn ah-btn--outline" onClick={() => setIsImportModalOpen(true)}>Import Previous Records</button>
+                        ) : null}
+                      </div>
+                    </div>
+                  </td>
                 </tr>
               ) : (
                 records.map((record, index) => (
@@ -952,6 +1214,104 @@ function AttendanceHistory() {
             >
               Next <FiChevronRight size={16} />
             </button>
+          </div>
+        </div>
+      ) : null}
+
+      {isImportModalOpen ? (
+        <div className="ah-modal-overlay" onClick={() => setIsImportModalOpen(false)}>
+          <div className="ah-modal-card ah-import-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="ah-import-header">
+              <div>
+                <h3 className="ah-modal-title">Import Attendance Records</h3>
+                <p className="ah-import-subtitle">Upload previous attendance records using the official Excel template.</p>
+              </div>
+              <button type="button" className="ah-close-btn" onClick={() => setIsImportModalOpen(false)} aria-label="Close import modal">×</button>
+            </div>
+
+            <div className="ah-import-steps">
+              <div className={`ah-step ${importStep >= 1 ? "active" : ""}`}><span>1</span> Download Template</div>
+              <div className={`ah-step ${importStep >= 2 ? "active" : ""}`}><span>2</span> Upload File</div>
+              <div className={`ah-step ${importStep >= 3 ? "active" : ""}`}><span>3</span> Validate & Preview</div>
+            </div>
+
+            {importStep >= 1 ? (
+              <div className="ah-import-panel">
+                <button type="button" className="ah-btn ah-btn--primary" onClick={downloadTemplate}>Download Excel Template</button>
+                <small className="ah-helper-text">Use this format to avoid import errors.</small>
+              </div>
+            ) : null}
+
+            {importStep >= 2 ? (
+              <div className="ah-import-panel">
+                <label className="ah-upload-zone" htmlFor="attendance-import-file">
+                  <input id="attendance-import-file" type="file" accept=".xlsx,.xls" onChange={(event) => handleImportFileChange(event.target.files?.[0] || null)} hidden />
+                  <span className="ah-upload-icon">📁</span>
+                  <span className="ah-upload-copy">Drag and drop or choose an Excel file</span>
+                  <span className="ah-upload-cta">Choose Excel File</span>
+                </label>
+                {importFile ? (
+                  <div className="ah-upload-meta">
+                    <strong>{importFile.name}</strong>
+                    <span>{(importFile.size / 1024 / 1024).toFixed(2)} MB</span>
+                  </div>
+                ) : null}
+                <button type="button" className="ah-btn ah-btn--outline" onClick={handleValidateImportFile} disabled={!importFile}>Validate File</button>
+              </div>
+            ) : null}
+
+            {importError ? <div className="ah-message ah-message--error">{importError}</div> : null}
+
+            {importPreview.length > 0 ? (
+              <div className="ah-import-preview">
+                <div className="ah-preview-summary">
+                  <div className="ah-preview-stat"><span>Total Rows</span><strong>{importSummary.total}</strong></div>
+                  <div className="ah-preview-stat success"><span>Valid</span><strong>{importSummary.ready}</strong></div>
+                  <div className="ah-preview-stat warning"><span>Warnings</span><strong>{importSummary.warnings}</strong></div>
+                  <div className="ah-preview-stat danger"><span>Errors</span><strong>{importSummary.errors}</strong></div>
+                </div>
+                <div className="ah-preview-table-wrap">
+                  <table className="ah-preview-table">
+                    <thead>
+                      <tr>
+                        <th>Row</th>
+                        <th>Participant ID</th>
+                        <th>Participant Name</th>
+                        <th>Date</th>
+                        <th>Time</th>
+                        <th>Status</th>
+                        <th>Activity</th>
+                        <th>Validation</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {importPreview.map((row) => (
+                        <tr key={`${row.rowNumber}-${row.participantId}`}>
+                          <td>{row.rowNumber}</td>
+                          <td>{row.participantId || "-"}</td>
+                          <td>{row.participantName || "-"}</td>
+                          <td>{row.date || "-"}</td>
+                          <td>{row.timeIn ? formatTime(row.timeIn) : "-"}</td>
+                          <td>{row.status || "-"}</td>
+                          <td>{row.activity || "-"}</td>
+                          <td>
+                            <span className={`ah-preview-badge ah-preview-badge--${String(row.validationState).toLowerCase()}`}>
+                              {row.validationMessage}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="ah-modal-actions">
+                  <button type="button" className="ah-btn ah-btn--outline" onClick={() => setIsImportModalOpen(false)}>Cancel</button>
+                  <button type="button" className="ah-btn ah-btn--primary" disabled={importSummary.errors > 0 || importing} onClick={handleImportAttendance}>
+                    {importing ? "Importing..." : "Import Valid Records"}
+                  </button>
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
       ) : null}

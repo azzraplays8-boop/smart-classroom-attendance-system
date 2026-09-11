@@ -37,6 +37,126 @@ import {
   isAttendanceModeAllowed,
 } from "../config/attendanceSchedule.js";
 
+const VALID_IMPORT_STATUS_VALUES = new Map([
+  ["present", "Present"],
+  ["late", "Late"],
+  ["absent", "Absent"],
+  ["excused", "Excused"],
+]);
+
+function normalizeAttendanceStatus(value) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  const normalized = raw.toLowerCase();
+  return VALID_IMPORT_STATUS_VALUES.get(normalized) || "";
+}
+
+function normalizeText(value) {
+  return String(value ?? "").replace(/\s+/g, " ").trim();
+}
+
+function normalizeImportKey(value) {
+  return String(value ?? "").trim().toLowerCase();
+}
+
+function parseExcelSerialDate(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const input = String(value).trim();
+  if (/^\d+(?:\.\d+)?$/.test(input)) {
+    try {
+      const serial = Number(input);
+      if (Number.isFinite(serial)) {
+        const parsed = new Date(Math.round((serial - 25569) * 86400 * 1000));
+        if (!Number.isNaN(parsed.getTime())) {
+          const y = parsed.getUTCFullYear();
+          const m = String(parsed.getUTCMonth() + 1).padStart(2, "0");
+          const d = String(parsed.getUTCDate()).padStart(2, "0");
+          return `${y}-${m}-${d}`;
+        }
+      }
+    } catch {
+      // ignore and fall through below
+    }
+  }
+
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    const y = value.getFullYear();
+    const m = String(value.getMonth() + 1).padStart(2, "0");
+    const d = String(value.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(input)) return input;
+  const match = input.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+  if (match) {
+    return `${match[1]}-${String(match[2]).padStart(2, "0")}-${String(match[3]).padStart(2, "0")}`;
+  }
+  return null;
+}
+
+function parseImportTime(value, dateValue) {
+  if (value === null || value === undefined || value === "") return null;
+
+  const raw = String(value).trim();
+  if (!raw) return null;
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const totalSeconds = Math.round((value % 1) * 86400);
+    const m = Math.floor(totalSeconds / 60);
+    const sec = totalSeconds % 60;
+    const hours = Math.floor(m / 60) % 24;
+    const minutes = m % 60;
+    return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
+  }
+
+  const timeMatch = raw.match(/^(\d{1,2})(?::(\d{2}))?(?::(\d{2}))?\s*(AM|PM)?$/i);
+  if (timeMatch) {
+    let hours = Number(timeMatch[1]);
+    const minutes = Number(timeMatch[2] || 0);
+    const seconds = Number(timeMatch[3] || 0);
+    const meridiem = String(timeMatch[4] || "").toUpperCase();
+    if (meridiem === "PM" && hours < 12) hours += 12;
+    if (meridiem === "AM" && hours === 12) hours = 0;
+    const isoDate = dateValue || "2000-01-01";
+    return `${isoDate} ${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  }
+
+  const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  if (isoMatch) {
+    return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]} ${String(Number(isoMatch[4])).padStart(2, "0")}:${String(Number(isoMatch[5])).padStart(2, "0")}:${String(Number(isoMatch[6] || 0)).padStart(2, "0")}`;
+  }
+
+  return null;
+}
+
+function getImportField(row, aliases) {
+  const candidates = aliases;
+  for (const key of candidates) {
+    if (row && Object.prototype.hasOwnProperty.call(row, key)) return row[key];
+    const normalized = normalizeImportKey(key);
+    const matchKey = Object.keys(row || {}).find((candidate) => normalizeImportKey(candidate) === normalized);
+    if (matchKey) return row[matchKey];
+  }
+  return "";
+}
+
+function buildImportValidationSummary(rows) {
+  const summary = { total: rows.length, ready: 0, warnings: 0, errors: 0 };
+  for (const row of rows) {
+    const state = String(row.validationState || "Ready").toLowerCase();
+    if (state === "error") summary.errors += 1;
+    else if (state === "warning") summary.warnings += 1;
+    else summary.ready += 1;
+  }
+  return summary;
+}
+
+function canImportAttendanceRecords(user) {
+  if (!user) return false;
+  if (user.role === "super_admin" || user.role === "administrator") return true;
+  return Boolean(user.permissions && user.permissions.includes(PERMISSION_KEYS.MANAGE_ATTENDANCE));
+}
+
 // ── Attendance settings helpers ────────────────────────────
 
 /**
@@ -424,6 +544,169 @@ const [rows] = await pool.query(
     } catch (err) {
       console.error("GET /attendance/history error:", err);
       res.status(500).json({ message: "Failed to fetch attendance history" });
+    }
+  });
+
+  router.get("/import-history", auth, async (req, res) => {
+    try {
+      if (!canImportAttendanceRecords(req.user)) {
+        return res.status(403).json({ message: "Access denied. Only administrators may view import history." });
+      }
+
+      const [rows] = await pool.query(
+        `SELECT id, filename, imported_by AS importedBy, imported_at AS importedAt,
+                total_rows AS totalRows, imported_rows AS importedRows,
+                duplicate_rows AS duplicateRows, failed_rows AS failedRows,
+                status, created_at AS createdAt
+         FROM attendance_import_logs
+         ORDER BY created_at DESC
+         LIMIT 20`
+      );
+      return res.json({ imports: rows || [] });
+    } catch (err) {
+      console.error("GET /attendance/import-history error:", err);
+      return res.status(500).json({ message: "Failed to fetch import history." });
+    }
+  });
+
+  router.post("/import", auth, async (req, res) => {
+    try {
+      if (!canImportAttendanceRecords(req.user)) {
+        return res.status(403).json({ message: "Access denied. Only Admin and Super Admin users can import attendance records." });
+      }
+
+      const rawRows = Array.isArray(req.body?.rows) ? req.body.rows : [];
+      const filename = String(req.body?.filename || "attendance-import.xlsx").trim() || "attendance-import.xlsx";
+
+      if (!rawRows.length) {
+        return res.status(400).json({ message: "No attendance rows were provided for import." });
+      }
+
+      const connection = pool.getConnection ? await pool.getConnection() : pool;
+      if (connection.beginTransaction) {
+        await connection.beginTransaction();
+      }
+
+      try {
+        const validationErrors = [];
+        const validRows = [];
+        const skippedDuplicates = [];
+        let importedCount = 0;
+
+        for (let index = 0; index < rawRows.length; index += 1) {
+          const row = rawRows[index] || {};
+          const participantIdRaw = getImportField(row, ["Participant ID", "participantId", "ParticipantId", "participant_identifier", "Participant Identifier"]);
+          const dateRaw = getImportField(row, ["Date", "attendanceDate", "date"]);
+          const timeInRaw = getImportField(row, ["Time In", "timeIn", "TimeIn"]);
+          const statusRaw = getImportField(row, ["Status", "status"]);
+          const activityRaw = getImportField(row, ["Activity / Session", "activity", "Session", "Activity"]);
+          const remarksRaw = getImportField(row, ["Remarks", "remarks", "Remark"]);
+
+          const participantId = normalizeText(participantIdRaw);
+          const status = normalizeAttendanceStatus(statusRaw);
+          const attendanceDate = parseExcelSerialDate(dateRaw);
+          const timeInCandidate = parseImportTime(timeInRaw, attendanceDate);
+
+          if (!participantId) {
+            validationErrors.push({ row: index + 2, participantId: participantId || "", reason: "Missing required field: Participant ID" });
+            continue;
+          }
+          if (!attendanceDate) {
+            validationErrors.push({ row: index + 2, participantId, reason: "Invalid date" });
+            continue;
+          }
+          if (!status) {
+            validationErrors.push({ row: index + 2, participantId, reason: "Invalid status" });
+            continue;
+          }
+
+          const [participantRows] = await connection.query(
+            `SELECT id, participant_identifier AS participantIdentifier, first_name AS firstName, last_name AS lastName,
+                    department, level AS year, group_name AS section
+             FROM participants
+             WHERE participant_identifier = ? LIMIT 1`,
+            [participantId]
+          );
+
+          if (!participantRows?.length) {
+            validationErrors.push({ row: index + 2, participantId, reason: "Participant not found" });
+            continue;
+          }
+
+          const participant = participantRows[0];
+          const [existingRows] = await connection.query(
+            `SELECT a.id
+             FROM attendance a
+             WHERE a.participant_id = ? AND a.attendance_date = ?
+             LIMIT 1`,
+            [participant.id, attendanceDate]
+          );
+
+          if (existingRows?.length) {
+            skippedDuplicates.push({ row: index + 2, participantId, reason: "Duplicate — already recorded" });
+            continue;
+          }
+
+          if ((status === "Present" || status === "Late") && !timeInCandidate) {
+            validationErrors.push({ row: index + 2, participantId, reason: "Missing required field: Time In" });
+            continue;
+          }
+
+          validRows.push({
+            participant_id: participant.id,
+            attendance_date: attendanceDate,
+            time_in: timeInCandidate,
+            status,
+            activity: normalizeText(activityRaw) || null,
+            remarks: normalizeText(remarksRaw) || null,
+            source: "import",
+          });
+        }
+
+        if (validRows.length) {
+          for (const row of validRows) {
+            await connection.query(
+              `INSERT INTO attendance (participant_id, attendance_date, time_in, status, activity, remarks, source, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, NOW())`,
+              [row.participant_id, row.attendance_date, row.time_in, row.status, row.activity, row.remarks, row.source]
+            );
+          }
+          importedCount = validRows.length;
+        }
+
+        await connection.query(
+          `INSERT INTO attendance_import_logs (filename, imported_by, total_rows, imported_rows, duplicate_rows, failed_rows, status, imported_at, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, 'completed', NOW(), NOW())`,
+          [filename, req.user?.full_name || req.user?.email || "System", rawRows.length, importedCount, skippedDuplicates.length, validationErrors.length]
+        );
+
+        if (connection.commit) {
+          await connection.commit();
+        }
+
+        return res.status(201).json({
+          message: "Attendance import completed.",
+          summary: {
+            totalSubmitted: rawRows.length,
+            imported: importedCount,
+            skippedDuplicates: skippedDuplicates.length,
+            failed: validationErrors.length,
+            validationErrors,
+          },
+        });
+      } catch (error) {
+        if (connection.rollback) {
+          await connection.rollback();
+        }
+        throw error;
+      } finally {
+        if (connection.release) {
+          connection.release();
+        }
+      }
+    } catch (err) {
+      console.error("POST /attendance/import error:", err);
+      return res.status(500).json({ message: "Failed to import attendance records." });
     }
   });
 
