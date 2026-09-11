@@ -492,118 +492,32 @@ function AttendanceHistory() {
 
   const downloadTemplate = async () => {
     try {
-      const participantsResponse = await authFetch("/participants");
-      const participantsData = await participantsResponse.json().catch(() => ({}));
-      const participants = Array.isArray(participantsData.participants) ? participantsData.participants : [];
-      const activeParticipants = participants.filter((participant) => {
-        const status = String(participant?.status ?? "Active").trim();
-        return !status || status.toLowerCase() === "active" || status.toLowerCase() === "enabled";
-      });
-
-      const workbook = XLSX.utils.book_new();
-      const worksheet = XLSX.utils.aoa_to_sheet([]);
-      const today = new Date();
-      const dateValue = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-      const sessionDate = new Date(`${dateValue}T12:00:00`);
-
-      worksheet["A1"] = { v: "KATAGA Attendance Import", s: { font: { bold: true, sz: 16 }, fill: { fgColor: { rgb: "D9EAF7" } }, alignment: { horizontal: "center" } } };
-      worksheet["A3"] = { v: "Attendance Session Details", s: { font: { bold: true } } };
-      worksheet["A4"] = { v: "Date" };
-      worksheet["B4"] = { v: sessionDate, t: "d", z: "mmmm d, yyyy" };
-      worksheet["A5"] = { v: "Activity / Session" };
-      worksheet["B5"] = { v: "" };
-      worksheet["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 8 } }];
-      worksheet["!freeze"] = { xSplit: 0, ySplit: 8 };
-
-      const headerRow = ["#", "Participant ID", "Participant Name", "Department / Group", "Year Level", "Section", "Status", "Time In", "Remarks"];
-      const headerStartRow = 8;
-      headerRow.forEach((header, index) => {
-        const cellAddress = XLSX.utils.encode_cell({ r: headerStartRow - 1, c: index });
-        worksheet[cellAddress] = {
-          v: header,
-          s: {
-            font: { bold: true },
-            fill: { fgColor: { rgb: "E9ECEF" } },
-            border: { top: { style: "thin", color: { rgb: "BDBDBD" } }, right: { style: "thin", color: { rgb: "BDBDBD" } }, bottom: { style: "thin", color: { rgb: "BDBDBD" } }, left: { style: "thin", color: { rgb: "BDBDBD" } } },
-            alignment: { horizontal: "center", vertical: "center" },
-          },
-        };
-      });
-
-      activeParticipants.forEach((participant, index) => {
-        const rowNumber = headerStartRow + index;
-        const participantIdentifier = String(participant.participantIdentifier || participant.participant_identifier || "").trim();
-        const participantName = [participant.firstName, participant.middleName, participant.lastName].filter(Boolean).join(" ").trim() || "";
-        const department = String(participant.department || "").trim();
-        const year = String(participant.year || participant.level || "").trim();
-        const section = String(participant.section || participant.group_name || "").trim();
-
-        worksheet[XLSX.utils.encode_cell({ r: rowNumber, c: 0 })] = { v: index + 1, t: "n" };
-        worksheet[XLSX.utils.encode_cell({ r: rowNumber, c: 1 })] = { v: participantIdentifier, t: "s" };
-        worksheet[XLSX.utils.encode_cell({ r: rowNumber, c: 2 })] = { v: participantName, t: "s" };
-        worksheet[XLSX.utils.encode_cell({ r: rowNumber, c: 3 })] = { v: department, t: "s" };
-        worksheet[XLSX.utils.encode_cell({ r: rowNumber, c: 4 })] = { v: year, t: "s" };
-        worksheet[XLSX.utils.encode_cell({ r: rowNumber, c: 5 })] = { v: section, t: "s" };
-        worksheet[XLSX.utils.encode_cell({ r: rowNumber, c: 6 })] = { v: "", t: "s" };
-        worksheet[XLSX.utils.encode_cell({ r: rowNumber, c: 7 })] = { v: "", t: "s" };
-        worksheet[XLSX.utils.encode_cell({ r: rowNumber, c: 8 })] = { v: "", t: "s" };
-
-        const participantLockedStyles = {
-          protection: { locked: true },
-          fill: { fgColor: { rgb: index % 2 === 0 ? "F7F9FC" : "FFFFFF" } },
-        };
-        [1, 2, 3, 4, 5].forEach((columnIndex) => {
-          const cellAddress = XLSX.utils.encode_cell({ r: rowNumber, c: columnIndex });
-          const cell = worksheet[cellAddress] || { v: "", t: "s" };
-          cell.s = { ...(cell.s || {}), ...participantLockedStyles };
-          worksheet[cellAddress] = cell;
-        });
-      });
-
-      const lastRowIndex = headerStartRow + Math.max(activeParticipants.length, 1) - 1;
-      worksheet["!dataValidation"] = [
-        {
-          type: "list",
-          allowBlank: true,
-          showDropDown: false,
-          sqref: `G${headerStartRow + 1}:G${lastRowIndex + 1}`,
-          formula1: '"Present,Late,Absent,Excused"',
-          promptTitle: "Attendance Status",
-          prompt: "Choose the attendance status for this participant.",
-        },
-      ];
-
-      worksheet["!cols"] = [
-        { wch: 8 }, { wch: 18 }, { wch: 24 }, { wch: 22 }, { wch: 18 }, { wch: 16 }, { wch: 16 }, { wch: 14 }, { wch: 28 },
-      ];
-
-      for (let rowIndex = headerStartRow; rowIndex <= lastRowIndex + 1; rowIndex += 1) {
-        for (let colIndex = 0; colIndex < 9; colIndex += 1) {
-          const cellAddress = XLSX.utils.encode_cell({ r: rowIndex, c: colIndex });
-          const cell = worksheet[cellAddress];
-          if (!cell) continue;
-          if (!cell.s) cell.s = {};
-          cell.s.border = {
-            top: { style: "thin", color: { rgb: "D9D9D9" } },
-            right: { style: "thin", color: { rgb: "D9D9D9" } },
-            bottom: { style: "thin", color: { rgb: "D9D9D9" } },
-            left: { style: "thin", color: { rgb: "D9D9D9" } },
-          };
-        }
+      const response = await authFetch("/attendance/import-template");
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data?.message || "Unable to load participants. Please try again.");
       }
 
-      if (activeParticipants.length === 0) {
-        worksheet[XLSX.utils.encode_cell({ r: 8, c: 1 })] = { v: "No active participants available." };
+      const blob = await response.blob();
+      if (!blob || blob.size === 0) {
+        throw new Error("Unable to load participants. Please try again.");
       }
 
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Attendance Import");
-      XLSX.writeFile(workbook, "attendance-import-template.xlsx");
+      const downloadUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = downloadUrl;
+      anchor.download = "attendance-import-template.xlsx";
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(downloadUrl);
+
       setTemplateDownloaded(true);
       setImportStep(2);
       setImportError("");
     } catch (error) {
-      console.error("Failed to build attendance template:", error);
-      setImportError(error?.message || "Unable to generate the attendance template right now.");
+      console.error("Failed to download attendance template:", error);
+      setImportError(error?.message || "Unable to load participants. Please try again.");
     }
   };
 
