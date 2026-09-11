@@ -115,6 +115,44 @@ test('attendance import allows admin to bulk import valid rows', async () => {
   }
 });
 
+test('attendance import accepts session-level date and skips blank status rows', async () => {
+  const pool = createImportPool();
+  const authedPool = wrapPoolForAuth(pool, 'administrator');
+  const app = express();
+  app.use(express.json({ limit: '10mb' }));
+  app.use('/attendance', attendanceRouter({ pool: authedPool }));
+
+  const server = createServer(app);
+  await new Promise((resolve) => server.listen(0, resolve));
+  const { port } = server.address();
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/attendance/import`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${makeToken('administrator')}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        filename: 'attendance_session_template.xlsx',
+        session: { date: '2026-09-11', activity: 'Flag Ceremony' },
+        rows: [
+          { 'Participant ID': 'P-1001', 'Participant Name': 'Juan Dela Cruz', Status: 'Present', 'Time In': '08:10 AM', Remarks: 'On time' },
+          { 'Participant ID': 'P-1002', 'Participant Name': 'Maria Santos', Status: '', 'Time In': '', Remarks: '' },
+        ],
+      }),
+    });
+
+    const body = await response.json();
+    assert.equal(response.status, 201);
+    assert.equal(body.summary.imported, 1);
+    assert.equal(body.summary.failed, 0);
+    assert.equal(body.summary.totalSubmitted, 2);
+  } finally {
+    await new Promise((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+  }
+});
+
 test('attendance import denies viewer access', async () => {
   const pool = createImportPool();
   const authedPool = wrapPoolForAuth(pool, 'viewer');

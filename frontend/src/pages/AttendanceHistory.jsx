@@ -490,26 +490,121 @@ function AttendanceHistory() {
     }
   };
 
-  const downloadTemplate = () => {
-    const headers = [
-      ["Attendance Import"],
-      ["Required: Participant ID, Date, Status. Recommended: Time In, Activity / Session."],
-      ["Participant ID", "Participant Name", "Date", "Time In", "Status", "Activity / Session", "Department / Group", "Year Level / Category", "Section", "Remarks"],
-      ["P-1001", "Juan Dela Cruz", "2026-09-10", "08:15 AM", "Present", "Orientation", "BSIT", "2nd Year", "A", "On time"],
-      ["P-1002", "Maria Santos", "2026-09-11", "", "Absent", "Flag Ceremony", "BSCS", "3rd Year", "B", "Health reason"],
-    ];
+  const downloadTemplate = async () => {
+    try {
+      const participantsResponse = await authFetch("/participants");
+      const participantsData = await participantsResponse.json().catch(() => ({}));
+      const participants = Array.isArray(participantsData.participants) ? participantsData.participants : [];
+      const activeParticipants = participants.filter((participant) => {
+        const status = String(participant?.status ?? "Active").trim();
+        return !status || status.toLowerCase() === "active" || status.toLowerCase() === "enabled";
+      });
 
-    const worksheet = XLSX.utils.aoa_to_sheet(headers);
-    worksheet["!cols"] = [
-      { wch: 18 }, { wch: 22 }, { wch: 14 }, { wch: 16 }, { wch: 14 }, { wch: 20 }, { wch: 20 }, { wch: 20 }, { wch: 16 }, { wch: 22 },
-    ];
+      const workbook = XLSX.utils.book_new();
+      const worksheet = XLSX.utils.aoa_to_sheet([]);
+      const today = new Date();
+      const dateValue = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+      const sessionDate = new Date(`${dateValue}T12:00:00`);
 
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Attendance Import");
-    XLSX.writeFile(workbook, "attendance-import-template.xlsx");
-    setTemplateDownloaded(true);
-    setImportStep(2);
-    setImportError("");
+      worksheet["A1"] = { v: "KATAGA Attendance Import", s: { font: { bold: true, sz: 16 }, fill: { fgColor: { rgb: "D9EAF7" } }, alignment: { horizontal: "center" } } };
+      worksheet["A3"] = { v: "Attendance Session Details", s: { font: { bold: true } } };
+      worksheet["A4"] = { v: "Date" };
+      worksheet["B4"] = { v: sessionDate, t: "d", z: "mmmm d, yyyy" };
+      worksheet["A5"] = { v: "Activity / Session" };
+      worksheet["B5"] = { v: "" };
+      worksheet["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 8 } }];
+      worksheet["!freeze"] = { xSplit: 0, ySplit: 8 };
+
+      const headerRow = ["#", "Participant ID", "Participant Name", "Department / Group", "Year Level", "Section", "Status", "Time In", "Remarks"];
+      const headerStartRow = 8;
+      headerRow.forEach((header, index) => {
+        const cellAddress = XLSX.utils.encode_cell({ r: headerStartRow - 1, c: index });
+        worksheet[cellAddress] = {
+          v: header,
+          s: {
+            font: { bold: true },
+            fill: { fgColor: { rgb: "E9ECEF" } },
+            border: { top: { style: "thin", color: { rgb: "BDBDBD" } }, right: { style: "thin", color: { rgb: "BDBDBD" } }, bottom: { style: "thin", color: { rgb: "BDBDBD" } }, left: { style: "thin", color: { rgb: "BDBDBD" } } },
+            alignment: { horizontal: "center", vertical: "center" },
+          },
+        };
+      });
+
+      activeParticipants.forEach((participant, index) => {
+        const rowNumber = headerStartRow + index;
+        const participantIdentifier = String(participant.participantIdentifier || participant.participant_identifier || "").trim();
+        const participantName = [participant.firstName, participant.middleName, participant.lastName].filter(Boolean).join(" ").trim() || "";
+        const department = String(participant.department || "").trim();
+        const year = String(participant.year || participant.level || "").trim();
+        const section = String(participant.section || participant.group_name || "").trim();
+
+        worksheet[XLSX.utils.encode_cell({ r: rowNumber, c: 0 })] = { v: index + 1, t: "n" };
+        worksheet[XLSX.utils.encode_cell({ r: rowNumber, c: 1 })] = { v: participantIdentifier, t: "s" };
+        worksheet[XLSX.utils.encode_cell({ r: rowNumber, c: 2 })] = { v: participantName, t: "s" };
+        worksheet[XLSX.utils.encode_cell({ r: rowNumber, c: 3 })] = { v: department, t: "s" };
+        worksheet[XLSX.utils.encode_cell({ r: rowNumber, c: 4 })] = { v: year, t: "s" };
+        worksheet[XLSX.utils.encode_cell({ r: rowNumber, c: 5 })] = { v: section, t: "s" };
+        worksheet[XLSX.utils.encode_cell({ r: rowNumber, c: 6 })] = { v: "", t: "s" };
+        worksheet[XLSX.utils.encode_cell({ r: rowNumber, c: 7 })] = { v: "", t: "s" };
+        worksheet[XLSX.utils.encode_cell({ r: rowNumber, c: 8 })] = { v: "", t: "s" };
+
+        const participantLockedStyles = {
+          protection: { locked: true },
+          fill: { fgColor: { rgb: index % 2 === 0 ? "F7F9FC" : "FFFFFF" } },
+        };
+        [1, 2, 3, 4, 5].forEach((columnIndex) => {
+          const cellAddress = XLSX.utils.encode_cell({ r: rowNumber, c: columnIndex });
+          const cell = worksheet[cellAddress] || { v: "", t: "s" };
+          cell.s = { ...(cell.s || {}), ...participantLockedStyles };
+          worksheet[cellAddress] = cell;
+        });
+      });
+
+      const lastRowIndex = headerStartRow + Math.max(activeParticipants.length, 1) - 1;
+      worksheet["!dataValidation"] = [
+        {
+          type: "list",
+          allowBlank: true,
+          showDropDown: false,
+          sqref: `G${headerStartRow + 1}:G${lastRowIndex + 1}`,
+          formula1: '"Present,Late,Absent,Excused"',
+          promptTitle: "Attendance Status",
+          prompt: "Choose the attendance status for this participant.",
+        },
+      ];
+
+      worksheet["!cols"] = [
+        { wch: 8 }, { wch: 18 }, { wch: 24 }, { wch: 22 }, { wch: 18 }, { wch: 16 }, { wch: 16 }, { wch: 14 }, { wch: 28 },
+      ];
+
+      for (let rowIndex = headerStartRow; rowIndex <= lastRowIndex + 1; rowIndex += 1) {
+        for (let colIndex = 0; colIndex < 9; colIndex += 1) {
+          const cellAddress = XLSX.utils.encode_cell({ r: rowIndex, c: colIndex });
+          const cell = worksheet[cellAddress];
+          if (!cell) continue;
+          if (!cell.s) cell.s = {};
+          cell.s.border = {
+            top: { style: "thin", color: { rgb: "D9D9D9" } },
+            right: { style: "thin", color: { rgb: "D9D9D9" } },
+            bottom: { style: "thin", color: { rgb: "D9D9D9" } },
+            left: { style: "thin", color: { rgb: "D9D9D9" } },
+          };
+        }
+      }
+
+      if (activeParticipants.length === 0) {
+        worksheet[XLSX.utils.encode_cell({ r: 8, c: 1 })] = { v: "No active participants available." };
+      }
+
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Attendance Import");
+      XLSX.writeFile(workbook, "attendance-import-template.xlsx");
+      setTemplateDownloaded(true);
+      setImportStep(2);
+      setImportError("");
+    } catch (error) {
+      console.error("Failed to build attendance template:", error);
+      setImportError(error?.message || "Unable to generate the attendance template right now.");
+    }
   };
 
   const parseImportDate = (value) => {
@@ -565,7 +660,38 @@ function AttendanceHistory() {
     return map[key] || "";
   };
 
-  const validateAttendanceImportRows = async (rows) => {
+  const extractAttendanceImportSheetData = (sheet) => {
+    const rawRows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, blankrows: false, defval: "" });
+    const session = { date: "", activity: "" };
+
+    rawRows.forEach((row) => {
+      if (!Array.isArray(row) || row.length === 0) return;
+      const firstValue = String(row[0] ?? "").trim();
+      const secondValue = String(row[1] ?? "").trim();
+      if (!firstValue && !secondValue) return;
+      if (/^date$/i.test(firstValue)) session.date = secondValue;
+      if (/^activity\s*\/\s*session$/i.test(firstValue) || /^activity$/i.test(firstValue)) session.activity = secondValue;
+    });
+
+    const headerIndex = rawRows.findIndex((row) => Array.isArray(row) && row.some((cell) => /participant id/i.test(String(cell || ""))));
+    if (headerIndex === -1) {
+      return { rows: [], session };
+    }
+
+    const headers = rawRows[headerIndex].map((cell) => String(cell || "").trim());
+    const rows = rawRows.slice(headerIndex + 1).map((row) => {
+      const object = {};
+      headers.forEach((header, index) => {
+        if (!header) return;
+        object[header] = Array.isArray(row) ? row[index] ?? "" : "";
+      });
+      return object;
+    }).filter((row) => Object.values(row).some((value) => String(value ?? "").trim() !== ""));
+
+    return { rows, session };
+  };
+
+  const validateAttendanceImportRows = async (rows, session = {}) => {
     const participantMap = new Map();
     const participantsResponse = await authFetch("/participants");
     const participantsData = await participantsResponse.json().catch(() => ({}));
@@ -574,54 +700,65 @@ function AttendanceHistory() {
       participantMap.set(String(participant.participantIdentifier || participant.participant_identifier || "").trim(), participant);
     });
 
-    const normalizedRows = rows.map((row, index) => {
+    const filteredRows = rows.filter((row) => {
+      const status = normalizeStatusValue(row["Status"] ?? row.status ?? "");
       const participantId = String(row["Participant ID"] ?? row.participantId ?? row.participant_identifier ?? "").trim();
       const participantName = String(row["Participant Name"] ?? row.participantName ?? "").trim();
-      const date = parseImportDate(row["Date"] ?? row.date ?? "");
-      const timeIn = parseImportTime(row["Time In"] ?? row.timeIn ?? "", date);
-      const status = normalizeStatusValue(row["Status"] ?? row.status ?? "");
-      const activity = String(row["Activity / Session"] ?? row.activity ?? "").trim();
-      const validation = {
-        rowNumber: index + 2,
-        participantId,
-        participantName,
-        date,
-        timeIn,
-        status,
-        activity,
-        validationState: "Ready",
-        validationMessage: "Ready",
-        raw: row,
-      };
-
-      if (!participantId) {
-        validation.validationState = "Error";
-        validation.validationMessage = "Missing required field";
-      } else if (!participantMap.has(participantId)) {
-        validation.validationState = "Error";
-        validation.validationMessage = "Participant ID not found";
-      } else if (!date) {
-        validation.validationState = "Error";
-        validation.validationMessage = "Invalid date";
-      } else if (!status) {
-        validation.validationState = "Error";
-        validation.validationMessage = "Invalid status";
-      } else if ((status === "Present" || status === "Late") && !timeIn) {
-        validation.validationState = "Warning";
-        validation.validationMessage = "Time In recommended";
-      } else {
-        const duplicate = records.find((record) => {
-          if (!record.participantIdentifier) return false;
-          return String(record.participantIdentifier).trim() === participantId && formatDate(record.attendanceDate) === date;
-        });
-        if (duplicate) {
-          validation.validationState = "Warning";
-          validation.validationMessage = "Duplicate — already recorded";
-        }
-      }
-
-      return validation;
+      return Boolean(status || participantId || participantName || row["Time In"] || row.timeIn || row["Remarks"] || row.remarks);
     });
+
+    const normalizedRows = filteredRows
+      .map((row, index) => {
+        const participantId = String(row["Participant ID"] ?? row.participantId ?? row.participant_identifier ?? "").trim();
+        const participantName = String(row["Participant Name"] ?? row.participantName ?? "").trim();
+        const date = parseImportDate(row["Date"] ?? row.date ?? session.date ?? "");
+        const timeIn = parseImportTime(row["Time In"] ?? row.timeIn ?? "", date);
+        const status = normalizeStatusValue(row["Status"] ?? row.status ?? "");
+        const activity = String(row["Activity / Session"] ?? row.activity ?? session.activity ?? "").trim();
+
+        if (!status) {
+          return null;
+        }
+
+        const validation = {
+          rowNumber: index + 2,
+          participantId,
+          participantName,
+          date,
+          timeIn,
+          status,
+          activity,
+          validationState: "Ready",
+          validationMessage: "Ready",
+          raw: { ...row, Date: date || row["Date"] || row.date || session.date || "", "Activity / Session": activity || row["Activity / Session"] || row.activity || session.activity || "", Status: status, "Time In": timeIn || row["Time In"] || row.timeIn || "" },
+        };
+
+        if (!participantId) {
+          validation.validationState = "Error";
+          validation.validationMessage = "Missing required field";
+        } else if (!participantMap.has(participantId)) {
+          validation.validationState = "Error";
+          validation.validationMessage = "Participant ID not found";
+        } else if (!date) {
+          validation.validationState = "Error";
+          validation.validationMessage = "Invalid date";
+        } else if ((status === "Present" || status === "Late") && !timeIn) {
+          validation.validationState = "Warning";
+          validation.validationMessage = "Time In required";
+        } else {
+          const duplicate = records.find((record) => {
+            if (!record.participantIdentifier) return false;
+            return String(record.participantIdentifier).trim() === participantId && formatDate(record.attendanceDate) === date;
+          });
+          if (duplicate) {
+            validation.validationState = "Warning";
+            validation.validationMessage = "Duplicate — already recorded";
+          }
+        }
+
+        return validation;
+      })
+      .filter(Boolean);
 
     const nextSummary = {
       total: normalizedRows.length,
@@ -664,8 +801,8 @@ function AttendanceHistory() {
       const workbook = XLSX.read(new Uint8Array(buffer), { type: "array" });
       const sheetName = workbook.SheetNames[0];
       const sheet = workbook.Sheets[sheetName];
-      const rows = XLSX.utils.sheet_to_json(sheet, { defval: "", raw: false, blankrows: false });
-      await validateAttendanceImportRows(rows);
+      const { rows, session } = extractAttendanceImportSheetData(sheet);
+      await validateAttendanceImportRows(rows, session);
       setImportStep(3);
     } catch (err) {
       setImportError(err?.message || "The spreadsheet could not be read. Please use the official template.");
@@ -684,10 +821,18 @@ function AttendanceHistory() {
 
     try {
       setImporting(true);
+      const session = {
+        date: importPreview.find((row) => row.date)?.date || "",
+        activity: importPreview.find((row) => row.activity)?.activity || "",
+      };
       const res = await authFetch("/attendance/import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filename: importFile?.name || "attendance-import.xlsx", rows: rowsToImport }),
+        body: JSON.stringify({
+          filename: importFile?.name || "attendance-import.xlsx",
+          session,
+          rows: rowsToImport,
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.message || "Failed to import attendance records.");

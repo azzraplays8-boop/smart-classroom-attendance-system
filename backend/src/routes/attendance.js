@@ -577,6 +577,9 @@ const [rows] = await pool.query(
 
       const rawRows = Array.isArray(req.body?.rows) ? req.body.rows : [];
       const filename = String(req.body?.filename || "attendance-import.xlsx").trim() || "attendance-import.xlsx";
+      const session = req.body?.session || {};
+      const fallbackSessionDate = parseExcelSerialDate(getImportField(session, ["date", "Date", "attendanceDate"])) || parseExcelSerialDate(getImportField(session, ["sessionDate", "Session Date"]));
+      const fallbackSessionActivity = normalizeText(getImportField(session, ["activity", "Activity", "Activity / Session", "sessionActivity"]));
 
       if (!rawRows.length) {
         return res.status(400).json({ message: "No attendance rows were provided for import." });
@@ -604,8 +607,13 @@ const [rows] = await pool.query(
 
           const participantId = normalizeText(participantIdRaw);
           const status = normalizeAttendanceStatus(statusRaw);
-          const attendanceDate = parseExcelSerialDate(dateRaw);
+          const attendanceDate = parseExcelSerialDate(dateRaw) || fallbackSessionDate || parseExcelSerialDate(getImportField(row, ["Attendance Date", "attendance_date"]));
           const timeInCandidate = parseImportTime(timeInRaw, attendanceDate);
+          const normalizedActivity = normalizeText(activityRaw) || fallbackSessionActivity || null;
+
+          if (!status) {
+            continue;
+          }
 
           if (!participantId) {
             validationErrors.push({ row: index + 2, participantId: participantId || "", reason: "Missing required field: Participant ID" });
@@ -657,7 +665,7 @@ const [rows] = await pool.query(
             attendance_date: attendanceDate,
             time_in: timeInCandidate,
             status,
-            activity: normalizeText(activityRaw) || null,
+            activity: normalizedActivity,
             remarks: normalizeText(remarksRaw) || null,
             source: "import",
           });
