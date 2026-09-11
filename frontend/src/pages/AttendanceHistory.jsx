@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -103,6 +103,8 @@ function AttendanceHistory() {
   const [importHistory, setImportHistory] = useState([]);
   const [importError, setImportError] = useState("");
   const [importStep, setImportStep] = useState(1);
+  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
+  const exportMenuRef = useRef(null);
   const canBulkDelete = user?.role === "super_admin" || user?.role === "administrator";
   const canImportAttendance = user?.role === "super_admin" || user?.role === "administrator";
   const selectedCount = selectedIds.length;
@@ -409,6 +411,28 @@ function AttendanceHistory() {
   useEffect(() => {
     fetchHistory(1);
     fetchImportHistory();
+  }, []);
+
+  useEffect(() => {
+    const handlePointerDown = (event) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(event.target)) {
+        setIsExportMenuOpen(false);
+      }
+    };
+
+    const handleEscape = (event) => {
+      if (event.key === "Escape") {
+        setIsExportMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleEscape);
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleEscape);
+    };
   }, []);
 
   const courseOptions = useMemo(() => {
@@ -821,7 +845,11 @@ function AttendanceHistory() {
       <div className="ah-header">
         <div className="ah-header-left">
           <h2 className="ah-title">Attendance Records</h2>
-          <p className="ah-subtitle">Search, review, import, export, and manage attendance records.</p>
+          <p className="ah-subtitle">Review, filter, import, export, and manage attendance records.</p>
+          <div className="ah-period-indicator">
+            <span className="ah-period-label">Current period</span>
+            <span className="ah-period-value">{periodLabel}</span>
+          </div>
         </div>
         <div className="ah-top-actions">
           {canImportAttendance ? (
@@ -829,10 +857,27 @@ function AttendanceHistory() {
               Import Attendance
             </button>
           ) : null}
-          <div className="ah-export-menu">
-            <button type="button" className="ah-btn ah-btn--outline" onClick={handleExportPdf}>Export PDF</button>
-            <button type="button" className="ah-btn ah-btn--outline" onClick={handleExportExcel}>Export Excel</button>
-            <button type="button" className="ah-btn ah-btn--outline" onClick={handlePrint}>Print</button>
+          <div className="ah-export-menu" ref={exportMenuRef}>
+            <button
+              type="button"
+              className="ah-btn ah-btn--secondary"
+              onClick={() => setIsExportMenuOpen((open) => !open)}
+            >
+              Export
+            </button>
+            {isExportMenuOpen ? (
+              <div className="ah-export-dropdown" role="menu">
+                <button type="button" className="ah-export-option" onClick={() => { setIsExportMenuOpen(false); handleExportPdf(); }}>
+                  Export PDF
+                </button>
+                <button type="button" className="ah-export-option" onClick={() => { setIsExportMenuOpen(false); handleExportExcel(); }}>
+                  Export Excel
+                </button>
+                <button type="button" className="ah-export-option" onClick={() => { setIsExportMenuOpen(false); handlePrint(); }}>
+                  Print
+                </button>
+              </div>
+            ) : null}
           </div>
           <Link to="/attendance" className="ah-back-link">
             Back to Attendance Recording
@@ -877,12 +922,6 @@ function AttendanceHistory() {
             <div className="ah-stat-value">{summary.excused}</div>
           </div>
         </div>
-      </div>
-
-      {/* Period indicator */}
-      <div className="ah-period-indicator">
-        <span className="ah-period-label">Attendance Period</span>
-        <span className="ah-period-value">{periodLabel}</span>
       </div>
 
       {/* Filters */}
@@ -1011,14 +1050,18 @@ function AttendanceHistory() {
           <div className="ah-bulk-selection">
             <strong>{selectedCount}</strong> selected
           </div>
-          <button
-            type="button"
-            className="ah-btn ah-btn--danger"
-            disabled={selectedCount === 0 || isBulkDeleting}
-            onClick={handleBulkDelete}
-          >
-            {isBulkDeleting ? "Deleting..." : selectedCount > 0 ? `Delete Selected (${selectedCount})` : "Delete Selected"}
-          </button>
+          {selectedCount > 0 ? (
+            <button
+              type="button"
+              className="ah-btn ah-btn--danger"
+              disabled={isBulkDeleting}
+              onClick={handleBulkDelete}
+            >
+              {isBulkDeleting ? "Deleting..." : `Delete Selected (${selectedCount})`}
+            </button>
+          ) : (
+            <span className="ah-toolbar-hint">Select records to delete</span>
+          )}
         </div>
       ) : null}
 
@@ -1129,6 +1172,7 @@ function AttendanceHistory() {
                 <tr>
                   <td colSpan={canBulkDelete ? 11 : 10} className="ah-table-state">
                     <div className="ah-empty-state">
+                      <div className="ah-empty-icon" aria-hidden="true">📋</div>
                       <h4>No attendance records for {periodLabel}</h4>
                       <p>Record attendance through QR Check-in or import previous attendance records.</p>
                       <div className="ah-empty-actions">
