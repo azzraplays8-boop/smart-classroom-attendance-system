@@ -12,11 +12,12 @@
  * from continuing to use a previously-issued (still non-expired) JWT token.
  */
 import jwt from "jsonwebtoken";
+import "../env.js";
 import { findUserByIdForAuth } from "./permissions.js";
 
-// JWT_SECRET is required in production. Fail fast if it is missing rather than
-// silently falling back to a hardcoded development secret.
-const JWT_SECRET = process.env.JWT_SECRET;
+// JWT_SECRET is required in production. For tests, allow a deterministic
+// fallback so the authentication layer can be imported without a .env file.
+const JWT_SECRET = process.env.JWT_SECRET || (process.env.NODE_ENV === "test" ? "test-secret-key-for-testing" : undefined);
 if (!JWT_SECRET) {
   throw new Error("JWT_SECRET environment variable is required. Set it before starting the server.");
 }

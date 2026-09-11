@@ -13,8 +13,8 @@ function createStubPool(initialRows) {
       const normalizedSql = String(sql).trim();
 
       if (normalizedSql.startsWith('UPDATE attendance')) {
-        const id = Number(params?.[3]);
-        rows = rows.map((row) => (row.id === id ? { ...row, attendanceDate: params?.[0], timeIn: params?.[1], status: params?.[2] } : row));
+        const id = Number(params?.[4]);
+        rows = rows.map((row) => (row.id === id ? { ...row, attendanceDate: params?.[0], timeIn: params?.[1], status: params?.[2], remarks: params?.[3] ?? row.remarks } : row));
         return [{ affectedRows: 1 }];
       }
 

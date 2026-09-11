@@ -103,7 +103,9 @@ function AttendanceHistory() {
   const [importHistory, setImportHistory] = useState([]);
   const [importError, setImportError] = useState("");
   const [importStep, setImportStep] = useState(1);
+  const [templateDownloaded, setTemplateDownloaded] = useState(false);
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
+  const [shouldRenderPrintReport, setShouldRenderPrintReport] = useState(false);
   const exportMenuRef = useRef(null);
   const canBulkDelete = user?.role === "super_admin" || user?.role === "administrator";
   const canImportAttendance = user?.role === "super_admin" || user?.role === "administrator";
@@ -199,6 +201,21 @@ function AttendanceHistory() {
     }
 
     return Array.isArray(data.records) ? data.records : [];
+  };
+
+  const resetImportModal = () => {
+    setImportFile(null);
+    setImportPreview([]);
+    setImportSummary({ total: 0, ready: 0, warnings: 0, errors: 0 });
+    setImportValidationState("idle");
+    setImportError("");
+    setImportStep(1);
+    setTemplateDownloaded(false);
+  };
+
+  const handleCloseImportModal = () => {
+    resetImportModal();
+    setIsImportModalOpen(false);
   };
 
   const handleExportPdf = async () => {
@@ -399,8 +416,10 @@ function AttendanceHistory() {
       setError("");
       setExportMessage("");
       setPrintRecords(exportRows);
+      setShouldRenderPrintReport(true);
       setTimeout(() => {
         window.print();
+        setTimeout(() => setShouldRenderPrintReport(false), 150);
       }, 100);
     } catch (err) {
       setError(err?.message || "Unable to print attendance report.");
@@ -488,6 +507,9 @@ function AttendanceHistory() {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Attendance Import");
     XLSX.writeFile(workbook, "attendance-import-template.xlsx");
+    setTemplateDownloaded(true);
+    setImportStep(2);
+    setImportError("");
   };
 
   const parseImportDate = (value) => {
@@ -619,6 +641,7 @@ function AttendanceHistory() {
     if (!["xlsx", "xls"].includes(ext || "")) {
       setImportError("Unsupported file type. Please upload an .xlsx or .xls file.");
       setImportFile(null);
+      setImportStep(2);
       return;
     }
 
@@ -627,6 +650,7 @@ function AttendanceHistory() {
     setImportValidationState("idle");
     setImportPreview([]);
     setImportSummary({ total: 0, ready: 0, warnings: 0, errors: 0 });
+    setImportStep(3);
   };
 
   const handleValidateImportFile = async () => {
@@ -668,11 +692,7 @@ function AttendanceHistory() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.message || "Failed to import attendance records.");
       showToast("success", `${data?.summary?.imported ?? rowsToImport.length} attendance records imported successfully.`);
-      setImportFile(null);
-      setImportPreview([]);
-      setImportSummary({ total: 0, ready: 0, warnings: 0, errors: 0 });
-      setImportValidationState("idle");
-      setImportStep(1);
+      resetImportModal();
       setIsImportModalOpen(false);
       await fetchHistory(1);
       await fetchImportHistory();
@@ -1045,23 +1065,19 @@ function AttendanceHistory() {
       {error ? <div className="ah-message ah-message--error">{error}</div> : null}
       {exportMessage ? <div className="ah-message ah-message--success">{exportMessage}</div> : null}
 
-      {canBulkDelete ? (
+      {canBulkDelete && records.length > 0 && selectedCount > 0 ? (
         <div className="ah-bulk-toolbar">
           <div className="ah-bulk-selection">
             <strong>{selectedCount}</strong> selected
           </div>
-          {selectedCount > 0 ? (
-            <button
-              type="button"
-              className="ah-btn ah-btn--danger"
-              disabled={isBulkDeleting}
-              onClick={handleBulkDelete}
-            >
-              {isBulkDeleting ? "Deleting..." : `Delete Selected (${selectedCount})`}
-            </button>
-          ) : (
-            <span className="ah-toolbar-hint">Select records to delete</span>
-          )}
+          <button
+            type="button"
+            className="ah-btn ah-btn--danger"
+            disabled={isBulkDeleting}
+            onClick={handleBulkDelete}
+          >
+            {isBulkDeleting ? "Deleting..." : `Delete Selected`}
+          </button>
         </div>
       ) : null}
 
@@ -1083,50 +1099,52 @@ function AttendanceHistory() {
       </div>
 
       {/* Printable Report (for print) */}
-      <div className="printable-report" aria-hidden="true">
-        <div className="printable-report__header">
-          <h3>Organization Name</h3>
-          <p>Attendance Management Platform</p>
-          <h4>Attendance Report</h4>
-          <span>Export Date: {new Date().toLocaleString()}</span>
-        </div>
-        <table className="printable-report__table">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Date</th>
-              <th>Participant Number</th>
-              <th>Participant Name</th>
-              <th>Course / Strand</th>
-              <th>Year Level</th>
-              <th>Section</th>
-              <th>Time In</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {printRecords.length === 0 ? (
+      {shouldRenderPrintReport ? (
+        <div className="printable-report print-only" aria-hidden="true">
+          <div className="printable-report__header">
+            <h3>Organization Name</h3>
+            <p>Attendance Management Platform</p>
+            <h4>Attendance Report</h4>
+            <span>Export Date: {new Date().toLocaleString()}</span>
+          </div>
+          <table className="printable-report__table">
+            <thead>
               <tr>
-                <td colSpan={9}>No attendance records available for export.</td>
+                <th>#</th>
+                <th>Date</th>
+                <th>Participant Number</th>
+                <th>Participant Name</th>
+                <th>Course / Strand</th>
+                <th>Year Level</th>
+                <th>Section</th>
+                <th>Time In</th>
+                <th>Status</th>
               </tr>
-            ) : (
-              printRecords.map((record, index) => (
-                <tr key={record.id || `${record.participantIdentifier}-${index}`}>
-                  <td>{index + 1}</td>
-                  <td>{formatDate(record.attendanceDate)}</td>
-                  <td>{record.participantIdentifier || "-"}</td>
-                  <td>{[record.firstName, record.lastName].filter(Boolean).join(" ") || "-"}</td>
-                  <td>{record.course || "-"}</td>
-                  <td>{record.year || "-"}</td>
-                  <td>{record.section || "-"}</td>
-                  <td>{formatTime(record.timeIn)}</td>
-                  <td>{record.status || "-"}</td>
+            </thead>
+            <tbody>
+              {printRecords.length === 0 ? (
+                <tr>
+                  <td colSpan={9}>No attendance records available for export.</td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+              ) : (
+                printRecords.map((record, index) => (
+                  <tr key={record.id || `${record.participantIdentifier}-${index}`}>
+                    <td>{index + 1}</td>
+                    <td>{formatDate(record.attendanceDate)}</td>
+                    <td>{record.participantIdentifier || "-"}</td>
+                    <td>{[record.firstName, record.lastName].filter(Boolean).join(" ") || "-"}</td>
+                    <td>{record.course || "-"}</td>
+                    <td>{record.year || "-"}</td>
+                    <td>{record.section || "-"}</td>
+                    <td>{formatTime(record.timeIn)}</td>
+                    <td>{record.status || "-"}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
 
       {/* Attendance Table */}
       <div className="ah-table-card">
@@ -1263,46 +1281,54 @@ function AttendanceHistory() {
       ) : null}
 
       {isImportModalOpen ? (
-        <div className="ah-modal-overlay" onClick={() => setIsImportModalOpen(false)}>
+        <div className="ah-modal-overlay" onClick={handleCloseImportModal}>
           <div className="ah-modal-card ah-import-modal" onClick={(event) => event.stopPropagation()}>
             <div className="ah-import-header">
               <div>
                 <h3 className="ah-modal-title">Import Attendance Records</h3>
                 <p className="ah-import-subtitle">Upload previous attendance records using the official Excel template.</p>
               </div>
-              <button type="button" className="ah-close-btn" onClick={() => setIsImportModalOpen(false)} aria-label="Close import modal">×</button>
+              <button type="button" className="ah-close-btn" onClick={handleCloseImportModal} aria-label="Close import modal">×</button>
             </div>
 
-            <div className="ah-import-steps">
-              <div className={`ah-step ${importStep >= 1 ? "active" : ""}`}><span>1</span> Download Template</div>
-              <div className={`ah-step ${importStep >= 2 ? "active" : ""}`}><span>2</span> Upload File</div>
-              <div className={`ah-step ${importStep >= 3 ? "active" : ""}`}><span>3</span> Validate & Preview</div>
+            <div className="ah-import-steps" aria-label="Attendance import progress">
+              <div className={`ah-step ${templateDownloaded ? "completed" : importStep === 1 ? "active" : "upcoming"}`}>
+                <span>{templateDownloaded ? "✓" : 1}</span>
+                Download Template
+              </div>
+              <div className={`ah-step ${importFile ? "completed" : importStep === 2 ? "active" : "upcoming"}`}>
+                <span>{importFile ? "✓" : 2}</span>
+                Upload File
+              </div>
+              <div className={`ah-step ${importPreview.length > 0 ? "completed" : importStep === 3 ? "active" : "upcoming"}`}>
+                <span>3</span>
+                Validate & Preview
+              </div>
             </div>
 
-            {importStep >= 1 ? (
-              <div className="ah-import-panel">
-                <button type="button" className="ah-btn ah-btn--primary" onClick={downloadTemplate}>Download Excel Template</button>
-                <small className="ah-helper-text">Use this format to avoid import errors.</small>
-              </div>
-            ) : null}
+            <div className="ah-import-panel">
+              <button type="button" className="ah-btn ah-btn--primary" onClick={downloadTemplate}>Download Excel Template</button>
+              <small className="ah-helper-text">Use this format to avoid import errors.</small>
+              {templateDownloaded ? (
+                <div className="ah-message ah-message--success ae-inline-message">Template downloaded. You can now upload your completed file.</div>
+              ) : null}
+            </div>
 
-            {importStep >= 2 ? (
-              <div className="ah-import-panel">
-                <label className="ah-upload-zone" htmlFor="attendance-import-file">
-                  <input id="attendance-import-file" type="file" accept=".xlsx,.xls" onChange={(event) => handleImportFileChange(event.target.files?.[0] || null)} hidden />
-                  <span className="ah-upload-icon">📁</span>
-                  <span className="ah-upload-copy">Drag and drop or choose an Excel file</span>
-                  <span className="ah-upload-cta">Choose Excel File</span>
-                </label>
-                {importFile ? (
-                  <div className="ah-upload-meta">
-                    <strong>{importFile.name}</strong>
-                    <span>{(importFile.size / 1024 / 1024).toFixed(2)} MB</span>
-                  </div>
-                ) : null}
-                <button type="button" className="ah-btn ah-btn--outline" onClick={handleValidateImportFile} disabled={!importFile}>Validate File</button>
-              </div>
-            ) : null}
+            <div className="ah-import-panel">
+              <label className="ah-upload-zone" htmlFor="attendance-import-file">
+                <input id="attendance-import-file" type="file" accept=".xlsx,.xls" onChange={(event) => handleImportFileChange(event.target.files?.[0] || null)} hidden />
+                <span className="ah-upload-icon">📁</span>
+                <span className="ah-upload-copy">Drag and drop or choose an Excel file</span>
+                <span className="ah-upload-cta">Choose Excel File</span>
+              </label>
+              {importFile ? (
+                <div className="ah-upload-meta">
+                  <strong>{importFile.name}</strong>
+                  <span>{(importFile.size / 1024 / 1024).toFixed(2)} MB</span>
+                </div>
+              ) : null}
+              <button type="button" className="ah-btn ah-btn--outline" onClick={handleValidateImportFile} disabled={!importFile}>Validate & Preview</button>
+            </div>
 
             {importError ? <div className="ah-message ah-message--error">{importError}</div> : null}
 
@@ -1349,7 +1375,7 @@ function AttendanceHistory() {
                   </table>
                 </div>
                 <div className="ah-modal-actions">
-                  <button type="button" className="ah-btn ah-btn--outline" onClick={() => setIsImportModalOpen(false)}>Cancel</button>
+                  <button type="button" className="ah-btn ah-btn--outline" onClick={handleCloseImportModal}>Cancel</button>
                   <button type="button" className="ah-btn ah-btn--primary" disabled={importSummary.errors > 0 || importing} onClick={handleImportAttendance}>
                     {importing ? "Importing..." : "Import Valid Records"}
                   </button>
