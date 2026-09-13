@@ -609,9 +609,7 @@ const [rows] = await pool.query(
         "Year Level / Category",
         "Section / Team",
         "Date",
-        "Time In",
         "Status",
-        "Remarks",
       ];
 
       const sheetRows = [
@@ -624,9 +622,7 @@ const [rows] = await pool.query(
           String(participant.department ?? ""),
           String(participant.year ?? ""),
           String(participant.section ?? ""),
-          "",
-          "",
-          "",
+          "-",
           "",
         ]),
       ];
@@ -644,8 +640,6 @@ const [rows] = await pool.query(
         { wch: 18 },
         { wch: 14 },
         { wch: 14 },
-        { wch: 14 },
-        { wch: 24 },
       ];
       headers.forEach((header, index) => {
         const cell = ws[XLSX.utils.encode_cell({ r: 0, c: index })];
@@ -663,6 +657,15 @@ const [rows] = await pool.query(
           };
         }
       });
+
+      ws["!dataValidation"] = [{
+        type: "list",
+        allowBlank: true,
+        sqref: `I2:I${templateParticipants.length + 1}`,
+        formula1: '"Present,Late,Absent,Excused"',
+        promptTitle: "Attendance Status",
+        prompt: "Choose the attendance status for this participant.",
+      }];
 
       XLSX.utils.book_append_sheet(wb, ws, "Attendance Import");
       const buffer = XLSX.write(wb, { bookType: "xlsx", type: "buffer" });

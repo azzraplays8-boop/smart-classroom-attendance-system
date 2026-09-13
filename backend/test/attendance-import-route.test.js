@@ -176,7 +176,7 @@ test('attendance import template includes all organization participants and requ
     const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, blankrows: false, raw: false });
 
     const headers = rows[0] || [];
-    assert.deepEqual(headers.slice(0, 11), [
+    assert.deepEqual(headers.slice(0, 9), [
       'Participant ID',
       'Last Name',
       'First Name',
@@ -185,14 +185,14 @@ test('attendance import template includes all organization participants and requ
       'Year Level / Category',
       'Section / Team',
       'Date',
-      'Time In',
       'Status',
-      'Remarks',
     ]);
     assert.equal(rows[1]?.[0], 'P-1001');
     assert.equal(rows[1]?.[1], 'Dela Cruz');
     assert.equal(rows[1]?.[2], 'Juan');
     assert.equal(rows[1]?.[3], 'Santos');
+    assert.equal(rows[1]?.[7], '-');
+    assert.equal(rows[1]?.[8], '');
   } finally {
     await new Promise((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
   }
