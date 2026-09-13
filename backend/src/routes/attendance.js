@@ -575,51 +575,82 @@ const [rows] = await pool.query(
         return res.status(403).json({ message: "Access denied. Only Admin and Super Admin users can download the attendance import template." });
       }
 
+      const orgScope = req.user?.role === "super_admin" ? null : Number(req.user?.organization_id || 0);
       const [rows] = await pool.query(
-        `SELECT id,
-                participant_identifier AS participantIdentifier,
-                first_name AS firstName,
-                middle_name AS middleName,
-                last_name AS lastName,
-                department,
-                level AS year,
-                group_name AS section,
-                status
-         FROM participants
-         WHERE status IS NULL OR TRIM(COALESCE(status, '')) = '' OR LOWER(status) = 'active'
-         ORDER BY participant_identifier ASC, id ASC`
+        `SELECT p.participant_identifier AS participantIdentifier,
+                p.last_name AS lastName,
+                p.first_name AS firstName,
+                p.middle_name AS middleName,
+                p.department,
+                p.level AS year,
+                p.group_name AS section,
+                p.status
+         FROM participants p
+         LEFT JOIN users u ON u.id = p.user_id
+         WHERE (p.status IS NULL OR TRIM(COALESCE(p.status, '')) = '' OR LOWER(p.status) = 'active')
+           AND TRIM(COALESCE(p.participant_identifier, '')) <> ''
+           ${orgScope ? "AND u.organization_id = ?" : ""}
+         ORDER BY p.participant_identifier ASC, p.id ASC`,
+        orgScope ? [orgScope] : []
       );
 
       const templateParticipants = Array.isArray(rows) ? rows : [];
       if (!templateParticipants.length) {
-        return res.status(404).json({ message: "No active participants were found to build the attendance template." });
+        return res.status(404).json({ message: "No participants were found for your organization. Add participants before downloading the attendance template." });
       }
 
       const XLSX = await import("xlsx");
-      const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.aoa_to_sheet([]);
-      const today = new Date();
-      const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-
-      ws["A1"] = { v: "KATAGA", s: { font: { bold: true, sz: 16 }, alignment: { horizontal: "center" } } };
-      ws["A2"] = { v: "Attendance Import Sheet", s: { font: { bold: true, sz: 12 }, alignment: { horizontal: "center" } } };
-      ws["A4"] = { v: "Attendance Date:" };
-      ws["B4"] = { v: new Date(`${todayKey}T12:00:00`), t: "d", z: "mmmm d, yyyy" };
-      ws["A5"] = { v: "Activity / Session:" };
-      ws["B5"] = { v: "" };
-      ws["!merges"] = [
-        { s: { r: 0, c: 0 }, e: { r: 0, c: 8 } },
-        { s: { r: 1, c: 0 }, e: { r: 1, c: 8 } },
+      const headers = [
+        "Participant ID",
+        "Last Name",
+        "First Name",
+        "Middle Name",
+        "Course / Department",
+        "Year Level / Category",
+        "Section / Team",
+        "Date",
+        "Time In",
+        "Status",
+        "Remarks",
       ];
-      ws["!freeze"] = { xSplit: 0, ySplit: 7 };
 
-      const headers = ["#", "Participant ID", "Participant Name", "Department / Group", "Year Level", "Section", "Status", "Time In", "Remarks"];
-      const tableStartRow = 7;
+      const sheetRows = [
+        headers,
+        ...templateParticipants.map((participant) => [
+          String(participant.participantIdentifier ?? ""),
+          String(participant.lastName ?? ""),
+          String(participant.firstName ?? ""),
+          String(participant.middleName ?? ""),
+          String(participant.department ?? ""),
+          String(participant.year ?? ""),
+          String(participant.section ?? ""),
+          "",
+          "",
+          "",
+          "",
+        ]),
+      ];
+
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet(sheetRows);
+      ws["!freeze"] = { xSplit: 0, ySplit: 1 };
+      ws["!cols"] = [
+        { wch: 18 },
+        { wch: 18 },
+        { wch: 18 },
+        { wch: 18 },
+        { wch: 22 },
+        { wch: 20 },
+        { wch: 18 },
+        { wch: 14 },
+        { wch: 14 },
+        { wch: 14 },
+        { wch: 24 },
+      ];
       headers.forEach((header, index) => {
-        const cellAddress = XLSX.utils.encode_cell({ r: tableStartRow, c: index });
-        ws[cellAddress] = {
-          v: header,
-          s: {
+        const cell = ws[XLSX.utils.encode_cell({ r: 0, c: index })];
+        if (cell) {
+          cell.s = {
             font: { bold: true },
             fill: { fgColor: { rgb: "E9ECEF" } },
             border: {
@@ -629,70 +660,9 @@ const [rows] = await pool.query(
               left: { style: "thin", color: { rgb: "BDBDBD" } },
             },
             alignment: { horizontal: "center", vertical: "center" },
-          },
-        };
-      });
-
-      templateParticipants.forEach((participant, index) => {
-        const rowNumber = tableStartRow + index + 1;
-        const participantName = [participant.firstName, participant.middleName, participant.lastName].filter(Boolean).join(" ").trim();
-        const row = [
-          index + 1,
-          participant.participantIdentifier || "",
-          participantName || "",
-          participant.department || "",
-          participant.year || "",
-          participant.section || "",
-          "",
-          "",
-          "",
-        ];
-
-        row.forEach((value, cellIndex) => {
-          const address = XLSX.utils.encode_cell({ r: rowNumber, c: cellIndex });
-          ws[address] = {
-            v: value,
-            s: {
-              fill: { fgColor: { rgb: index % 2 === 0 ? "F7F9FC" : "FFFFFF" } },
-              border: {
-                top: { style: "thin", color: { rgb: "D9D9D9" } },
-                right: { style: "thin", color: { rgb: "D9D9D9" } },
-                bottom: { style: "thin", color: { rgb: "D9D9D9" } },
-                left: { style: "thin", color: { rgb: "D9D9D9" } },
-              },
-            },
           };
-        });
-
-        const statusCellAddress = XLSX.utils.encode_cell({ r: rowNumber, c: 6 });
-        const timeCellAddress = XLSX.utils.encode_cell({ r: rowNumber, c: 7 });
-        const remarksCellAddress = XLSX.utils.encode_cell({ r: rowNumber, c: 8 });
-
-        ws[statusCellAddress].s = { ...(ws[statusCellAddress].s || {}), protection: { locked: false } };
-        ws[timeCellAddress].s = { ...(ws[timeCellAddress].s || {}), protection: { locked: false } };
-        ws[remarksCellAddress].s = { ...(ws[remarksCellAddress].s || {}), protection: { locked: false } };
+        }
       });
-
-      ws["!dataValidation"] = [{
-        type: "list",
-        allowBlank: true,
-        sqref: `G${tableStartRow + 1}:G${tableStartRow + templateParticipants.length}`,
-        formula1: '"Present,Late,Absent,Excused"',
-        promptTitle: "Attendance Status",
-        prompt: "Choose the attendance status for this participant.",
-      }];
-
-      ws["!cols"] = [
-        { wch: 6 },
-        { wch: 20 },
-        { wch: 28 },
-        { wch: 22 },
-        { wch: 14 },
-        { wch: 18 },
-        { wch: 14 },
-        { wch: 16 },
-        { wch: 26 },
-      ];
 
       XLSX.utils.book_append_sheet(wb, ws, "Attendance Import");
       const buffer = XLSX.write(wb, { bookType: "xlsx", type: "buffer" });

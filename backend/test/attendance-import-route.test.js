@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import express from 'express';
 import { createServer } from 'node:http';
+import * as XLSX from 'xlsx';
 import attendanceRouter from '../src/routes/attendance.js';
 import { makeToken, wrapPoolForAuth } from './rbacTestHelpers.js';
 
@@ -110,6 +111,88 @@ test('attendance import allows admin to bulk import valid rows', async () => {
     assert.equal(body.summary.imported, 1);
     assert.equal(body.summary.totalSubmitted, 1);
     assert.equal(body.summary.failed, 0);
+  } finally {
+    await new Promise((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+  }
+});
+
+test('attendance import template includes all organization participants and required columns', async () => {
+  const participantRows = [
+    {
+      id: 1,
+      participantIdentifier: 'P-1001',
+      firstName: 'Juan',
+      middleName: 'Santos',
+      lastName: 'Dela Cruz',
+      department: 'BSIT',
+      year: '2nd Year',
+      section: 'A',
+      status: 'Active',
+    },
+    {
+      id: 2,
+      participantIdentifier: 'P-1002',
+      firstName: 'Maria',
+      middleName: 'Lopez',
+      lastName: 'Santos',
+      department: 'BSCS',
+      year: '3rd Year',
+      section: 'B',
+      status: 'Active',
+    },
+  ];
+
+  const pool = {
+    async query(sql) {
+      const sqlStr = String(sql);
+      if (sqlStr.includes('FROM participants')) {
+        return [participantRows];
+      }
+      return [[]];
+    },
+  };
+
+  const authedPool = wrapPoolForAuth(pool, 'administrator');
+  const app = express();
+  app.use(express.json({ limit: '10mb' }));
+  app.use('/attendance', attendanceRouter({ pool: authedPool }));
+
+  const server = createServer(app);
+  await new Promise((resolve) => server.listen(0, resolve));
+  const { port } = server.address();
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/attendance/import-template`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${makeToken('administrator')}`,
+      },
+    });
+
+    assert.equal(response.status, 200);
+    const buffer = Buffer.from(await response.arrayBuffer());
+    const workbook = XLSX.read(buffer, { type: 'buffer' });
+    const sheet = workbook.Sheets['Attendance Import'];
+    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, blankrows: false, raw: false });
+
+    const headers = rows[0] || [];
+    assert.deepEqual(headers.slice(0, 11), [
+      'Participant ID',
+      'Last Name',
+      'First Name',
+      'Middle Name',
+      'Course / Department',
+      'Year Level / Category',
+      'Section / Team',
+      'Date',
+      'Time In',
+      'Status',
+      'Remarks',
+    ]);
+    assert.equal(rows[1]?.[0], 'P-1001');
+    assert.equal(rows[1]?.[1], 'Dela Cruz');
+    assert.equal(rows[1]?.[2], 'Juan');
+    assert.equal(rows[1]?.[3], 'Santos');
   } finally {
     await new Promise((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
   }
