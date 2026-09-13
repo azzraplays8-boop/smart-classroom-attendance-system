@@ -69,7 +69,7 @@ function createImportPool() {
   });
 }
 
-test('attendance import allows admin to bulk import valid rows', async () => {
+test('attendance import allows admin to bulk import valid rows without Time In or Remarks', async () => {
   const pool = createImportPool();
   const authedPool = wrapPoolForAuth(pool, 'administrator');
   const app = express();
@@ -92,15 +92,25 @@ test('attendance import allows admin to bulk import valid rows', async () => {
         rows: [
           {
             'Participant ID': 'P-1001',
-            'Participant Name': 'Juan Dela Cruz',
-            Date: '2026-09-10',
-            'Time In': '08:15 AM',
-            Status: 'Present',
-            'Activity / Session': 'Orientation',
-            'Department / Group': 'BSIT',
+            'Last Name': 'Dela Cruz',
+            'First Name': 'Juan',
+            'Middle Name': 'Santos',
+            'Course / Department': 'BSIT',
             'Year Level / Category': '2nd Year',
-            Section: 'A',
-            Remarks: 'On time',
+            'Section / Team': 'A',
+            Date: '2026-09-10',
+            Status: 'Present',
+          },
+          {
+            'Participant ID': 'P-1002',
+            'Last Name': 'Santos',
+            'First Name': 'Maria',
+            'Middle Name': '',
+            'Course / Department': 'BSCS',
+            'Year Level / Category': '3rd Year',
+            'Section / Team': 'B',
+            Date: '2026-09-11',
+            Status: 'Absent',
           },
         ],
       }),
@@ -108,8 +118,8 @@ test('attendance import allows admin to bulk import valid rows', async () => {
 
     const body = await response.json();
     assert.equal(response.status, 201);
-    assert.equal(body.summary.imported, 1);
-    assert.equal(body.summary.totalSubmitted, 1);
+    assert.equal(body.summary.imported, 2);
+    assert.equal(body.summary.totalSubmitted, 2);
     assert.equal(body.summary.failed, 0);
   } finally {
     await new Promise((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));

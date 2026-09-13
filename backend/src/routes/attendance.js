@@ -765,11 +765,6 @@ const [rows] = await pool.query(
             continue;
           }
 
-          if ((status === "Present" || status === "Late") && !timeInCandidate) {
-            validationErrors.push({ row: index + 2, participantId, reason: "Missing required field: Time In" });
-            continue;
-          }
-
           validRows.push({
             participant_id: participant.id,
             attendance_date: attendanceDate,

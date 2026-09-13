@@ -574,6 +574,33 @@ function AttendanceHistory() {
     return map[key] || "";
   };
 
+  const getImportRowValue = (row, aliases) => {
+    if (!row || typeof row !== "object") return "";
+
+    for (const alias of aliases) {
+      if (!alias) continue;
+      const directMatch = Object.prototype.hasOwnProperty.call(row, alias);
+      if (directMatch) return row[alias];
+
+      const normalizedKey = String(alias).trim().toLowerCase();
+      const matchedKey = Object.keys(row).find((key) => String(key).trim().toLowerCase() === normalizedKey);
+      if (matchedKey) return row[matchedKey];
+    }
+
+    return "";
+  };
+
+  const buildParticipantName = (row) => {
+    const directName = String(getImportRowValue(row, ["Participant Name", "participantName", "ParticipantName", "Full Name", "fullName"]) ?? "").trim();
+    if (directName && directName !== "-") return directName;
+
+    const firstName = String(getImportRowValue(row, ["First Name", "firstName", "FirstName"]) ?? "").trim();
+    const middleName = String(getImportRowValue(row, ["Middle Name", "middleName", "MiddleName"]) ?? "").trim();
+    const lastName = String(getImportRowValue(row, ["Last Name", "lastName", "LastName"]) ?? "").trim();
+    const nameParts = [firstName, middleName, lastName].filter((part) => part && part !== "-");
+    return nameParts.join(" ").trim();
+  };
+
   const extractAttendanceImportSheetData = (sheet) => {
     const rawRows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, blankrows: false, defval: "" });
     const session = { date: "", activity: "" };
@@ -615,23 +642,41 @@ function AttendanceHistory() {
     });
 
     const filteredRows = rows.filter((row) => {
-      const status = normalizeStatusValue(row["Status"] ?? row.status ?? "");
-      const participantId = String(row["Participant ID"] ?? row.participantId ?? row.participant_identifier ?? "").trim();
-      const participantName = String(row["Participant Name"] ?? row.participantName ?? "").trim();
-      return Boolean(status || participantId || participantName || row["Time In"] || row.timeIn || row["Remarks"] || row.remarks);
+      const status = normalizeStatusValue(getImportRowValue(row, ["Status", "status"]));
+      const participantId = String(getImportRowValue(row, ["Participant ID", "participantId", "participant_identifier", "Participant Identifier"]) ?? "").trim();
+      const participantName = buildParticipantName(row);
+      const dateValue = getImportRowValue(row, ["Date", "date", "attendanceDate"]);
+      return Boolean(status || participantId || participantName || dateValue || getImportRowValue(row, ["Time In", "timeIn", "TimeIn"]) || getImportRowValue(row, ["Remarks", "remarks", "Remark"]));
     });
 
     const normalizedRows = filteredRows
       .map((row, index) => {
-        const participantId = String(row["Participant ID"] ?? row.participantId ?? row.participant_identifier ?? "").trim();
-        const participantName = String(row["Participant Name"] ?? row.participantName ?? "").trim();
-        const date = parseImportDate(row["Date"] ?? row.date ?? session.date ?? "");
-        const timeIn = parseImportTime(row["Time In"] ?? row.timeIn ?? "", date);
-        const status = normalizeStatusValue(row["Status"] ?? row.status ?? "");
-        const activity = String(row["Activity / Session"] ?? row.activity ?? session.activity ?? "").trim();
+        const participantId = String(getImportRowValue(row, ["Participant ID", "participantId", "participant_identifier", "Participant Identifier"]) ?? "").trim();
+        const participantName = buildParticipantName(row);
+        const date = parseImportDate(getImportRowValue(row, ["Date", "date", "attendanceDate"]) ?? session.date ?? "");
+        const timeIn = parseImportTime(getImportRowValue(row, ["Time In", "timeIn", "TimeIn"]) ?? "", date);
+        const status = normalizeStatusValue(getImportRowValue(row, ["Status", "status"]));
+        const activity = String(getImportRowValue(row, ["Activity / Session", "activity", "Session", "Activity"]) ?? session.activity ?? "").trim();
 
         if (!status) {
-          return null;
+          return {
+            rowNumber: index + 2,
+            participantId,
+            participantName,
+            date,
+            timeIn,
+            status: "",
+            activity,
+            validationState: "Error",
+            validationMessage: "Missing status",
+            raw: {
+              ...row,
+              Date: date || getImportRowValue(row, ["Date", "date", "attendanceDate"]) || session.date || "",
+              "Activity / Session": activity || getImportRowValue(row, ["Activity / Session", "activity", "Session", "Activity"]) || session.activity || "",
+              Status: status,
+              "Time In": timeIn || getImportRowValue(row, ["Time In", "timeIn", "TimeIn"]) || "",
+            },
+          };
         }
 
         const validation = {
@@ -644,21 +689,24 @@ function AttendanceHistory() {
           activity,
           validationState: "Ready",
           validationMessage: "Ready",
-          raw: { ...row, Date: date || row["Date"] || row.date || session.date || "", "Activity / Session": activity || row["Activity / Session"] || row.activity || session.activity || "", Status: status, "Time In": timeIn || row["Time In"] || row.timeIn || "" },
+          raw: {
+            ...row,
+            Date: date || getImportRowValue(row, ["Date", "date", "attendanceDate"]) || session.date || "",
+            "Activity / Session": activity || getImportRowValue(row, ["Activity / Session", "activity", "Session", "Activity"]) || session.activity || "",
+            Status: status,
+            "Time In": timeIn || getImportRowValue(row, ["Time In", "timeIn", "TimeIn"]) || "",
+          },
         };
 
         if (!participantId) {
           validation.validationState = "Error";
-          validation.validationMessage = "Missing required field";
+          validation.validationMessage = "Missing required field: Participant ID";
         } else if (!participantMap.has(participantId)) {
           validation.validationState = "Error";
           validation.validationMessage = "Participant ID not found";
         } else if (!date) {
           validation.validationState = "Error";
-          validation.validationMessage = "Invalid date";
-        } else if ((status === "Present" || status === "Late") && !timeIn) {
-          validation.validationState = "Warning";
-          validation.validationMessage = "Time In required";
+          validation.validationMessage = "Missing or invalid date";
         } else {
           const duplicate = records.find((record) => {
             if (!record.participantIdentifier) return false;
@@ -671,8 +719,7 @@ function AttendanceHistory() {
         }
 
         return validation;
-      })
-      .filter(Boolean);
+      });
 
     const nextSummary = {
       total: normalizedRows.length,
@@ -735,6 +782,7 @@ function AttendanceHistory() {
 
     try {
       setImporting(true);
+      setImportError("");
       const session = {
         date: importPreview.find((row) => row.date)?.date || "",
         activity: importPreview.find((row) => row.activity)?.activity || "",
@@ -1407,22 +1455,18 @@ function AttendanceHistory() {
                         <th>Participant ID</th>
                         <th>Participant Name</th>
                         <th>Date</th>
-                        <th>Time</th>
                         <th>Status</th>
-                        <th>Activity</th>
-                        <th>Validation</th>
+                        <th>Validation Result</th>
                       </tr>
                     </thead>
                     <tbody>
                       {importPreview.map((row) => (
-                        <tr key={`${row.rowNumber}-${row.participantId}`}>
+                        <tr key={`${row.rowNumber}-${row.participantId || "row"}`}>
                           <td>{row.rowNumber}</td>
                           <td>{row.participantId || "-"}</td>
                           <td>{row.participantName || "-"}</td>
                           <td>{row.date || "-"}</td>
-                          <td>{row.timeIn ? formatTime(row.timeIn) : "-"}</td>
                           <td>{row.status || "-"}</td>
-                          <td>{row.activity || "-"}</td>
                           <td>
                             <span className={`ah-preview-badge ah-preview-badge--${String(row.validationState).toLowerCase()}`}>
                               {row.validationMessage}
@@ -1435,8 +1479,13 @@ function AttendanceHistory() {
                 </div>
                 <div className="ah-modal-actions">
                   <button type="button" className="ah-btn ah-btn--outline" onClick={handleCloseImportModal}>Cancel</button>
-                  <button type="button" className="ah-btn ah-btn--primary" disabled={importSummary.errors > 0 || importing} onClick={handleImportAttendance}>
-                    {importing ? "Importing..." : "Import Valid Records"}
+                  <button
+                    type="button"
+                    className="ah-btn ah-btn--primary"
+                    disabled={importing || importSummary.errors > 0 || (importSummary.total === 0) || ((importSummary.ready + importSummary.warnings) === 0)}
+                    onClick={handleImportAttendance}
+                  >
+                    {importing ? "Importing..." : importSummary.errors > 0 ? "Resolve Errors" : "Import Valid Records"}
                   </button>
                 </div>
               </div>
